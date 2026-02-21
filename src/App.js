@@ -527,7 +527,7 @@ function StageBoss({user,onLogout}){
     const sub=encodeURIComponent(`Phil Medina  -  Availability  -  ${v.venue}`);
     const body=aiResult.split('\n').map(l=>encodeURIComponent(l)).join('%0D%0A');
     window.open(`mailto:${v.email}?subject=${sub}&body=${body}`,'_blank');
-
+  }
   // -- VOICE TO TEMPLATE ----------------------------------------
   function startVoice(target,currentVal,onResult){
     if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){
@@ -751,7 +751,7 @@ function StageBoss({user,onLogout}){
 
       {/* AI OUTREACH PANEL */}
       {aiOpen&&<><div onClick={()=>{setAiOpen(false);setAiResult('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:400}}/><div style={{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',background:C.surf,border:`1px solid ${C.acc}`,borderRadius:20,padding:24,zIndex:401,width:'calc(100% - 32px)',maxWidth:520,maxHeight:'85vh',overflowY:'auto'}}>
-        <div style={{fontFamily:font.head,fontWeight:800,fontSize:18,marginBottom:4}}>AI AI Outreach Writer</div>
+        <div style={{fontFamily:font.head,fontWeight:800,fontSize:18,marginBottom:4}}>AI Outreach Writer</div>
         <div style={{fontSize:11,color:C.muted,marginBottom:16}}>{venues.find(v=>v.id===aiVenueId)?.venue}  -  {venues.find(v=>v.id===aiVenueId)?.city}, {venues.find(v=>v.id===aiVenueId)?.state}</div>
         {aiLoading&&<div style={{textAlign:'center',padding:'32px 0'}}>
           <div style={{fontSize:32,marginBottom:12,animation:'spin 1s linear infinite'}}>[loading]</div>
@@ -896,7 +896,7 @@ function StageBoss({user,onLogout}){
             <select value={stateFilter2} onChange={e=>setStateFilter2(e.target.value)} style={{...s.select,fontSize:11,padding:'7px 10px',flex:1,maxWidth:160}}>
               {myVenueStates.map(st=><option key={st} value={st}>{st==='All'?`All States (${venues.length})`:st}</option>)}
             </select>
-            <button onClick={()=>toast2('Tap AI Write on any venue card below')} style={{...s.btn(C.acc,'#fff',null),fontSize:11,padding:'7px 14px',flex:'none',whiteSpace:'nowrap'}}>AI Write</button>
+            <button onClick={()=>toast2('Tap AI Write on any venue card')} style={{...s.btn(C.acc,'#fff',null),fontSize:11,padding:'7px 14px',flex:'none',whiteSpace:'nowrap'}}>AI Write</button>
           </div>
           <div style={{padding:'0 16px'}}>
             {venues.length===0&&<div style={{textAlign:'center',padding:'40px 20px'}}><div style={{fontSize:36,marginBottom:12}}>[venue]</div><div style={{color:C.muted,marginBottom:16}}>No venues yet</div><button onClick={()=>setDbOpen(true)} style={{...s.btn(C.acc,'#fff',null),display:'inline-flex',width:'auto',padding:'12px 20px'}}>Browse 500+ Clubs </button></div>}
@@ -1416,5 +1416,4 @@ function TourEditor({tour,onSave,onCancel}){
       <button onClick={onCancel} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button>
     </div>
   </>;
-}
 }
