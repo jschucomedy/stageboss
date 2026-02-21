@@ -574,7 +574,7 @@ function StageBoss({user,onLogout}){
   },[venues,templates,tours,user]);
 
   // -- AI OUTREACH WRITER --------------------------------------
-  async function async generateAIOutreach(venueId){
+  async function generateAIOutreach(venueId){
     const v=venues.find(x=>x.id===venueId);
     if(!v)return;
     setAiVenueId(venueId);setAiOpen(true);setAiLoading(true);setAiResult('');
