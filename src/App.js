@@ -525,10 +525,8 @@ function StageBoss({user,onLogout}){
     const v=venues.find(x=>x.id===aiVenueId);
     if(!v||!aiResult)return;
     const sub=encodeURIComponent(`Phil Medina  -  Availability  -  ${v.venue}`);
-    const body=aiResult.split('
-').map(l=>encodeURIComponent(l)).join('%0D%0A');
+    const body=aiResult.split('\n').map(l=>encodeURIComponent(l)).join('%0D%0A');
     window.open(`mailto:${v.email}?subject=${sub}&body=${body}`,'_blank');
-  }
 
   // -- VOICE TO TEMPLATE ----------------------------------------
   function startVoice(target,currentVal,onResult){
@@ -1418,4 +1416,5 @@ function TourEditor({tour,onSave,onCancel}){
       <button onClick={onCancel} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button>
     </div>
   </>;
+}
 }
