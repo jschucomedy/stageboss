@@ -898,7 +898,7 @@ function StageBoss({user,onLogout}){
             <select value={stateFilter2} onChange={e=>setStateFilter2(e.target.value)} style={{...s.select,fontSize:11,padding:'7px 10px',flex:1,maxWidth:160}}>
               {myVenueStates.map(st=><option key={st} value={st}>{st==='All'?`All States (${venues.length})`:st}</option>)}
             </select>
-            <button onClick={()=>setAiOpen(true)} style={{...s.btn(C.acc,'#fff',null),fontSize:11,padding:'7px 14px',flex:'none',whiteSpace:'nowrap'}}>AI AI Write</button>
+            <button onClick={()=>toast2('Tap AI Write on any venue card below')} style={{...s.btn(C.acc,'#fff',null),fontSize:11,padding:'7px 14px',flex:'none',whiteSpace:'nowrap'}}>AI Write</button>
           </div>
           <div style={{padding:'0 16px'}}>
             {venues.length===0&&<div style={{textAlign:'center',padding:'40px 20px'}}><div style={{fontSize:36,marginBottom:12}}>[venue]</div><div style={{color:C.muted,marginBottom:16}}>No venues yet</div><button onClick={()=>setDbOpen(true)} style={{...s.btn(C.acc,'#fff',null),display:'inline-flex',width:'auto',padding:'12px 20px'}}>Browse 500+ Clubs -></button></div>}
@@ -917,8 +917,8 @@ function StageBoss({user,onLogout}){
                 </div>
                 {v.targetDates&&<div style={{marginTop:6,fontSize:10,color:C.muted2}}>[date] {v.targetDates}</div>}
                 <div style={{marginTop:8,display:'flex',gap:6}}>
-                  <button onClick={e=>{e.stopPropagation();generateAIOutreach(v.id);}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(108,92,231,0.12)',border:`1px solid rgba(108,92,231,0.3)`,color:C.acc2,cursor:'pointer',fontFamily:font.body}}>AI AI Write</button>
-                  {v.email&&<button onClick={e=>{e.stopPropagation();setComposeId(v.id);}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(116,185,255,0.08)',border:`1px solid rgba(116,185,255,0.2)`,color:C.blue,cursor:'pointer',fontFamily:font.body}}>[email] Email</button>}
+                  <button onClick={e=>{e.stopPropagation();generateAIOutreach(v.id);}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(108,92,231,0.12)',border:`1px solid rgba(108,92,231,0.3)`,color:C.acc2,cursor:'pointer',fontFamily:font.body}}>AI Write</button>
+                  {v.email&&<button onClick={e=>{e.stopPropagation();setComposeId(v.id);}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(116,185,255,0.08)',border:`1px solid rgba(116,185,255,0.2)`,color:C.blue,cursor:'pointer',fontFamily:font.body}}>Email</button>}
                 </div>
               </div>;
             })}
