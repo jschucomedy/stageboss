@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
-const SB_URL = 'https://placeholder.supabase.co';
+const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
 // Anthropic API key - add yours here
 const ANTHROPIC_KEY = 'YOUR_ANTHROPIC_KEY_HERE';
-const SB_KEY = 'placeholder_key';
+const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 async function cloudLoad(email) {
   try {
     const r = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=data`, {
@@ -559,7 +559,9 @@ function StageBoss({user,onLogout}){
     if(!v)return;
     setAiVenueId(venueId);setAiOpen(true);setAiLoading(true);setAiResult('');
     const touches=(v.contactLog||[]).length;
-    const prompt='Write a SHORT personalized booking outreach email for '+v.venue+' in '+v.city+', '+v.state+'. Booker: '+(v.booker||'the booker')+'. Venue type: '+(v.venueType||'comedy club')+'. Capacity: '+(v.capacity||'unknown')+'. Relationship: '+(v.relationship||'new')+' (touch #'+(touches+1)+'). Target dates: '+(v.targetDates||'flexible')+'. Deal: '+(v.dealType||'Flat Guarantee')+'. Notes: '+(v.notes||'none')+'.'+'\n\nYou are Jason Schuster, bi-coastal touring comedian and tour manager for Phil Medina. Phil credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Festival, Hulu West Coast Comedy. Jason credits: Comedy Store, Jimmy Kimmels Comedy Club, Kenan Presents.\n\nRules: Keep under 200 words. Sound natural and human. '+(touches===0?'This is first contact, be warm and professional.':'This is follow-up #'+(touches+1)+', reference reaching out before, keep it brief.')+' Mention Phil and Jason specifically. End with clear ask about availability. Sign off as Jason Schuster.\n\nWrite only the email body, no subject line.';
+    const touchNum=touches+1;
+    const isFollowUp=touches>0;
+    const prompt='You are Jason Schuster, a bi-coastal touring comedian and tour manager for Phil Medina. Write a SHORT, natural, human booking outreach email. DO NOT sound like a form letter.\n\nVenue: '+v.venue+'\nCity: '+v.city+', '+v.state+'\nBooker: '+(v.booker||'their booker')+(v.bookerLast?' '+v.bookerLast:'')+'\nVenue type: '+(v.venueType||'comedy club')+'\nCapacity: '+(v.capacity||'unknown')+'\nRelationship: '+(v.relationship||'new contact')+'\nTouch number: '+touchNum+'\nTarget dates: '+(v.targetDates||'flexible')+'\nDeal preference: '+(v.dealType||'Flat Guarantee')+'\nHistory: '+(v.history||'none')+'\n\nPHIL MEDINA credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Fest, Hulu West Coast Comedy Special.\nJASON SCHUSTER credits: Comedy Store, Jimmy Kimmels Comedy Club, Kenan Presents.\n\n'+(isFollowUp?'This is follow-up #'+touchNum+'. Be brief, reference the previous outreach, keep it warm and persistent.':'This is first contact. Be warm, professional, and concise.')+'\n\nRules:\n- Under 150 words\n- Natural tone, not corporate\n- Mention Phil AND Jason by name\n- End with clear availability ask\n- Sign as Jason Schuster\n\nWrite ONLY the email body, no subject line.';
     try{
       const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
       const data=await res.json();
@@ -595,11 +597,12 @@ function StageBoss({user,onLogout}){
   }
   // -- VOICE TO TEMPLATE ----------------------------------------
   function startVoice(target,currentVal,onResult){
-    if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){
+    const SpeechRecog=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SpeechRecog){
       toast2('Voice not supported in this browser');return;
     }
     const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-    const recognition=new SpeechRecognition();
+    const recognition=new SpeechRecog();
     recognition.continuous=false;recognition.interimResults=false;recognition.lang='en-US';
     recognitionRef.current=recognition;
     setVoiceActive(true);setVoiceTarget(target);
@@ -849,7 +852,10 @@ function StageBoss({user,onLogout}){
       {/* DESKTOP SIDEBAR */}
       <div className="sb-sidebar">
         <div onClick={()=>setTab('today')} style={{cursor:'pointer',marginBottom:28}}>
-          <div style={{fontFamily:font.head,fontWeight:800,fontSize:22,letterSpacing:-1,lineHeight:1}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:2}}>
+            <div style={{width:34,height:34,borderRadius:9,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:14,color:'#fff',fontFamily:font.head,flexShrink:0,letterSpacing:-0.5}}>SB</div>
+            <div style={{fontFamily:font.head,fontWeight:800,fontSize:22,letterSpacing:-1,lineHeight:1}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
+          </div>
           <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:4}}>Booking Command Center</div>
         </div>
         {/* Sidebar nav */}
@@ -884,7 +890,10 @@ function StageBoss({user,onLogout}){
       <div className="sb-mobile-header" style={s.header}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <div onClick={()=>setTab('today')} style={{cursor:'pointer'}}>
-            <div style={{fontFamily:font.head,fontWeight:800,fontSize:24,letterSpacing:-1,lineHeight:1}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{width:30,height:30,borderRadius:8,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13,color:'#fff',fontFamily:font.head,flexShrink:0}}>SB</div>
+              <div style={{fontFamily:font.head,fontWeight:800,fontSize:24,letterSpacing:-1,lineHeight:1}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
+            </div>
             <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>Comedy Booking Command Center</div>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -1484,7 +1493,7 @@ function TourEditor({tour,onSave,onCancel}){
       {/* Deal-specific fields */}
       {(d.dealType==='Flat Guarantee'||d.dealType==='Guarantee + Bonus'||d.dealType==='Versus Deal'||!d.dealType)&&<div style={{marginBottom:8}}><label style={s.label}>Guarantee ($)</label><input type="number" style={s.input(11)} value={d.guarantee||''} onChange={e=>updDate(d.id,{guarantee:parseFloat(e.target.value)||0})} placeholder="2000"/></div>}
       {d.dealType==='Versus Deal'&&<><div style={{marginBottom:8}}><label style={s.label}>Venue Minimum ($)</label><input type="number" style={s.input(11)} value={d.venueMinimum||''} onChange={e=>updDate(d.id,{venueMinimum:parseFloat(e.target.value)||0})} placeholder="4500 admin fee"/></div><div style={{marginBottom:8}}><label style={s.label}>GBOR % (your share)</label><input type="number" style={s.input(11)} value={d.gborPct||''} onChange={e=>updDate(d.id,{gborPct:parseFloat(e.target.value)||0})} placeholder="85"/></div></>}
-      {d.dealType==='Door Deal'&&<><div style={{marginBottom:8}}><label style={s.label}>Your Door % (after expenses)</label><input type="number" style={s.input(11)} value={d.doorPct||''} onChange={e=>updDate(d.id,{doorPct:parseFloat(e.target.value)||0})} placeholder="80"/></div><div style={{marginBottom:8}}><label style={s.label}>Venue Expenses Off Top ($)</label><input type="number" style={s.input(11)} value={d.doorExpenses||''} onChange={e=>updDate(d.id,{doorExpenses:parseFloat(e.target.value)||0})} placeholder="300 (staffing, sound, etc)"/></div></>}
+      {d.dealType==='Door Deal'&&<><div style={{marginBottom:8}}><label style={s.label}>Door Split (e.g. 70/30 or 80/20)</label><div style={{display:'flex',alignItems:'center',gap:6}}><input type="number" style={{...s.input(11),flex:1}} value={d.doorPctArtist||''} onChange={e=>{const v=parseFloat(e.target.value)||0;updDate(d.id,{doorPctArtist:v,doorPct:v});}} placeholder="70"/><span style={{color:C.muted,fontSize:12}}>/</span><input type="number" style={{...s.input(11),flex:1}} value={d.doorPctVenue||''} onChange={e=>updDate(d.id,{doorPctVenue:parseFloat(e.target.value)||0})} placeholder="30"/></div><div style={{fontSize:10,color:C.muted,marginTop:3}}>{d.doorPctArtist||0}% artist / {d.doorPctVenue||0}% venue</div></div><div style={{marginBottom:8}}><label style={s.label}>Venue Expenses Off Top ($)</label><input type="number" style={s.input(11)} value={d.doorExpenses||''} onChange={e=>updDate(d.id,{doorExpenses:parseFloat(e.target.value)||0})} placeholder="300 (staffing, sound, etc)"/></div></>}
       {d.dealType==='Guarantee + Bonus'&&<div style={{marginBottom:8}}><label style={s.label}>Bonus Threshold / Notes</label><input style={s.input(11)} value={d.bonusNotes||''} onChange={e=>updDate(d.id,{bonusNotes:e.target.value})} placeholder="e.g. +$500 if over 200 tickets"/></div>}
       <div style={{marginBottom:8}}><label style={s.label}>Ticket Price ($)</label><input type="number" style={s.input(11)} value={d.ticketPrice||''} onChange={e=>updDate(d.id,{ticketPrice:parseFloat(e.target.value)||0})} placeholder="25"/></div>
       <div style={{marginBottom:8}}><label style={s.label}>Deal Notes (full terms)</label><input style={s.input(11)} value={d.dealNotes||''} onChange={e=>updDate(d.id,{dealNotes:e.target.value})} placeholder="e.g. 100% door after tax + staffing, Porch Stage 80/20 after $300"/></div>
