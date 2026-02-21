@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 // -- SUPABASE CLOUD SYNC --------------------------------------
 const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
 // Anthropic API key - add yours here
-const ANTHROPIC_KEY = 'YOUR_ANTHROPIC_KEY_HERE';
+const ANTHROPIC_KEY = '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';
 const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 async function cloudLoad(email) {
   try {
@@ -526,7 +526,7 @@ function StageBoss({user,onLogout}){
   const[lastSync,setLastSync]=useState(null);
   const syncTimeout=useRef(null);
 
-  // Cloud load on mount
+  // Cloud load on mount + poll every 20s for real-time sync
   useEffect(()=>{
     async function loadCloud(){
       setSyncing(true);
@@ -539,7 +539,12 @@ function StageBoss({user,onLogout}){
       }
       setSyncing(false);
     }
-    if(SB_URL!=='https://placeholder.supabase.co') loadCloud();
+    if(SB_URL!=='https://placeholder.supabase.co'){
+      loadCloud();
+      // Poll every 20 seconds for changes from other devices
+      const pollInterval=setInterval(loadCloud, 20000);
+      return ()=>clearInterval(pollInterval);
+    }
   },[user]);
 
   // Auto-save to cloud on changes (debounced 3s)
@@ -551,7 +556,7 @@ function StageBoss({user,onLogout}){
       await cloudSave(user,{venues,templates,tours});
       setLastSync(new Date());
       setSyncing(false);
-    },3000);
+    },1500);
     return()=>clearTimeout(syncTimeout.current);
   },[venues,templates,tours,user]);
 
@@ -1258,10 +1263,11 @@ function StageBoss({user,onLogout}){
               const touches=(cv.contactLog||[]).length;
               const isNew=touches===0;
               const prompt='You are Jason Schuster, comedian and tour manager for Phil Medina. Write a SHORT natural booking email.\n\nVenue: '+cv.venue+'\nCity: '+cv.city+', '+cv.state+'\nBooker: '+(cv.booker||'their booker')+(cv.bookerLast?' '+cv.bookerLast:'')+'\nRelationship: '+(isNew?'brand new contact, first outreach':'existing contact, touch #'+(touches+1))+'\nPrevious contacts: '+touches+'\nHistory: '+(cv.history||'none')+'\nWarmth: '+(cv.warmth||'Cold')+'\nStatus: '+cv.status+'\nTarget dates: '+(cv.targetDates||'flexible')+'\n\nPhil Medina credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Fest, Hulu West Coast Comedy.\nJason Schuster credits: Comedy Store, Jimmy Kimmel Comedy Club, Kenan Presents.\n\n'+(isNew?'First outreach - warm, professional, brief.':'Follow-up - reference previous outreach, stay persistent but friendly.')+'\n\nWrite ONLY the email body under 120 words. Sign as Jason Schuster.';
+              if(!ANTHROPIC_KEY||ANTHROPIC_KEY==='YOUR_ANTHROPIC_KEY_HERE'){toast2('Add your Anthropic API key to App.js line 6');return;}
               fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})})
-              .then(r=>r.json()).then(d=>{const txt=d.content?.[0]?.text||'';if(txt){setComposeOpts(o=>({...o,customNote:txt}));toast2('AI draft ready!');}else{toast2('AI error - check API key');}})
-              .catch(()=>toast2('AI unavailable'));
-              toast2('Generating...');
+              .then(r=>r.json()).then(d=>{const txt=d.content?.[0]?.text||'';if(txt){setComposeOpts(o=>({...o,customNote:txt}));toast2('AI draft ready!');}else{toast2('AI error: '+(d.error?.message||'check API key'));}})
+              .catch(e=>toast2('AI error: '+e.message));
+              toast2('Generating AI draft...');
             }} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),width:'100%',marginBottom:8,fontSize:12}}>AI Draft Email (relationship-aware)</button>}
             <div style={s.row}>
               {mailto&&<button onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');const gmailUrl='https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to='+encodeURIComponent(cv?.email||'')+'&su='+encodeURIComponent(filledSubject)+'&body='+encodeURIComponent(fullBody);window.open(gmailUrl,'_blank');}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>[email] Open Gmail</button>}
