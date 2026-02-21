@@ -504,6 +504,7 @@ function StageBoss({user,onLogout}){
   const[tourOpen,setTourOpen]=useState(false);
   const[editTourId,setEditTourId]=useState(null);
   const[expandTourId,setExpandTourId]=useState(null);
+  const[tourBreakdownId,setTourBreakdownId]=useState(null);
   const[importOpen,setImportOpen]=useState(false);
   const[confirmDelete,setConfirmDelete]=useState(null);
   const[composeOpts,setComposeOpts]=useState({});
@@ -583,11 +584,8 @@ function StageBoss({user,onLogout}){
   function openAiInGmail(){
     const v=venues.find(x=>x.id===aiVenueId);
     if(!v||!aiResult)return;
-    const sub=encodeURIComponent('Phil Medina - Availability - '+v.venue);
-    const bodyEnc=aiResult.split('\n').map(l=>encodeURIComponent(l)).join('%0D%0A');
-    const mailto='mailto:'+v.email+'?subject='+sub+'&body='+bodyEnc;
-    // Try to open mail app
-    window.open(mailto,'_blank');
+    const gmailUrl='https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to='+encodeURIComponent(v.email||'')+'&su='+encodeURIComponent('Phil Medina - Availability - '+v.venue)+'&body='+encodeURIComponent(aiResult);
+    window.open(gmailUrl,'_blank');
     // Also copy to clipboard as fallback
     setTimeout(()=>{
       try{navigator.clipboard.writeText('To: '+v.email+'\nSubject: Phil Medina - Availability - '+v.venue+'\n\n'+aiResult);}catch{}
@@ -598,22 +596,30 @@ function StageBoss({user,onLogout}){
   function startVoice(target,currentVal,onResult){
     const SpeechRecog=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SpeechRecog){
-      toast2('Voice not supported in this browser');return;
+      const typed=window.prompt('Speak-to-text not available. Type here instead:',currentVal||'');
+      if(typed!==null) onResult((currentVal?currentVal+' ':'')+typed);
+      return;
     }
-    const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-    const recognition=new SpeechRecog();
-    recognition.continuous=false;recognition.interimResults=false;recognition.lang='en-US';
-    recognitionRef.current=recognition;
-    setVoiceActive(true);setVoiceTarget(target);
-    recognition.onresult=(e)=>{
-      const transcript=e.results[0][0].transcript;
-      onResult(currentVal?currentVal+' '+transcript:transcript);
-      setVoiceActive(false);setVoiceTarget(null);
-      toast2('Voice captured OK');
+    if(recognitionRef.current){recognitionRef.current.stop();recognitionRef.current=null;setVoiceTarget(null);return;}
+    const r=new SpeechRecog();
+    r.continuous=false;
+    r.interimResults=false;
+    r.lang='en-US';
+    r.maxAlternatives=1;
+    r.onstart=()=>{setVoiceTarget(target);toast2('Listening... speak now');};
+    r.onresult=e=>{
+      const transcript=Array.from(e.results).map(r=>r[0].transcript).join(' ').trim();
+      onResult((currentVal?currentVal+' ':'')+transcript);
+      toast2('Got it!');
     };
-    recognition.onerror=()=>{setVoiceActive(false);setVoiceTarget(null);toast2('Voice error  -  try again');};
-    recognition.onend=()=>{setVoiceActive(false);setVoiceTarget(null);};
-    recognition.start();
+    r.onerror=e=>{
+      toast2('Mic error: '+e.error+'. Try allowing microphone access.');
+      setVoiceTarget(null);
+      recognitionRef.current=null;
+    };
+    r.onend=()=>{setVoiceTarget(null);recognitionRef.current=null;};
+    recognitionRef.current=r;
+    try{r.start();}catch(e){toast2('Could not start mic. Check browser permissions.');}
   }
 
   function exportData(){
@@ -767,7 +773,7 @@ function StageBoss({user,onLogout}){
       .map(line => encodeURIComponent(line))
       .join('%0D%0A');
   }
-  const mailto=cv?.email?`mailto:${cv.email}?subject=${encodeURIComponent(filledSubject)}&body=${formatForMailto(fullBody)}`:null;
+  const mailto=cv?.email?`https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to=${encodeURIComponent(cv.email)}&su=${encodeURIComponent(filledSubject)}&body=${encodeURIComponent(fullBody)}`:null;
   const dbStates=['All',...new Set(VENUE_DATABASE.map(v=>v.state).sort())];
   const myVenueStates=['All',...new Set(venues.map(v=>v.state).filter(Boolean).sort())];
   const dbTypes=['All',...VENUE_TYPES];
@@ -1048,9 +1054,12 @@ function StageBoss({user,onLogout}){
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
                 {[['Gross',formatCurrency(totalGuarantee),C.green],['Expenses',formatCurrency(totalExpenses),C.red],['Net Est.',formatCurrency(netRevenue),netRevenue>=0?C.green:C.red]].map(([l,v,color])=><div key={l} style={{background:C.surf2,borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>{l}</div><div style={{fontSize:13,fontFamily:font.head,fontWeight:700,color}}>{v}</div></div>)}
               </div>
-              <div style={{display:'flex',gap:8,marginBottom:8}}>
-                <button onClick={e=>{e.stopPropagation();setEditTourId(tour.id);setTourOpen(true);}} style={{...s.btn(C.surf2,C.txt,C.bord),flex:1,fontSize:11,padding:'6px 10px'}}>Edit Tour</button>
-                <button onClick={e=>{e.stopPropagation();if(window.confirm('Delete '+tour.name+'?')){setTours(prev=>prev.filter(t=>t.id!==tour.id));toast2('Tour deleted');}}} style={{...s.btn('rgba(255,71,87,0.1)',C.red,'rgba(255,71,87,0.3)'),flex:1,fontSize:11,padding:'6px 10px'}}>Delete</button>
+              <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap'}}>
+                <button onClick={e=>{e.stopPropagation();setEditTourId(tour.id);setTourOpen(true);}} style={{...s.btn(C.surf2,C.txt,C.bord),flex:1,fontSize:11,padding:'6px 8px'}}>Edit</button>
+                <button onClick={e=>{e.stopPropagation();setTourBreakdownId(tour.id);}} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),flex:1,fontSize:11,padding:'6px 8px'}}>Breakdown</button>
+                <button onClick={e=>{e.stopPropagation();const idx=tours.findIndex(t=>t.id===tour.id);if(idx>0){const t=[...tours];[t[idx-1],t[idx]]=[t[idx],t[idx-1]];setTours(t);}}} style={{...s.btn(C.surf2,C.txt,C.bord),fontSize:11,padding:'6px 10px'}}>Up</button>
+                <button onClick={e=>{e.stopPropagation();const idx=tours.findIndex(t=>t.id===tour.id);if(idx<tours.length-1){const t=[...tours];[t[idx],t[idx+1]]=[t[idx+1],t[idx]];setTours(t);}}} style={{...s.btn(C.surf2,C.txt,C.bord),fontSize:11,padding:'6px 10px'}}>Down</button>
+                <button onClick={e=>{e.stopPropagation();if(window.confirm('Delete '+tour.name+'?')){setTours(prev=>prev.filter(t=>t.id!==tour.id));toast2('Tour deleted');}}} style={{...s.btn('rgba(255,71,87,0.1)',C.red,'rgba(255,71,87,0.3)'),fontSize:11,padding:'6px 10px'}}>Delete</button>
               </div>
               {isExpanded&&sortedDates.length>0&&<div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,padding:'12px',marginTop:4}}>
                 <div style={{fontSize:10,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:10}}>Full Tour Route</div>
@@ -1078,6 +1087,95 @@ function StageBoss({user,onLogout}){
           })}
         </div>}
 
+
+      {/* TOUR BREAKDOWN PANEL */}
+      {tourBreakdownId&&(()=>{
+        const bt=tours.find(t=>t.id===tourBreakdownId);
+        if(!bt) return null;
+        const btDates=(bt.dates||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+        const totalGross=btDates.reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+        const totalTravel=Number(bt.travelBudget)||0;
+        const totalLodging=Number(bt.lodgingBudget)||0;
+        const totalMisc=Number(bt.miscBudget)||0;
+        const totalExp=totalTravel+totalLodging+totalMisc;
+        const netEst=totalGross-totalExp;
+        const confirmedShows=btDates.filter(d=>d.status==='Confirmed').length;
+        const holdShows=btDates.filter(d=>d.status==='Hold').length;
+        const confirmedRev=btDates.filter(d=>d.status==='Confirmed').reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+        const avgPerShow=btDates.length?Math.round(totalGross/btDates.length):0;
+        return<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.7)',zIndex:200,overflowY:'auto',padding:'16px'}} onClick={()=>setTourBreakdownId(null)}>
+          <div style={{background:C.surf,borderRadius:16,maxWidth:600,margin:'0 auto',padding:20}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <div style={{fontFamily:font.head,fontWeight:800,fontSize:18}}>{bt.name}</div>
+              <button onClick={()=>setTourBreakdownId(null)} style={{background:'none',border:'none',color:C.muted,fontSize:20,cursor:'pointer'}}>x</button>
+            </div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:16}}>{bt.startDate} - {bt.endDate} &middot; {btDates.length} shows &middot; {confirmedShows} confirmed, {holdShows} holds</div>
+
+            {/* Revenue Summary */}
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Revenue Summary</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+              {[['Total Gross',formatCurrency(totalGross),C.green],['Confirmed Rev',formatCurrency(confirmedRev),C.green],['Total Expenses',formatCurrency(totalExp),C.red],['Net Estimate',formatCurrency(netEst),netEst>=0?C.green:C.red],['Avg Per Show',formatCurrency(avgPerShow),C.yellow],['Shows Booked',btDates.length+' total',C.txt]].map(([l,v,color])=>(
+                <div key={l} style={{background:C.surf2,borderRadius:10,padding:'10px 12px'}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:3}}>{l}</div>
+                  <div style={{fontSize:14,fontFamily:font.head,fontWeight:700,color}}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Expenses Breakdown */}
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Expenses</div>
+            <div style={{background:C.surf2,borderRadius:10,padding:'12px 14px',marginBottom:16}}>
+              {[['Travel',totalTravel],['Lodging',totalLodging],['Misc',totalMisc]].map(([l,v])=>(
+                <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',borderBottom:`1px solid ${C.bord}`}}>
+                  <span style={{fontSize:12,color:C.muted}}>{l}</span>
+                  <span style={{fontSize:12,fontFamily:font.head,fontWeight:700,color:C.txt}}>{formatCurrency(v)}</span>
+                </div>
+              ))}
+              <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0 0'}}>
+                <span style={{fontSize:12,fontFamily:font.head,fontWeight:700}}>Total</span>
+                <span style={{fontSize:12,fontFamily:font.head,fontWeight:700,color:C.red}}>{formatCurrency(totalExp)}</span>
+              </div>
+            </div>
+
+            {/* Show by Show */}
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Show by Show</div>
+            <div style={{marginBottom:16}}>
+              {btDates.map((d,i)=>(
+                <div key={d.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:`1px solid ${C.bord}`}}>
+                  <div>
+                    <div style={{fontSize:12,fontFamily:font.head,fontWeight:700}}>{d.venue||'TBD'}</div>
+                    <div style={{fontSize:10,color:C.muted}}>{d.city}{d.state?', '+d.state:''} &middot; {d.date||'TBD'}</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:13,fontFamily:font.head,fontWeight:700,color:C.green}}>{formatCurrency(d.guarantee)}</div>
+                    <span style={{fontSize:9,padding:'2px 6px',borderRadius:6,background:d.status==='Confirmed'?`${C.green}18`:C.surf2,color:d.status==='Confirmed'?C.green:C.yellow,border:`1px solid ${d.status==='Confirmed'?C.green:C.bord}`}}>{d.status||'Hold'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* AI Forecast */}
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>AI Forecast</div>
+            <div style={{background:'rgba(108,92,231,0.08)',border:'1px solid rgba(108,92,231,0.2)',borderRadius:10,padding:'12px 14px',marginBottom:16}}>
+              <div style={{fontSize:11,color:C.txt,lineHeight:1.6}}>
+                {confirmedShows===0&&<div style={{color:C.yellow,marginBottom:6}}>No confirmed shows yet - all projections based on holds.</div>}
+                <div style={{marginBottom:4}}>Projected gross if all holds confirm: <strong style={{color:C.green}}>{formatCurrency(totalGross)}</strong></div>
+                <div style={{marginBottom:4}}>Conservative estimate (confirmed only): <strong style={{color:C.green}}>{formatCurrency(confirmedRev)}</strong></div>
+                <div style={{marginBottom:4}}>Break-even point: <strong style={{color:C.yellow}}>{formatCurrency(totalExp)}</strong> in gross needed</div>
+                <div style={{marginBottom:4}}>Current net margin: <strong style={{color:netEst>=0?C.green:C.red}}>{totalGross>0?Math.round((netEst/totalGross)*100):0}%</strong></div>
+                {netEst<0&&<div style={{color:C.red,marginTop:6}}>Warning: Projected at a loss. Consider reducing expenses or adding shows.</div>}
+                {netEst>0&&netEst/totalGross>0.4&&<div style={{color:C.green,marginTop:6}}>Strong margin! This tour is trending profitable.</div>}
+              </div>
+            </div>
+
+            {/* Notes */}
+            {bt.notes&&<><div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Tour Notes</div>
+            <div style={{background:C.surf2,borderRadius:10,padding:'12px 14px',fontSize:12,color:C.txt,marginBottom:16}}>{bt.notes}</div></>}
+
+            <button onClick={()=>{setTourBreakdownId(null);setEditTourId(bt.id);setTourOpen(true);}} style={{...s.btn(C.acc,'#fff',null),width:'100%'}}>Edit Tour Details</button>
+          </div>
+        </div>;
+      })()}
       </div>{/* end content */}
 
       </div>{/* end sb-main */}
@@ -1156,8 +1254,17 @@ function StageBoss({user,onLogout}){
               <div style={{fontSize:11,color:'#9090b0',lineHeight:1.8,whiteSpace:'pre-wrap',maxHeight:220,overflowY:'auto'}}>{fullBody}</div>
             </div>
             {currentTemplate?.photoLinks?.length>0&&<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:6,letterSpacing:1,textTransform:'uppercase'}}>[photo] Press Kit Links Included</div>{currentTemplate.photoLinks.map((p,i)=><div key={i} style={{fontSize:11,color:C.acc2,marginBottom:3}}>* {p.label}</div>)}</div>}
+            {cv&&<button onClick={()=>{
+              const touches=(cv.contactLog||[]).length;
+              const isNew=touches===0;
+              const prompt='You are Jason Schuster, comedian and tour manager for Phil Medina. Write a SHORT natural booking email.\n\nVenue: '+cv.venue+'\nCity: '+cv.city+', '+cv.state+'\nBooker: '+(cv.booker||'their booker')+(cv.bookerLast?' '+cv.bookerLast:'')+'\nRelationship: '+(isNew?'brand new contact, first outreach':'existing contact, touch #'+(touches+1))+'\nPrevious contacts: '+touches+'\nHistory: '+(cv.history||'none')+'\nWarmth: '+(cv.warmth||'Cold')+'\nStatus: '+cv.status+'\nTarget dates: '+(cv.targetDates||'flexible')+'\n\nPhil Medina credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Fest, Hulu West Coast Comedy.\nJason Schuster credits: Comedy Store, Jimmy Kimmel Comedy Club, Kenan Presents.\n\n'+(isNew?'First outreach - warm, professional, brief.':'Follow-up - reference previous outreach, stay persistent but friendly.')+'\n\nWrite ONLY the email body under 120 words. Sign as Jason Schuster.';
+              fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})})
+              .then(r=>r.json()).then(d=>{const txt=d.content?.[0]?.text||'';if(txt){setComposeOpts(o=>({...o,customNote:txt}));toast2('AI draft ready!');}else{toast2('AI error - check API key');}})
+              .catch(()=>toast2('AI unavailable'));
+              toast2('Generating...');
+            }} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),width:'100%',marginBottom:8,fontSize:12}}>AI Draft Email (relationship-aware)</button>}
             <div style={s.row}>
-              {mailto&&<button onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');window.open(mailto,'_blank');}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>[email] Open Gmail</button>}
+              {mailto&&<button onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');const gmailUrl='https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to='+encodeURIComponent(cv?.email||'')+'&su='+encodeURIComponent(filledSubject)+'&body='+encodeURIComponent(fullBody);window.open(gmailUrl,'_blank');}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>[email] Open Gmail</button>}
               <button onClick={()=>copyText(`Subject: ${filledSubject}\n\n${fullBody}`,'Email',toast2)} style={{...s.btn(C.surf2,C.txt,C.bord),flex:'0 0 auto',padding:'12px 14px'}}>Copy</button>
             </div>
           </div>
