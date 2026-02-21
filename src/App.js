@@ -503,6 +503,7 @@ function StageBoss({user,onLogout}){
   const[editTemplateId,setEditTemplateId]=useState(null);
   const[tourOpen,setTourOpen]=useState(false);
   const[editTourId,setEditTourId]=useState(null);
+  const[expandTourId,setExpandTourId]=useState(null);
   const[importOpen,setImportOpen]=useState(false);
   const[confirmDelete,setConfirmDelete]=useState(null);
   const[composeOpts,setComposeOpts]=useState({});
@@ -586,9 +587,7 @@ function StageBoss({user,onLogout}){
     const bodyEnc=aiResult.split('\n').map(l=>encodeURIComponent(l)).join('%0D%0A');
     const mailto='mailto:'+v.email+'?subject='+sub+'&body='+bodyEnc;
     // Try to open mail app
-    const a=document.createElement('a');
-    a.href=mailto;
-    a.click();
+    window.open(mailto,'_blank');
     // Also copy to clipboard as fallback
     setTimeout(()=>{
       try{navigator.clipboard.writeText('To: '+v.email+'\nSubject: Phil Medina - Availability - '+v.venue+'\n\n'+aiResult);}catch{}
@@ -880,6 +879,12 @@ function StageBoss({user,onLogout}){
         <button onClick={exportData} style={{...s.btn('rgba(0,184,148,0.15)',C.green,'rgba(0,184,148,0.3)'),width:'100%',marginBottom:8,fontSize:12}}>[save] Export Backup</button>
         <button onClick={()=>importRef.current?.click()} style={{...s.btn(C.surf2,C.muted,C.bord),width:'100%',marginBottom:8,fontSize:12}}>[folder] Import Backup</button>
         <input ref={importRef} type="file" accept=".json" style={{display:'none'}} onChange={importData}/>
+        <div style={{display:'flex',gap:6,marginBottom:6}}>
+          <button onClick={async()=>{setSyncing(true);await cloudSave(user,{venues,templates,tours});setLastSync(new Date());setSyncing(false);toast2('Synced!');}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1,fontSize:10}}>
+            {syncing?'Syncing...':'Sync Now'}
+          </button>
+        </div>
+        <div style={{fontSize:9,color:C.muted,textAlign:'center',marginBottom:8}}>{lastSync?'Last sync: '+lastSync.toLocaleTimeString():'Not synced yet'}</div>
         <button onClick={onLogout} style={{...s.btn('none',C.muted,C.bord),width:'100%',fontSize:11}}>Sign Out</button>
       </div>
 
@@ -897,6 +902,7 @@ function StageBoss({user,onLogout}){
             <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>Comedy Booking Command Center</div>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <button onClick={async()=>{setSyncing(true);await cloudSave(user,{venues,templates,tours});setLastSync(new Date());setSyncing(false);toast2('Synced to cloud!');}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
             <button onClick={onLogout} style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer',fontFamily:font.body}}>OUT</button>
             <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:'50%',background:C.acc,border:'none',color:'#fff',fontSize:22,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>+</button>
           </div>
@@ -1026,11 +1032,48 @@ function StageBoss({user,onLogout}){
             const totalGuarantee=(tour.dates||[]).reduce((a,d)=>a+(Number(d.guarantee)||0),0);
             const totalExpenses=(Number(tour.travelBudget)||0)+(Number(tour.lodgingBudget)||0)+(Number(tour.miscBudget)||0);
             const netRevenue=totalGuarantee*0.75-totalExpenses;
-            return<div key={tour.id} onClick={()=>{setEditTourId(tour.id);setTourOpen(true);}} style={s.card}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}><div><div style={{fontFamily:font.head,fontWeight:700,fontSize:16,marginBottom:4}}>{tour.name}</div><div style={{fontSize:11,color:C.muted}}>{tour.startDate}{' -> '}{tour.endDate} . {(tour.dates||[]).length} shows</div></div><span style={{...s.pill(`${C.green}18`,C.green,`${C.green}40`),fontSize:11,fontFamily:font.head,fontWeight:700}}>{formatCurrency(totalGuarantee)}</span></div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+            const isExpanded=expandTourId===tour.id;
+            const sortedDates=(tour.dates||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+            return<div key={tour.id} style={{...s.card,cursor:'default'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}} onClick={()=>setExpandTourId(isExpanded?null:tour.id)}>
+                <div style={{cursor:'pointer'}}>
+                  <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,marginBottom:4}}>{tour.name}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{tour.startDate} - {tour.endDate} &middot; {(tour.dates||[]).length} shows</div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}>
+                  <span style={{...s.pill(`${C.green}18`,C.green,`${C.green}40`),fontSize:11,fontFamily:font.head,fontWeight:700}}>{formatCurrency(totalGuarantee)}</span>
+                  <span style={{fontSize:10,color:C.muted}}>{isExpanded?'[collapse]':'[tap to expand]'}</span>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
                 {[['Gross',formatCurrency(totalGuarantee),C.green],['Expenses',formatCurrency(totalExpenses),C.red],['Net Est.',formatCurrency(netRevenue),netRevenue>=0?C.green:C.red]].map(([l,v,color])=><div key={l} style={{background:C.surf2,borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>{l}</div><div style={{fontSize:13,fontFamily:font.head,fontWeight:700,color}}>{v}</div></div>)}
               </div>
+              <div style={{display:'flex',gap:8,marginBottom:8}}>
+                <button onClick={e=>{e.stopPropagation();setEditTourId(tour.id);setTourOpen(true);}} style={{...s.btn(C.surf2,C.txt,C.bord),flex:1,fontSize:11,padding:'6px 10px'}}>Edit Tour</button>
+                <button onClick={e=>{e.stopPropagation();if(window.confirm('Delete '+tour.name+'?')){setTours(prev=>prev.filter(t=>t.id!==tour.id));toast2('Tour deleted');}}} style={{...s.btn('rgba(255,71,87,0.1)',C.red,'rgba(255,71,87,0.3)'),flex:1,fontSize:11,padding:'6px 10px'}}>Delete</button>
+              </div>
+              {isExpanded&&sortedDates.length>0&&<div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,padding:'12px',marginTop:4}}>
+                <div style={{fontSize:10,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:10}}>Full Tour Route</div>
+                {sortedDates.map((d,i)=>(
+                  <div key={d.id||i} style={{marginBottom:i<sortedDates.length-1?12:0}}>
+                    <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0,paddingTop:2}}>
+                        <div style={{width:12,height:12,borderRadius:'50%',background:d.status==='Confirmed'?C.green:C.yellow,border:`2px solid ${C.surf}`}}/>
+                        {i<sortedDates.length-1&&<div style={{width:2,height:24,background:C.bord,margin:'3px 0'}}/>}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.txt}}>{d.venue||'TBD'}</div>
+                        <div style={{fontSize:10,color:C.muted}}>{d.city}{d.state?', '+d.state:''} &middot; {d.date||'TBD'} &middot; {formatCurrency(d.guarantee)}</div>
+                        <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+                          <span style={{fontSize:9,padding:'2px 7px',borderRadius:6,background:d.status==='Confirmed'?`${C.green}18`:C.surf,color:d.status==='Confirmed'?C.green:C.muted,border:`1px solid ${d.status==='Confirmed'?C.green:C.bord}`}}>{d.status||'Hold'}</span>
+                          {d.city&&sortedDates[i+1]&&sortedDates[i+1].city&&<a href={'https://www.google.com/maps/dir/'+encodeURIComponent(d.city+(d.state?','+d.state:''))+'/'+encodeURIComponent(sortedDates[i+1].city+(sortedDates[i+1].state?','+sortedDates[i+1].state:''))} target="_blank" rel="noopener noreferrer" style={{fontSize:9,padding:'2px 7px',borderRadius:6,background:'rgba(108,92,231,0.1)',color:C.acc2,border:'1px solid rgba(108,92,231,0.3)',textDecoration:'none',cursor:'pointer'}}>Map to next stop</a>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {sortedDates.filter(d=>d.city).length>1&&<a href={'https://www.google.com/maps/dir/'+sortedDates.filter(d=>d.city).map(d=>encodeURIComponent(d.city+(d.state?','+d.state:''))).join('/')} target="_blank" rel="noopener noreferrer" style={{display:'block',marginTop:12,padding:'8px 12px',borderRadius:8,background:'rgba(108,92,231,0.1)',border:'1px solid rgba(108,92,231,0.3)',color:C.acc2,textDecoration:'none',textAlign:'center',fontSize:11,fontFamily:font.head,fontWeight:700}}>View Full Route on Google Maps</a>}
+              </div>}
             </div>;
           })}
         </div>}
@@ -1114,7 +1157,7 @@ function StageBoss({user,onLogout}){
             </div>
             {currentTemplate?.photoLinks?.length>0&&<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:6,letterSpacing:1,textTransform:'uppercase'}}>[photo] Press Kit Links Included</div>{currentTemplate.photoLinks.map((p,i)=><div key={i} style={{fontSize:11,color:C.acc2,marginBottom:3}}>* {p.label}</div>)}</div>}
             <div style={s.row}>
-              {mailto&&<a href={mailto} style={{flex:1}} onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');}}><button style={{...s.btn(C.acc,'#fff',null),width:'100%'}}>[email] Open Gmail</button></a>}
+              {mailto&&<a href={mailto} style={{flex:1}} onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');window.open(mailto,'_blank');}} style={{...s.btn(C.acc,'#fff',null),width:'100%'}}>[email] Open Gmail</button>}
               <button onClick={()=>copyText(`Subject: ${filledSubject}\n\n${fullBody}`,'Email',toast2)} style={{...s.btn(C.surf2,C.txt,C.bord),flex:'0 0 auto',padding:'12px 14px'}}>Copy</button>
             </div>
           </div>
