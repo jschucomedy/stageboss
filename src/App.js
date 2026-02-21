@@ -1,5 +1,29 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
+// -- SUPABASE CLOUD SYNC --------------------------------------
+const SB_URL = 'https://placeholder.supabase.co';
+// Anthropic API key - add yours here
+const ANTHROPIC_KEY = 'YOUR_ANTHROPIC_KEY_HERE';
+const SB_KEY = 'placeholder_key';
+async function cloudLoad(email) {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=data`, {
+      headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`}
+    });
+    const rows = await r.json();
+    return rows?.[0]?.data || null;
+  } catch { return null; }
+}
+async function cloudSave(email, data) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/userdata`, {
+      method: 'POST',
+      headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'},
+      body: JSON.stringify({email, data, updated_at: new Date().toISOString()})
+    });
+  } catch {}
+}
+
 // -- AUTH -----------------------------------------------------
 const _a = [
   { e: 'jschucomedy@gmail.com',     p: btoa('MainEvent27') },
@@ -496,6 +520,38 @@ function StageBoss({user,onLogout}){
   const[voiceTarget,setVoiceTarget]=useState(null);
   const[stateFilter2,setStateFilter2]=useState('All');
   const recognitionRef=useRef(null);
+  const[syncing,setSyncing]=useState(false);
+  const[lastSync,setLastSync]=useState(null);
+  const syncTimeout=useRef(null);
+
+  // Cloud load on mount
+  useEffect(()=>{
+    async function loadCloud(){
+      setSyncing(true);
+      const data=await cloudLoad(user);
+      if(data){
+        if(data.venues) setVenues(data.venues.map(migrateVenue));
+        if(data.templates) setTemplates(data.templates);
+        if(data.tours) setTours(data.tours);
+        setLastSync(new Date());
+      }
+      setSyncing(false);
+    }
+    if(SB_URL!=='https://placeholder.supabase.co') loadCloud();
+  },[user]);
+
+  // Auto-save to cloud on changes (debounced 3s)
+  useEffect(()=>{
+    if(SB_URL==='https://placeholder.supabase.co') return;
+    clearTimeout(syncTimeout.current);
+    syncTimeout.current=setTimeout(async()=>{
+      setSyncing(true);
+      await cloudSave(user,{venues,templates,tours});
+      setLastSync(new Date());
+      setSyncing(false);
+    },3000);
+    return()=>clearTimeout(syncTimeout.current);
+  },[venues,templates,tours,user]);
 
   // -- AI OUTREACH WRITER --------------------------------------
   async function generateAIOutreach(venueId){
@@ -505,12 +561,12 @@ function StageBoss({user,onLogout}){
     const touches=(v.contactLog||[]).length;
     const prompt='Write a SHORT personalized booking outreach email for '+v.venue+' in '+v.city+', '+v.state+'. Booker: '+(v.booker||'the booker')+'. Venue type: '+(v.venueType||'comedy club')+'. Capacity: '+(v.capacity||'unknown')+'. Relationship: '+(v.relationship||'new')+' (touch #'+(touches+1)+'). Target dates: '+(v.targetDates||'flexible')+'. Deal: '+(v.dealType||'Flat Guarantee')+'. Notes: '+(v.notes||'none')+'.'+'\n\nYou are Jason Schuster, bi-coastal touring comedian and tour manager for Phil Medina. Phil credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Festival, Hulu West Coast Comedy. Jason credits: Comedy Store, Jimmy Kimmels Comedy Club, Kenan Presents.\n\nRules: Keep under 200 words. Sound natural and human. '+(touches===0?'This is first contact, be warm and professional.':'This is follow-up #'+(touches+1)+', reference reaching out before, keep it brief.')+' Mention Phil and Jason specifically. End with clear ask about availability. Sign off as Jason Schuster.\n\nWrite only the email body, no subject line.';
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
       const data=await res.json();
       const text=data.content?.map(b=>b.text||'').join('')||'Error generating email.';
       setAiResult(text);
     }catch(err){
-      setAiResult('Could not generate email. Check your connection and try again.');
+      setAiResult(ANTHROPIC_KEY==='YOUR_ANTHROPIC_KEY_HERE'?'Add your Anthropic API key to the code first. Go to console.anthropic.com to get one.':'Could not generate email. Check your connection and API key.');
     }
     setAiLoading(false);
   }
@@ -524,9 +580,18 @@ function StageBoss({user,onLogout}){
   function openAiInGmail(){
     const v=venues.find(x=>x.id===aiVenueId);
     if(!v||!aiResult)return;
-    const sub=encodeURIComponent(`Phil Medina  -  Availability  -  ${v.venue}`);
-    const body=aiResult.split('\n').map(l=>encodeURIComponent(l)).join('%0D%0A');
-    window.open(`mailto:${v.email}?subject=${sub}&body=${body}`,'_blank');
+    const sub=encodeURIComponent('Phil Medina - Availability - '+v.venue);
+    const bodyEnc=aiResult.split('\n').map(l=>encodeURIComponent(l)).join('%0D%0A');
+    const mailto='mailto:'+v.email+'?subject='+sub+'&body='+bodyEnc;
+    // Try to open mail app
+    const a=document.createElement('a');
+    a.href=mailto;
+    a.click();
+    // Also copy to clipboard as fallback
+    setTimeout(()=>{
+      try{navigator.clipboard.writeText('To: '+v.email+'\nSubject: Phil Medina - Availability - '+v.venue+'\n\n'+aiResult);}catch{}
+      toast2('Email opened + copied to clipboard');
+    },500);
   }
   // -- VOICE TO TEMPLATE ----------------------------------------
   function startVoice(target,currentVal,onResult){
@@ -915,7 +980,7 @@ function StageBoss({user,onLogout}){
                 </div>
                 {v.targetDates&&<div style={{marginTop:6,fontSize:10,color:C.muted2}}>[date] {v.targetDates}</div>}
                 <div style={{marginTop:8,display:'flex',gap:6}}>
-                  <button onClick={e=>{e.stopPropagation();generateAIOutreach(v.id);}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(108,92,231,0.12)',border:`1px solid rgba(108,92,231,0.3)`,color:C.acc2,cursor:'pointer',fontFamily:font.body}}>AI Write</button>
+                  <button onTouchEnd={e=>{e.preventDefault();e.stopPropagation();generateAIOutreach(v.id);}} onClick={e=>{e.stopPropagation();generateAIOutreach(v.id);}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(108,92,231,0.12)',border:`1px solid rgba(108,92,231,0.3)`,color:C.acc2,cursor:'pointer',fontFamily:font.body}}>AI Write</button>
                   {v.email&&<button onClick={e=>{e.stopPropagation();setComposeId(v.id);}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(116,185,255,0.08)',border:`1px solid rgba(116,185,255,0.2)`,color:C.blue,cursor:'pointer',fontFamily:font.body}}>Email</button>}
                 </div>
               </div>;
@@ -924,7 +989,7 @@ function StageBoss({user,onLogout}){
         </>}
 
         {/* == CALENDAR TAB == */}
-        {tab==='calendar'&&<CalendarTab venues={venues} onVenueClick={id=>setDetailId(id)} onChecklist={id=>setChecklistId(id)} toast2={toast2}/>}
+        {tab==='calendar'&&<CalendarTab venues={venues} tours={tours} onVenueClick={id=>setDetailId(id)} onChecklist={id=>setChecklistId(id)} toast2={toast2}/>}
 
         {/* == OUTREACH TAB == */}
         {tab==='outreach'&&<div style={{padding:16}}>
@@ -1259,18 +1324,22 @@ function MoneyTimeline({venues,onMarkPaid}){
 }
 
 // -- CALENDAR TAB ---------------------------------------------
-function CalendarTab({venues,onVenueClick,onChecklist,toast2}){
+function CalendarTab({venues,tours=[],onVenueClick,onChecklist,toast2}){
   const calEvents=venues.filter(v=>v.targetDates&&['Hold','Confirmed','Advancing','Completed'].includes(v.status));
+  // Add confirmed tour show dates to calendar
+  const tourEvents=[];
+  tours.forEach(t=>{(t.dates||[]).filter(d=>['Confirmed','Hold'].includes(d.status)).forEach(d=>{tourEvents.push({id:t.id+'_'+d.id,venue:d.venue||'TBD',city:d.city||'',state:d.state||'',status:d.status,guarantee:d.guarantee,targetDates:d.date,isTourDate:true,tourName:t.name});});});
+  const allEvents=[...calEvents,...tourEvents];
   const grouped={};
-  calEvents.forEach(v=>{const monthMatch=MONTHS.find(m=>(v.targetDates||'').includes(m));const key=monthMatch||'Undated';if(!grouped[key])grouped[key]=[];grouped[key].push(v);});
+  allEvents.forEach(v=>{const monthMatch=MONTHS.find(m=>(v.targetDates||'').includes(m));const key=monthMatch||'Undated';if(!grouped[key])grouped[key]=[];grouped[key].push(v);});
   const sortedMonths=Object.keys(grouped).sort((a,b)=>{const ai=MONTHS.indexOf(a);const bi=MONTHS.indexOf(b);if(ai===-1)return 1;if(bi===-1)return -1;return ai-bi;});
   const allConfirmed=venues.filter(v=>['Confirmed','Advancing'].includes(v.status));
   const totalGuarantee=allConfirmed.reduce((a,v)=>a+(Number(v.guarantee)||0),0);
   return(<div style={{padding:16}}>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
-      {[[calEvents.length,'[cal]','On Calendar'],[allConfirmed.length,'[OK]','Confirmed'],['$'+Number(totalGuarantee).toLocaleString(),'[money]','Locked In']].map(([val,icon,label])=><div key={label} style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 8px',textAlign:'center'}}><div style={{fontSize:18,marginBottom:2}}>{icon}</div><div style={{fontFamily:font.head,fontWeight:800,fontSize:16,color:C.txt}}>{val}</div><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginTop:2}}>{label}</div></div>)}
+      {[[allEvents.length,'[cal]','On Calendar'],[allConfirmed.length,'[OK]','Confirmed'],['$'+Number(totalGuarantee).toLocaleString(),'[money]','Locked In']].map(([val,icon,label])=><div key={label} style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 8px',textAlign:'center'}}><div style={{fontSize:18,marginBottom:2}}>{icon}</div><div style={{fontFamily:font.head,fontWeight:800,fontSize:16,color:C.txt}}>{val}</div><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginTop:2}}>{label}</div></div>)}
     </div>
-    {calEvents.length===0&&<div style={{textAlign:'center',padding:'40px 20px',color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>[cal]</div><div>No dates on calendar yet.</div><div style={{fontSize:12,marginTop:8}}>Mark venues as Hold, Confirmed, or Advancing.</div></div>}
+    {allEvents.length===0&&<div style={{textAlign:'center',padding:'40px 20px',color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>[cal]</div><div>No dates on calendar yet.</div><div style={{fontSize:12,marginTop:8}}>Mark venues as Hold, Confirmed, or Advancing.</div></div>}
     {sortedMonths.map(month=><div key={month} style={{marginBottom:24}}>
       <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.acc2,letterSpacing:1.5,textTransform:'uppercase',marginBottom:10,display:'flex',alignItems:'center',gap:8}}><div style={{width:3,height:16,background:C.acc,borderRadius:2}}/>{month}</div>
       {grouped[month].map(v=>{
@@ -1279,8 +1348,8 @@ function CalendarTab({venues,onVenueClick,onChecklist,toast2}){
         return<div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:14,padding:'14px 16px',marginBottom:10}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
             <div style={{flex:1,cursor:'pointer'}} onClick={()=>onVenueClick(v.id)}>
-              <div style={{fontFamily:font.head,fontWeight:700,fontSize:15,marginBottom:3}}>{v.venue}</div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{v.city}, {v.state}{v.booker?` . ${v.booker}${v.bookerLast?' '+v.bookerLast:''}`:''}</div>
+              <div style={{fontFamily:font.head,fontWeight:700,fontSize:15,marginBottom:3}}>{v.venue}{v.isTourDate&&<span style={{fontSize:9,marginLeft:6,padding:'2px 6px',borderRadius:10,background:'rgba(108,92,231,0.15)',color:'#a29bfe',border:'1px solid rgba(108,92,231,0.3)'}}>{v.tourName}</span>}</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{v.city}{v.state?', '+v.state:''}{!v.isTourDate&&v.booker?` . ${v.booker}${v.bookerLast?' '+v.bookerLast:''}`:''}</div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                 <span style={{fontSize:10,padding:'3px 9px',borderRadius:20,background:`${pcolor}18`,color:pcolor,border:`1px solid ${pcolor}40`}}>{v.status}</span>
                 {v.showCount>0&&<span style={{fontSize:10,color:C.muted}}>{v.showCount} shows</span>}
@@ -1320,14 +1389,29 @@ function TemplateEditor({template,onSave,onCancel}){
     <div style={s.field()}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
         <label style={s.label}>Subject Line</label>
-        <button onClick={()=>{if(!('webkitSpeechRecognition'in window)&&!('SpeechRecognition'in window)){alert('Voice not supported. Try Chrome.');return;}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;const rec=new SR();rec.continuous=false;rec.interimResults=false;rec.lang='en-US';rec.onresult=(e)=>{const t=e.results[0][0].transcript;setSubject(prev=>prev?prev+' '+t:t);};rec.start();}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(225,112,85,0.1)',border:`1px solid rgba(225,112,85,0.3)`,color:C.red,cursor:'pointer',fontFamily:font.body,display:'flex',alignItems:'center',gap:4}}>mic Voice</button>
+        <button onClick={()=>{
+  if(!('webkitSpeechRecognition'in window)&&!('SpeechRecognition'in window)){alert('Voice not supported. Use Chrome on desktop or Safari on iPhone.');return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const rec=new SR();rec.continuous=false;rec.interimResults=false;rec.lang='en-US';
+  rec.onresult=(e)=>{const t=e.results[0][0].transcript;setSubject(prev=>prev?prev+' '+t:t);};
+  rec.onerror=(e)=>{alert('Voice error: '+e.error+'. Make sure microphone is allowed.');};
+  rec.start();
+}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(225,112,85,0.1)',border:`1px solid rgba(225,112,85,0.3)`,color:C.red,cursor:'pointer',fontFamily:font.body,display:'flex',alignItems:'center',gap:4}}>mic Subject</button>
       </div>
       <input style={s.input()} value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Phil Medina  -  [DATES]  -  [VENUE]"/>
     </div>
     <div style={s.field()}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
         <label style={s.label}>Email Body</label>
-        <button onClick={()=>{if(!('webkitSpeechRecognition'in window)&&!('SpeechRecognition'in window)){alert('Voice not supported in this browser. Try Chrome.');return;}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;const rec=new SR();rec.continuous=false;rec.interimResults=false;rec.lang='en-US';rec.onresult=(e)=>{const t=e.results[0][0].transcript;setBody(prev=>prev?prev+' '+t:t);};rec.start();}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(225,112,85,0.1)',border:`1px solid rgba(225,112,85,0.3)`,color:C.red,cursor:'pointer',fontFamily:font.body,display:'flex',alignItems:'center',gap:4}}>mic Voice</button>
+        <button onClick={()=>{
+  if(!('webkitSpeechRecognition'in window)&&!('SpeechRecognition'in window)){alert('Voice not supported. Use Chrome on desktop or Safari on iPhone.');return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const rec=new SR();rec.continuous=true;rec.interimResults=false;rec.lang='en-US';
+  rec.onresult=(e)=>{Array.from(e.results).filter(r=>r.isFinal).forEach(r=>{const t=r[0].transcript;setBody(prev=>prev?prev+' '+t:t);});};
+  rec.onerror=(e)=>{alert('Voice error: '+e.error+'. Make sure microphone is allowed.');};
+  rec.start();
+  setTimeout(()=>rec.stop(),30000);
+}} style={{fontSize:10,padding:'4px 10px',borderRadius:8,background:'rgba(225,112,85,0.1)',border:`1px solid rgba(225,112,85,0.3)`,color:C.red,cursor:'pointer',fontFamily:font.body,display:'flex',alignItems:'center',gap:4}}>mic Body (30s)</button>
       </div>
       <textarea style={{...s.input(12),resize:'vertical',minHeight:300,lineHeight:1.7}} value={body} onChange={e=>setBody(e.target.value)} placeholder="Write your full email here. Use [VENUE], [BOOKER_FIRST], [DATES] as placeholders."/>
     </div>
