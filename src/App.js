@@ -16,12 +16,25 @@ async function cloudLoad(email) {
 }
 async function cloudSave(email, data) {
   try {
-    await fetch(`${SB_URL}/rest/v1/userdata`, {
-      method: 'POST',
-      headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'},
-      body: JSON.stringify({email, data, updated_at: new Date().toISOString()})
+    const res = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}`, {
+      headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`}
     });
-  } catch {}
+    const rows = await res.json();
+    if(rows && rows.length > 0) {
+      await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}`, {
+        method: 'PATCH',
+        headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json'},
+        body: JSON.stringify({data, updated_at: new Date().toISOString()})
+      });
+    } else {
+      await fetch(`${SB_URL}/rest/v1/userdata`, {
+        method: 'POST',
+        headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json'},
+        body: JSON.stringify({email, data, updated_at: new Date().toISOString()})
+      });
+    }
+    return true;
+  } catch(e) { console.error('Sync error:',e); return false; }
 }
 
 // -- AUTH -----------------------------------------------------
@@ -561,7 +574,7 @@ function StageBoss({user,onLogout}){
   },[venues,templates,tours,user]);
 
   // -- AI OUTREACH WRITER --------------------------------------
-  async function generateAIOutreach(venueId){
+  async function async generateAIOutreach(venueId){
     const v=venues.find(x=>x.id===venueId);
     if(!v)return;
     setAiVenueId(venueId);setAiOpen(true);setAiLoading(true);setAiResult('');
@@ -570,7 +583,7 @@ function StageBoss({user,onLogout}){
     const isFollowUp=touches>0;
     const prompt='You are Jason Schuster, a bi-coastal touring comedian and tour manager for Phil Medina. Write a SHORT, natural, human booking outreach email. DO NOT sound like a form letter.\n\nVenue: '+v.venue+'\nCity: '+v.city+', '+v.state+'\nBooker: '+(v.booker||'their booker')+(v.bookerLast?' '+v.bookerLast:'')+'\nVenue type: '+(v.venueType||'comedy club')+'\nCapacity: '+(v.capacity||'unknown')+'\nRelationship: '+(v.relationship||'new contact')+'\nTouch number: '+touchNum+'\nTarget dates: '+(v.targetDates||'flexible')+'\nDeal preference: '+(v.dealType||'Flat Guarantee')+'\nHistory: '+(v.history||'none')+'\n\nPHIL MEDINA credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Fest, Hulu West Coast Comedy Special.\nJASON SCHUSTER credits: Comedy Store, Jimmy Kimmels Comedy Club, Kenan Presents.\n\n'+(isFollowUp?'This is follow-up #'+touchNum+'. Be brief, reference the previous outreach, keep it warm and persistent.':'This is first contact. Be warm, professional, and concise.')+'\n\nRules:\n- Under 150 words\n- Natural tone, not corporate\n- Mention Phil AND Jason by name\n- End with clear availability ask\n- Sign as Jason Schuster\n\nWrite ONLY the email body, no subject line.';
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
+      const res=await const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
       const data=await res.json();
       const text=data.content?.map(b=>b.text||'').join('')||'Error generating email.';
       setAiResult(text);
