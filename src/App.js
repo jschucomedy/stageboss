@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
+const BUILD_ID = '2026-02-22-v7';
 const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
 // Anthropic API key - add yours here
 const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY || '';
@@ -13,81 +14,47 @@ const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 // ─────────────────────────────────────────────────────────────────
 
 async function cloudFetch(email) {
-  if (!email || !email.includes('@')) {
-    console.error('[SYNC] Invalid email:', email);
-    return { error: 'Invalid email: ' + email };
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return { error: 'Bad email: ' + JSON.stringify(email) };
   }
   try {
-    const r = await fetch(
-      `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=email,data,updated_at`,
-      { headers: { 
-        'apikey': SB_KEY, 
+    const url = `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=email,data,updated_at`;
+    const r = await fetch(url, {
+      headers: {
+        'apikey': SB_KEY,
         'Authorization': `Bearer ${SB_KEY}`,
         'Content-Type': 'application/json'
-      }}
-    );
+      }
+    });
     const txt = await r.text();
-    if (!r.ok) {
-      console.error('[SYNC] Fetch failed:', r.status, txt);
-      return { error: `${r.status}: ${txt}` };
-    }
+    if (!r.ok) return { error: `Fetch ${r.status}: ${txt}` };
     const rows = JSON.parse(txt);
-    console.log('[SYNC] Fetch OK, rows:', rows?.length, 'venues:', rows?.[0]?.data?.venues?.length);
     return { row: rows?.[0] || null };
-  } catch(e) { 
-    console.error('[SYNC] Fetch exception:', e); 
-    return { error: e.message };
-  }
+  } catch(e) { return { error: e.message }; }
 }
 
-async function cloudPush(email, payload) {
-  // A) Validate email before any write
-  if (!email || !email.includes('@')) {
-    const msg = 'Invalid email in storage: "' + email + '". Please sign out and back in.';
-    console.error('[SYNC]', msg);
-    throw new Error(msg);
+async function cloudPush(email, venues, templates, tours) {
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    throw new Error('Bad email: ' + JSON.stringify(email));
   }
-  // Separate version from appState so data column is a pure object
-  const { version, ...appState } = payload;
-  const updated_at = version || new Date().toISOString();
+  const appState = { venues, templates, tours };
+  const updated_at = new Date().toISOString();
   const writeBody = { email, data: appState, updated_at };
-  // B) Full payload logging before write
-  console.log('[SYNC] writeBody object:', writeBody);
-  console.log('[SYNC] writeBody JSON preview:', JSON.stringify(writeBody).slice(0, 300));
-  try {
-    const body = JSON.stringify(writeBody);
-    // A) Explicit upsert: POST with on_conflict=email + merge-duplicates + return=representation
-    const r = await fetch(
-      `${SB_URL}/rest/v1/userdata?on_conflict=email`,
-      { 
-        method: 'POST', 
-        headers: { 
-          'apikey': SB_KEY, 
-          'Authorization': `Bearer ${SB_KEY}`, 
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates,return=representation'
-        }, 
-        body 
-      }
-    );
-    const txt = await r.text();
-    if (!r.ok) {
-      console.error('[SYNC] Push failed status:', r.status, 'response:', txt);
-      throw new Error(`${r.status}: ${txt}`);
-    }
-    // D) Verify write success from returned row
-    try {
-      const rows = JSON.parse(txt);
-      const returnedAt = rows?.[0]?.updated_at;
-      console.log('[SYNC] Push OK, returned updated_at:', returnedAt);
-    } catch(_) {
-      console.log('[SYNC] Push OK, status:', r.status);
-    }
-    return true;
-  } catch(e) { 
-    console.error('[SYNC] Push exception:', e.message); 
-    throw e;
-  }
+  const body = JSON.stringify(writeBody);
+  const r = await fetch(`${SB_URL}/rest/v1/userdata?on_conflict=email`, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates,return=representation'
+    },
+    body
+  });
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`Push ${r.status}: ${txt}`);
+  const rows = JSON.parse(txt);
+  return rows?.[0]?.updated_at || updated_at;
 }
 
 
@@ -593,6 +560,10 @@ function StageBoss({user,onLogout}){
   const[lastSync,setLastSync]=useState(null);
   const[cloudVersion,setCloudVersion]=useState(null);
   const[syncError,setSyncError]=useState(null);
+  const[debugPanel,setDebugPanel]=useState(false);
+  const[lastPushStatus,setLastPushStatus]=useState('never');
+  const[lastFetchStatus,setLastFetchStatus]=useState('never');
+  const[cloudVenueCount,setCloudVenueCount]=useState(null);
   const syncTimeout=useRef(null);
   const dirtyRef=useRef(false);
   const localVersionRef=useRef(null);
@@ -628,19 +599,20 @@ function StageBoss({user,onLogout}){
       if (!active) return;
       if (result.error) {
         setSyncError(result.error);
-        console.error('[SYNC] Poll failed:', result.error);
+        setLastFetchStatus('error: '+result.error);
         return;
       }
       setSyncError(null);
       const row = result.row;
+      const cloudVenues = row?.data?.venues?.length ?? 0;
+      setCloudVenueCount(cloudVenues);
+      setLastFetchStatus('ok @ '+new Date().toLocaleTimeString()+' ('+cloudVenues+' venues)');
       if (row && row.data) {
         const cloudVer = row.updated_at || '';
         const localVer = localVersionRef.current || '';
-        console.log('[SYNC] cloudVer:', cloudVer, 'localVer:', localVer);
         if (!localVer || cloudVer > localVer) {
           const applied = applyCloudData(row.data, cloudVer);
           if (applied) {
-            console.log('[SYNC] Applied cloud data, venues:', row.data.venues?.length);
             setLastSync(new Date());
             dirtyRef.current = false;
           }
@@ -667,10 +639,15 @@ function StageBoss({user,onLogout}){
       dirtyRef.current = false;
       setSyncing(true);
       try {
-        await cloudPush(user, {venues, templates, tours, version});
+        const returnedAt = await cloudPush(user, venues, templates, tours);
+        localVersionRef.current = returnedAt || version;
         setLastSync(new Date());
+        setLastPushStatus('ok @ '+new Date().toLocaleTimeString()+' ('+venues.length+' venues)');
+        setSyncError(null);
       } catch(e) { 
-        console.error('[SYNC] Auto-save failed:', e);
+        console.error('[SYNC] Auto-save failed:', e.message);
+        setLastPushStatus('error: '+e.message);
+        setSyncError(e.message);
         dirtyRef.current = true;
       }
       setSyncing(false);
@@ -1018,23 +995,33 @@ function StageBoss({user,onLogout}){
           <button onClick={async()=>{
             setSyncing(true);
             try{
-              const version=new Date().toISOString();
-              localVersionRef.current=version;
-              dirtyRef.current=false;
-              await cloudPush(user,{venues,templates,tours,version});
+              const returnedAt=await cloudPush(user,venues,templates,tours);
+              localVersionRef.current=returnedAt||new Date().toISOString();
               setLastSync(new Date());
               setSyncError(null);
+              setLastPushStatus('manual ok @ '+new Date().toLocaleTimeString());
               toast2('Saved to cloud!');
-            }catch(e){setSyncError(e.message);toast2('Sync failed: '+e.message);}
+            }catch(e){setSyncError(e.message);setLastPushStatus('error: '+e.message);toast2('Sync failed: '+e.message);}
             setSyncing(false);
           }} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1,fontSize:10}}>
             {syncing?'Syncing...':'Sync Now'}
           </button>
         </div>
-        <div style={{fontSize:9,textAlign:'center',marginBottom:8,color:syncError?C.red:C.muted}}>
-          {syncError?'Sync error - tap to retry':'Last sync: '+(lastSync?lastSync.toLocaleTimeString():'never')}
+        <div style={{fontSize:9,textAlign:'center',marginBottom:4,color:syncError?C.red:C.muted,cursor:'pointer'}} onClick={()=>setDebugPanel(v=>!v)}>
+          {syncError?'⚠ Sync error (tap for details)':'✓ Sync: '+(lastSync?lastSync.toLocaleTimeString():'never')} {debugPanel?'▲':'▼'}
         </div>
-        {syncError&&<div style={{fontSize:8,color:C.red,background:'rgba(255,71,87,0.1)',border:'1px solid rgba(255,71,87,0.3)',borderRadius:6,padding:'4px 6px',marginBottom:6,wordBreak:'break-all'}}>{syncError}</div>}
+        {debugPanel&&<div style={{background:'#0a0a18',border:'1px solid #2d2d50',borderRadius:6,padding:8,marginBottom:6,fontSize:9,color:C.muted,lineHeight:1.8}}>
+          <div style={{color:C.acc2,fontWeight:700,marginBottom:4}}>🔧 SYNC DEBUG</div>
+          <div><b>Build:</b> {BUILD_ID}</div>
+          <div><b>Email:</b> {user}</div>
+          <div><b>SB:</b> {SB_URL.slice(8,30)}...</div>
+          <div><b>Local venues:</b> {venues.length}</div>
+          <div><b>Cloud venues:</b> {cloudVenueCount??'unknown'}</div>
+          <div><b>Last push:</b> {lastPushStatus}</div>
+          <div><b>Last fetch:</b> {lastFetchStatus}</div>
+          <div><b>Cloud ver:</b> {cloudVersion?new Date(cloudVersion).toLocaleTimeString():'none'}</div>
+          {syncError&&<div style={{color:C.red,wordBreak:'break-all',marginTop:4}}><b>Error:</b> {syncError}</div>}
+        </div>}
         <button onClick={()=>{
             ['sb_user','sb_venues','sb_templates','sb_tours'].forEach(k=>{try{localStorage.removeItem(k);}catch{}});
             window.location.reload();
@@ -1056,7 +1043,7 @@ function StageBoss({user,onLogout}){
             <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>Comedy Booking Command Center</div>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={async()=>{setSyncing(true);try{const version=new Date().toISOString();localVersionRef.current=version;await cloudPush(user,{venues,templates,tours,version});setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed');}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
+            <button onClick={async()=>{setSyncing(true);try{const r=await cloudPush(user,venues,templates,tours);localVersionRef.current=r||new Date().toISOString();setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed: '+e.message);}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
             <button onClick={onLogout} style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer',fontFamily:font.body}}>OUT</button>
             <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:'50%',background:C.acc,border:'none',color:'#fff',fontSize:22,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>+</button>
           </div>
