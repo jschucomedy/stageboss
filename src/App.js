@@ -727,6 +727,20 @@ const s = {
   divider:{height:1,background:C.bord,margin:'20px 0'},
   badge:(color)=>({background:`${color}18`,color:color,border:`1px solid ${color}30`,borderRadius:6,padding:'2px 8px',fontSize:10,fontWeight:700,letterSpacing:'0.05em',textTransform:'uppercase',display:'inline-flex',alignItems:'center'}),
   stat:(color)=>({background:`${color||C.acc}08`,border:`1px solid ${color||C.acc}20`,borderRadius:12,padding:'14px 16px',flex:1}),
+  row:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'},
+  field:(mb)=>({marginBottom:mb||12}),
+  overlay:(open)=>({position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:100,opacity:open?1:0,pointerEvents:open?'auto':'none',transition:'opacity 0.2s'}),
+  panel:{position:'fixed',top:0,right:0,height:'100vh',width:'min(480px,100vw)',background:C.surf,borderLeft:`1px solid ${C.bord2}`,zIndex:101,overflowY:'auto',padding:24},
+  handle:{width:4,height:32,background:C.bord2,borderRadius:2,margin:'0 auto 16px'},
+  header:{background:C.surf,borderBottom:`1px solid ${C.bord}`,padding:'12px 16px',position:'sticky',top:0,zIndex:40},
+  content:{flex:1,overflowY:'auto'},
+  modal:{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(8px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:16},
+  modalBox:{background:C.surf,border:`1px solid ${C.bord2}`,borderRadius:18,padding:28,width:'100%',maxWidth:560,maxHeight:'90vh',overflowY:'auto'},
+  divider:{height:1,background:C.bord,margin:'16px 0'},
+  sectionTitle:{fontSize:10,color:C.muted2,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:700,marginBottom:8,marginTop:16},
+  select:{background:C.surf2,border:`1px solid ${C.bord2}`,borderRadius:10,padding:'10px 14px',color:C.txt,fontSize:13,width:'100%',outline:'none',fontFamily:'inherit'},
+  nav:{display:'flex',justifyContent:'space-around',alignItems:'center',background:C.surf,borderTop:`1px solid ${C.bord}`,padding:'8px 0',position:'fixed',bottom:0,left:0,right:0,zIndex:50},
+  navBtn:(active)=>({background:'none',border:'none',color:active?C.acc2:C.muted,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'4px 12px',fontFamily:'inherit'}),
 };
 
 // -- UTILITIES ------------------------------------------------
@@ -1292,7 +1306,7 @@ function StageBoss({user,onLogout}){
         </div>}
         {!aiLoading&&aiResult&&<>
           <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:14,fontSize:12,color:C.txt,lineHeight:1.7,whiteSpace:'pre-wrap',marginBottom:16,maxHeight:300,overflowY:'auto'}}>{aiResult}</div>
-          <div style={s.row}>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <button onClick={copyAiResult} style={s.btn(C.surf2,C.txt,C.bord)}>[list] Copy</button>
             {venues.find(v=>v.id===aiVenueId)?.email&&<button onClick={openAiInGmail} style={s.btn(C.acc,'#fff',null)}>[email] Open Gmail</button>}
           </div>
@@ -1309,7 +1323,7 @@ function StageBoss({user,onLogout}){
       </div>}
 
       {/* CONFIRM DELETE */}
-      {confirmDelete&&<><div onClick={()=>setConfirmDelete(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:400}}/><div style={{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',background:C.surf,border:`1px solid ${C.red}`,borderRadius:18,padding:28,zIndex:401,width:'calc(100% - 48px)',maxWidth:340,textAlign:'center'}}><div style={{fontSize:32,marginBottom:12}}>[trash]</div><div style={{fontFamily:font.head,fontWeight:800,fontSize:18,marginBottom:8}}>Delete Venue?</div><div style={{fontSize:13,color:C.muted,marginBottom:24,lineHeight:1.5}}>Permanently remove <strong style={{color:C.txt}}>{venues.find(v=>v.id===confirmDelete)?.venue}</strong>?</div><div style={s.row}><button onClick={()=>setConfirmDelete(null)} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button><button onClick={()=>{setVenues(vs=>vs.filter(v=>v.id!==confirmDelete));setDetailId(null);setConfirmDelete(null);toast2('Venue removed');}} style={s.btn('rgba(225,112,85,0.15)',C.red,'rgba(225,112,85,0.4)')}>Delete</button></div></div></>}
+      {confirmDelete&&<><div onClick={()=>setConfirmDelete(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:400}}/><div style={{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',background:C.surf,border:`1px solid ${C.red}`,borderRadius:18,padding:28,zIndex:401,width:'calc(100% - 48px)',maxWidth:340,textAlign:'center'}}><div style={{fontSize:32,marginBottom:12}}>[trash]</div><div style={{fontFamily:font.head,fontWeight:800,fontSize:18,marginBottom:8}}>Delete Venue?</div><div style={{fontSize:13,color:C.muted,marginBottom:24,lineHeight:1.5}}>Permanently remove <strong style={{color:C.txt}}>{venues.find(v=>v.id===confirmDelete)?.venue}</strong>?</div><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><button onClick={()=>setConfirmDelete(null)} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button><button onClick={()=>{setVenues(vs=>vs.filter(v=>v.id!==confirmDelete));setDetailId(null);setConfirmDelete(null);toast2('Venue removed');}} style={s.btn('rgba(225,112,85,0.15)',C.red,'rgba(225,112,85,0.4)')}>Delete</button></div></div></>}
 
       <div className="sb-desktop-wrap">
 
@@ -1750,7 +1764,7 @@ function StageBoss({user,onLogout}){
             const netRevenue=totalGuarantee*0.75-totalExpenses;
             const isExpanded=expandTourId===tour.id;
             const sortedDates=(tour.dates||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
-            return<div key={tour.id} style={{...s.card,cursor:'default'}}>
+            return<div key={tour.id} style={{...s.card(),cursor:'default'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}} onClick={()=>setExpandTourId(isExpanded?null:tour.id)}>
                 <div style={{cursor:'pointer'}}>
                   <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,marginBottom:4}}>{tour.name}</div>
@@ -1937,7 +1951,7 @@ function StageBoss({user,onLogout}){
             <button onClick={()=>{setDealVenue({...dv});setShowDealBuilder(true);setDetailId(null);}} style={{...s.btn('linear-gradient(135deg,#059669,#047857)',C.txt,'transparent'),fontWeight:700}}>💰 Deal Builder</button>
             <button onClick={()=>{setRouteStops(prev=>{const already=prev.find(s=>s.id===dv.id);if(already){toast2('Already in route');return prev;}return [...prev,dv];});toast2(`${dv.venue} added to route!`);}} style={{...s.btn(C.surf2,C.blue,C.bord2),fontWeight:600}}>🗺️ Add to Route</button>
           </div>
-          <div style={{...s.row,marginBottom:10}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:10}}>
             {!dv.checklist&&['Hold','Confirmed','Advancing'].includes(dv.status)&&<button onClick={()=>{upd(dv.id,{checklist:createChecklist()});toast2('[OK] Checklist created!');}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1}}>[list] Create Checklist</button>}
             {dv.checklist&&<button onClick={()=>{setDetailId(null);setTimeout(()=>setChecklistId(dv.id),250);}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1}}>[list] Checklist ({checklistPct(dv.checklist)}%)</button>}
             {dv.paid&&<button onClick={()=>{setDetailId(null);setTimeout(()=>setSettlementId(dv.id),250);}} style={{...s.btn(C.surf2,C.acc2,C.bord),flex:1}}>[chart] Settlement</button>}
@@ -1975,7 +1989,7 @@ function StageBoss({user,onLogout}){
               .catch(e=>toast2('AI error: '+e.message));
               toast2('Generating AI draft...');
             }} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),width:'100%',marginBottom:8,fontSize:12}}>AI Draft Email (relationship-aware)</button>}
-            <div style={s.row}>
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
               {mailto&&<button onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');const gmailUrl='https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to='+encodeURIComponent(cv?.email||'')+'&su='+encodeURIComponent(filledSubject)+'&body='+encodeURIComponent(fullBody);window.open(gmailUrl,'_blank');}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>[email] Open Gmail</button>}
               <button onClick={()=>copyText(`Subject: ${filledSubject}\n\n${fullBody}`,'Email',toast2)} style={{...s.btn(C.surf2,C.txt,C.bord),flex:'0 0 auto',padding:'12px 14px'}}>Copy</button>
             </div>
@@ -2105,7 +2119,7 @@ function StageBoss({user,onLogout}){
       <Panel open={templateOpen} onClose={()=>{setTemplateOpen(false);setEditTemplateId(null);}} title="[email] Email Templates">
         {!editTemplateId?<>
           <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Use [VENUE] [BOOKER_FIRST] [DATES] [CITY] [STATE] as placeholders</div>
-          {templates.map(t=><div key={t.id} style={{...s.card,marginBottom:8}}>
+          {templates.map(t=><div key={t.id} style={{...s.card(),marginBottom:8}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div><div style={{fontFamily:font.head,fontWeight:700,fontSize:14,marginBottom:3}}>{t.name}</div><div style={{fontSize:10,color:C.muted}}>{t.subject.substring(0,50)}...</div></div>
               <div style={{display:'flex',gap:8}}>
@@ -2162,7 +2176,7 @@ function StageBoss({user,onLogout}){
           <div style={s.field()}><label style={s.label}>Target Dates</label><input style={s.input()} placeholder="June 21-24" value={nv.targetDates} onChange={e=>setNv(n=>({...n,targetDates:e.target.value}))}/></div>
         </div>
         <div style={s.field()}><label style={s.label}>Next Follow-Up</label><input type="date" style={s.input()} value={nv.nextFollowUp} onChange={e=>setNv(n=>({...n,nextFollowUp:e.target.value}))}/></div>
-        <div style={{...s.row,marginTop:8}}>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
           <button onClick={addVenue} style={s.btn(C.acc,'#fff',null)}>Add Venue</button>
           <button onClick={()=>setAddOpen(false)} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button>
         </div>
@@ -2428,7 +2442,7 @@ function TemplateEditor({template,onSave,onCancel}){
       <button onClick={()=>removePhotoLink(i)} style={{flexShrink:0,padding:'8px',background:'none',border:`1px solid ${C.red}`,borderRadius:8,color:C.red,cursor:'pointer',fontSize:12}}>x</button>
     </div>)}
     <button onClick={addPhotoLink} style={{...s.btn(C.surf2,C.txt,C.bord),width:'100%',marginBottom:16}}>+ Add Press Kit Link</button>
-    <div style={s.row}>
+    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
       <button onClick={()=>onSave({...template,id:template.id==='new'?Date.now().toString():template.id,name,subject,body,photoLinks})} style={s.btn(C.acc,'#fff',null)}>Save Template</button>
       <button onClick={onCancel} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button>
     </div>
@@ -2500,7 +2514,7 @@ function TourEditor({tour,onSave,onCancel}){
     </div>)}
     <button onClick={addDate} style={{...s.btn(C.surf2,C.txt,C.bord),width:'100%',marginBottom:16}}>+ Add Show Date</button>
     <div style={s.field()}><label style={s.label}>Tour Notes</label><textarea style={{...s.input(12),resize:'none',minHeight:60}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Routing notes, contacts..."/></div>
-    <div style={s.row}>
+    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
       <button onClick={()=>onSave({...tour,id:tour?.id||Date.now().toString(),name,startDate,endDate,travelBudget,lodgingBudget,miscBudget,dates,notes})} style={s.btn(C.acc,'#fff',null)}>Save Tour</button>
       <button onClick={onCancel} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button>
     </div>
