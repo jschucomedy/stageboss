@@ -15,38 +15,35 @@ const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 async function cloudFetch(email) {
   try {
     const r = await fetch(
-      `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=data,updated_at`,
+      `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=email,data,updated_at`,
       { headers: { 
         'apikey': SB_KEY, 
         'Authorization': `Bearer ${SB_KEY}`,
         'Content-Type': 'application/json'
       }}
     );
+    const txt = await r.text();
     if (!r.ok) {
-      const errText = await r.text();
-      console.error('[SYNC] Fetch failed:', r.status, errText);
-      return null;
+      console.error('[SYNC] Fetch failed:', r.status, txt);
+      return { error: `${r.status}: ${txt}` };
     }
-    const rows = await r.json();
-    console.log('[SYNC] Fetched', rows?.length, 'rows, venues:', rows?.[0]?.data?.venues?.length);
-    return rows?.[0] || null;
+    const rows = JSON.parse(txt);
+    console.log('[SYNC] Fetch OK, rows:', rows?.length, 'venues:', rows?.[0]?.data?.venues?.length);
+    return { row: rows?.[0] || null };
   } catch(e) { 
-    console.error('[SYNC] Fetch error:', e); 
-    return null; 
+    console.error('[SYNC] Fetch exception:', e); 
+    return { error: e.message };
   }
 }
 
 async function cloudPush(email, payload) {
   try {
-    // Use upsert - single POST with merge-duplicates preference
-    // This works whether row exists or not
     const body = JSON.stringify({ 
       email, 
-      data: payload, 
+      data: payload,
       updated_at: payload.version 
     });
-    console.log('[SYNC] Pushing', payload.venues?.length, 'venues, size:', body.length, 'bytes');
-    
+    console.log('[SYNC] Pushing venues:', payload.venues?.length, 'bytes:', body.length);
     const r = await fetch(
       `${SB_URL}/rest/v1/userdata`,
       { 
@@ -60,16 +57,15 @@ async function cloudPush(email, payload) {
         body 
       }
     );
-    
+    const txt = await r.text();
     if (!r.ok) {
-      const errText = await r.text();
-      console.error('[SYNC] Push failed:', r.status, errText);
-      throw new Error(`${r.status}: ${errText}`);
+      console.error('[SYNC] Push failed:', r.status, txt);
+      throw new Error(`${r.status}: ${txt}`);
     }
-    console.log('[SYNC] Push successful:', r.status);
+    console.log('[SYNC] Push OK:', r.status);
     return true;
   } catch(e) { 
-    console.error('[SYNC] Push error:', e); 
+    console.error('[SYNC] Push exception:', e); 
     throw e;
   }
 }
@@ -576,25 +572,29 @@ function StageBoss({user,onLogout}){
   const[syncing,setSyncing]=useState(false);
   const[lastSync,setLastSync]=useState(null);
   const[cloudVersion,setCloudVersion]=useState(null);
+  const[syncError,setSyncError]=useState(null);
   const syncTimeout=useRef(null);
   const dirtyRef=useRef(false);
   const localVersionRef=useRef(null);
+  const cloudInitialized=useRef(false);
 
   // ── CLOUD SYNC ──────────────────────────────────────────────────
   // Safe merge: never replace local with empty/invalid cloud data
   const applyCloudData = useCallback((data, cloudVer) => {
     if (!data) return false;
-    // Safety check: don't apply empty data
+    // Safety: never apply empty data
     const hasVenues = data.venues && data.venues.length > 0;
     const hasTemplates = data.templates && data.templates.length > 0;
-    if (!hasVenues && !hasTemplates && !data.tours?.length) {
-      console.log('[SYNC] Skipping empty cloud data');
+    const hasTours = data.tours && data.tours.length > 0;
+    if (!hasVenues && !hasTemplates && !hasTours) {
+      console.log('[SYNC] Skipping empty cloud payload');
       return false;
     }
     if (hasVenues) setVenues(data.venues.map(migrateVenue));
     if (hasTemplates) setTemplates(data.templates);
-    if (data.tours !== undefined) setTours(data.tours || []);
+    setTours(data.tours || []);
     setCloudVersion(cloudVer);
+    cloudInitialized.current = true;
     return true;
   }, []);
 
@@ -604,30 +604,32 @@ function StageBoss({user,onLogout}){
 
     async function pollCloud() {
       if (!active) return;
-      try {
-        const row = await cloudFetch(user);
-        if (!active) return;
-        if (row && row.data) {
-          const cloudVer = row.updated_at || '';
-          const localVer = localVersionRef.current || '';
-          console.log('[SYNC] cloudVer:', cloudVer, 'localVer:', localVer);
-          // Apply cloud data if: no local version yet, OR cloud is newer
-          if (!localVer || cloudVer > localVer) {
-            const applied = applyCloudData(row.data, cloudVer);
-            if (applied) {
-              console.log('[SYNC] Applied cloud data');
-              setLastSync(new Date());
-              dirtyRef.current = false;
-            }
+      const result = await cloudFetch(user);
+      if (!active) return;
+      if (result.error) {
+        setSyncError(result.error);
+        console.error('[SYNC] Poll failed:', result.error);
+        return;
+      }
+      setSyncError(null);
+      const row = result.row;
+      if (row && row.data) {
+        const cloudVer = row.updated_at || '';
+        const localVer = localVersionRef.current || '';
+        console.log('[SYNC] cloudVer:', cloudVer, 'localVer:', localVer);
+        if (!localVer || cloudVer > localVer) {
+          const applied = applyCloudData(row.data, cloudVer);
+          if (applied) {
+            console.log('[SYNC] Applied cloud data, venues:', row.data.venues?.length);
+            setLastSync(new Date());
+            dirtyRef.current = false;
           }
         }
-      } catch(e) { console.error('[SYNC] Poll error:', e); }
+      }
     }
 
-    // Load immediately
     setSyncing(true);
     pollCloud().then(()=>setSyncing(false));
-    // Poll every 5 seconds
     const interval = setInterval(pollCloud, 5000);
     return () => { active = false; clearInterval(interval); };
   },[user]);
@@ -998,16 +1000,21 @@ function StageBoss({user,onLogout}){
             try{
               const version=new Date().toISOString();
               localVersionRef.current=version;
+              dirtyRef.current=false;
               await cloudPush(user,{venues,templates,tours,version});
               setLastSync(new Date());
+              setSyncError(null);
               toast2('Saved to cloud!');
-            }catch(e){toast2('Sync failed: '+e.message);}
+            }catch(e){setSyncError(e.message);toast2('Sync failed: '+e.message);}
             setSyncing(false);
           }} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1,fontSize:10}}>
             {syncing?'Syncing...':'Sync Now'}
           </button>
         </div>
-        <div style={{fontSize:9,color:C.muted,textAlign:'center',marginBottom:8}}>{lastSync?'Last sync: '+lastSync.toLocaleTimeString():'Not synced yet'}</div>
+        <div style={{fontSize:9,textAlign:'center',marginBottom:8,color:syncError?C.red:C.muted}}>
+          {syncError?'Sync error - tap to retry':'Last sync: '+(lastSync?lastSync.toLocaleTimeString():'never')}
+        </div>
+        {syncError&&<div style={{fontSize:8,color:C.red,background:'rgba(255,71,87,0.1)',border:'1px solid rgba(255,71,87,0.3)',borderRadius:6,padding:'4px 6px',marginBottom:6,wordBreak:'break-all'}}>{syncError}</div>}
         <button onClick={onLogout} style={{...s.btn('none',C.muted,C.bord),width:'100%',fontSize:11}}>Sign Out</button>
       </div>
 
