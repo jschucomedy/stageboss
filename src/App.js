@@ -557,21 +557,22 @@ function StageBoss({user,onLogout}){
     if(SB_URL!=='https://placeholder.supabase.co'){
       loadCloud();
       // Poll every 20 seconds for changes from other devices
-      const pollInterval=setInterval(loadCloud, 20000);
+      const pollInterval=setInterval(loadCloud, 10000);
       return ()=>clearInterval(pollInterval);
     }
   },[user]);
 
-  // Auto-save to cloud on changes (debounced 3s)
+  // Auto-save to cloud on changes (debounced 2s) - only if data is loaded
   useEffect(()=>{
     if(SB_URL==='https://placeholder.supabase.co') return;
+    if(!lastSync && venues.length===0 && tours.length===0) return; // don't save empty state before cloud loads
     clearTimeout(syncTimeout.current);
     syncTimeout.current=setTimeout(async()=>{
       setSyncing(true);
       await cloudSave(user,{venues,templates,tours});
       setLastSync(new Date());
       setSyncing(false);
-    },1500);
+    },2000);
     return()=>clearTimeout(syncTimeout.current);
   },[venues,templates,tours,user]);
 
@@ -836,9 +837,10 @@ function StageBoss({user,onLogout}){
             top:0;
             left:0;
             height:100vh;
-            padding:24px 16px;
+            padding:16px 16px 24px 16px;
             overflow-y:auto;
             z-index:50;
+            box-sizing:border-box;
           }
           .sb-main { margin-left:220px; padding-bottom:20px; }
           .sb-mobile-header { display:none !important; }
