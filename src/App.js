@@ -1618,29 +1618,22 @@ function StageBoss({user,onLogout}){
                 if(!ANTHROPIC_KEY){toast2('No API key - add REACT_APP_ANTHROPIC_KEY to Netlify');return;}
                 setAiLoading(true);
                 const touchNum=(v.contactLog||[]).length+1;
-                const history=v.contactLog?.slice(-3).map(l=>`${l.date}: ${l.note}`).join('\n')||'No previous contact';
-                const prompt=\`You are Jason Schubert's booking assistant. Write a \${aiDraft.tone||'professional'} booking inquiry email from Jason Schubert to \${v.booker||'the talent buyer'} at \${v.venue} in \${v.city}, \${v.state}.
-
-Context:
-- Venue type: \${v.venueType}
-- Capacity: \${v.capacity||'unknown'}
-- Touch #\${touchNum}
-- Contact history: \${history}
-- Warmth: \${v.warmth||'Cold'}
-
-Rules:
-- Jason is a national touring comedian, 15+ years experience
-- Never invent facts or contact details
-- Keep it under 200 words
-- Subject line first, then blank line, then body
-- Sign as Jason Schubert, jschucomedy@gmail.com, @jschucomedy
-
-Write the email now:\`;
+                const history=(v.contactLog||[]).slice(-3).map(l=>l.date+': '+l.note).join(', ')||'No previous contact';
+                const promptText=[
+                  'You are Jason Schubert booking assistant. Write a '+(aiDraft.tone||'professional')+' booking inquiry email.',
+                  'From: Jason Schubert. To: '+(v.booker||'Talent Buyer')+' at '+v.venue+' in '+v.city+', '+v.state+'.',
+                  'Venue type: '+v.venueType+'. Capacity: '+(v.capacity||'unknown')+'.',
+                  'Touch number: '+touchNum+'. Previous contact: '+history+'. Warmth: '+(v.warmth||'Cold')+'.',
+                  'Rules: Jason is a national touring comedian 15+ years. Never invent contact info. Under 200 words.',
+                  'Format: Subject line, blank line, then email body.',
+                  'Sign as: Jason Schubert, jschucomedy@gmail.com, @jschucomedy',
+                  'Write the email now:'
+                ].join('\n');
                 try{
                   const r=await fetch('https://api.anthropic.com/v1/messages',{
                     method:'POST',
                     headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
-                    body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:prompt}]})
+                    body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:promptText}]})
                   });
                   const data=await r.json();
                   const txt=data.content?.[0]?.text||'';
@@ -1662,11 +1655,11 @@ Write the email now:\`;
                 <div style={{display:'flex',gap:8,marginTop:8}}>
                   <button onClick={()=>{
                     const v=venues.find(x=>x.id===aiDraft.venueId);
-                    const lines=aiDraft.generated.split('\n');
-                    const subject=lines[0].replace(/^Subject:\s*/i,'');
-                    const body=lines.slice(2).join('\n');
-                    const email=v?.email||'';
-                    const gmailUrl=\`https://mail.google.com/mail/?view=cm&to=\${encodeURIComponent(email)}&su=\${encodeURIComponent(subject)}&body=\${encodeURIComponent(body)}\`;
+                    const emailLines=aiDraft.generated.split('\n');
+                    const subject=emailLines[0].replace(/^Subject:\s*/i,'');
+                    const body=emailLines.slice(2).join('\n');
+                    const emailAddr=v?.email||'';
+                    const gmailUrl='https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(emailAddr)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
                     window.open(gmailUrl,'_blank');
                   }} style={{...s.btn('linear-gradient(135deg,#10b981,#059669)',C.txt,'transparent'),fontWeight:700}}>
                     📧 Open in Gmail
