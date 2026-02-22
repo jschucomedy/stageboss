@@ -554,7 +554,7 @@ function StageBoss({user,onLogout}){
 
   // ── CLOUD SYNC ──────────────────────────────────────────────────
   // Load from cloud - always replaces local state (cloud = source of truth)
-  const applyCloudData = React.useCallback((data) => {
+  const applyCloudData = useCallback((data) => {
     if (!data) return;
     if (data.venues && data.venues.length > 0) setVenues(data.venues.map(migrateVenue));
     if (data.templates && data.templates.length > 0) setTemplates(data.templates);
