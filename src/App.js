@@ -13,37 +13,65 @@ const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 // ─────────────────────────────────────────────────────────────────
 
 async function cloudFetch(email) {
-  const r = await fetch(
-    `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=data,updated_at`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
-  );
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const rows = await r.json();
-  return rows?.[0] || null;
+  try {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=data,updated_at`,
+      { headers: { 
+        'apikey': SB_KEY, 
+        'Authorization': `Bearer ${SB_KEY}`,
+        'Content-Type': 'application/json'
+      }}
+    );
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error('[SYNC] Fetch failed:', r.status, errText);
+      return null;
+    }
+    const rows = await r.json();
+    console.log('[SYNC] Fetched', rows?.length, 'rows, venues:', rows?.[0]?.data?.venues?.length);
+    return rows?.[0] || null;
+  } catch(e) { 
+    console.error('[SYNC] Fetch error:', e); 
+    return null; 
+  }
 }
 
 async function cloudPush(email, payload) {
-  // payload = { venues, templates, tours, version: ISO timestamp }
-  const check = await fetch(
-    `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=updated_at`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
-  );
-  const rows = await check.json();
-  const body = JSON.stringify({ email, data: payload, updated_at: payload.version });
-  if (rows && rows.length > 0) {
-    const r = await fetch(
-      `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}`,
-      { method: 'PATCH', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }, body }
-    );
-    if (!r.ok) throw new Error(`PATCH ${r.status}`);
-  } else {
+  try {
+    // Use upsert - single POST with merge-duplicates preference
+    // This works whether row exists or not
+    const body = JSON.stringify({ 
+      email, 
+      data: payload, 
+      updated_at: payload.version 
+    });
+    console.log('[SYNC] Pushing', payload.venues?.length, 'venues, size:', body.length, 'bytes');
+    
     const r = await fetch(
       `${SB_URL}/rest/v1/userdata`,
-      { method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }, body }
+      { 
+        method: 'POST', 
+        headers: { 
+          'apikey': SB_KEY, 
+          'Authorization': `Bearer ${SB_KEY}`, 
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        }, 
+        body 
+      }
     );
-    if (!r.ok) throw new Error(`POST ${r.status}`);
+    
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error('[SYNC] Push failed:', r.status, errText);
+      throw new Error(`${r.status}: ${errText}`);
+    }
+    console.log('[SYNC] Push successful:', r.status);
+    return true;
+  } catch(e) { 
+    console.error('[SYNC] Push error:', e); 
+    throw e;
   }
-  return true;
 }
 
 
@@ -553,12 +581,21 @@ function StageBoss({user,onLogout}){
   const localVersionRef=useRef(null);
 
   // ── CLOUD SYNC ──────────────────────────────────────────────────
-  // Load from cloud - always replaces local state (cloud = source of truth)
-  const applyCloudData = useCallback((data) => {
-    if (!data) return;
-    if (data.venues && data.venues.length > 0) setVenues(data.venues.map(migrateVenue));
-    if (data.templates && data.templates.length > 0) setTemplates(data.templates);
+  // Safe merge: never replace local with empty/invalid cloud data
+  const applyCloudData = useCallback((data, cloudVer) => {
+    if (!data) return false;
+    // Safety check: don't apply empty data
+    const hasVenues = data.venues && data.venues.length > 0;
+    const hasTemplates = data.templates && data.templates.length > 0;
+    if (!hasVenues && !hasTemplates && !data.tours?.length) {
+      console.log('[SYNC] Skipping empty cloud data');
+      return false;
+    }
+    if (hasVenues) setVenues(data.venues.map(migrateVenue));
+    if (hasTemplates) setTemplates(data.templates);
     if (data.tours !== undefined) setTours(data.tours || []);
+    setCloudVersion(cloudVer);
+    return true;
   }, []);
 
   useEffect(()=>{
@@ -566,36 +603,39 @@ function StageBoss({user,onLogout}){
     let active = true;
 
     async function pollCloud() {
+      if (!active) return;
       try {
         const row = await cloudFetch(user);
         if (!active) return;
         if (row && row.data) {
-          const cloudVer = row.updated_at;
-          // Only apply if cloud version is newer than what we last saved
-          if (!localVersionRef.current || cloudVer > localVersionRef.current) {
-            console.log('[SYNC] Applying cloud data, version:', cloudVer, 'venues:', row.data.venues?.length);
-            dirtyRef.current = false;
-            applyCloudData(row.data);
-            setCloudVersion(cloudVer);
-            setLastSync(new Date());
+          const cloudVer = row.updated_at || '';
+          const localVer = localVersionRef.current || '';
+          console.log('[SYNC] cloudVer:', cloudVer, 'localVer:', localVer);
+          // Apply cloud data if: no local version yet, OR cloud is newer
+          if (!localVer || cloudVer > localVer) {
+            const applied = applyCloudData(row.data, cloudVer);
+            if (applied) {
+              console.log('[SYNC] Applied cloud data');
+              setLastSync(new Date());
+              dirtyRef.current = false;
+            }
           }
         }
       } catch(e) { console.error('[SYNC] Poll error:', e); }
     }
 
-    // Load immediately on mount
+    // Load immediately
     setSyncing(true);
     pollCloud().then(()=>setSyncing(false));
-
-    // Then poll every 5 seconds
-    const interval = setInterval(()=>pollCloud(), 5000);
+    // Poll every 5 seconds
+    const interval = setInterval(pollCloud, 5000);
     return () => { active = false; clearInterval(interval); };
   },[user]);
 
-  // Auto-save: fires when user changes data, marks dirty + saves to cloud
+  // Auto-save: fires 1s after user changes data
   useEffect(()=>{
     if(SB_URL==='https://placeholder.supabase.co') return;
-    if(!lastSync) return; // don't save before initial cloud load
+    if(!lastSync) return; // wait for initial cloud load
     dirtyRef.current = true;
     clearTimeout(syncTimeout.current);
     syncTimeout.current = setTimeout(async()=>{
@@ -604,14 +644,12 @@ function StageBoss({user,onLogout}){
       localVersionRef.current = version;
       dirtyRef.current = false;
       setSyncing(true);
-      console.log('[SYNC] Saving to cloud, venues:', venues.length, 'version:', version);
       try {
         await cloudPush(user, {venues, templates, tours, version});
         setLastSync(new Date());
-        console.log('[SYNC] Save successful');
       } catch(e) { 
-        console.error('[SYNC] Save failed:', e);
-        dirtyRef.current = true; // retry next change
+        console.error('[SYNC] Auto-save failed:', e);
+        dirtyRef.current = true;
       }
       setSyncing(false);
     }, 1000);
