@@ -13,6 +13,10 @@ const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 // ─────────────────────────────────────────────────────────────────
 
 async function cloudFetch(email) {
+  if (!email || !email.includes('@')) {
+    console.error('[SYNC] Invalid email:', email);
+    return { error: 'Invalid email: ' + email };
+  }
   try {
     const r = await fetch(
       `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=email,data,updated_at`,
@@ -37,35 +41,51 @@ async function cloudFetch(email) {
 }
 
 async function cloudPush(email, payload) {
+  // A) Validate email before any write
+  if (!email || !email.includes('@')) {
+    const msg = 'Invalid email in storage: "' + email + '". Please sign out and back in.';
+    console.error('[SYNC]', msg);
+    throw new Error(msg);
+  }
+  // Separate version from appState so data column is a pure object
+  const { version, ...appState } = payload;
+  const updated_at = version || new Date().toISOString();
+  const writeBody = { email, data: appState, updated_at };
+  // B) Full payload logging before write
+  console.log('[SYNC] writeBody object:', writeBody);
+  console.log('[SYNC] writeBody JSON preview:', JSON.stringify(writeBody).slice(0, 300));
   try {
-    const body = JSON.stringify({ 
-      email, 
-      data: payload,
-      updated_at: payload.version 
-    });
-    console.log('[SYNC] Pushing venues:', payload.venues?.length, 'bytes:', body.length);
+    const body = JSON.stringify(writeBody);
+    // A) Explicit upsert: POST with on_conflict=email + merge-duplicates + return=representation
     const r = await fetch(
-      `${SB_URL}/rest/v1/userdata`,
+      `${SB_URL}/rest/v1/userdata?on_conflict=email`,
       { 
         method: 'POST', 
         headers: { 
           'apikey': SB_KEY, 
           'Authorization': `Bearer ${SB_KEY}`, 
           'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates'
+          'Prefer': 'resolution=merge-duplicates,return=representation'
         }, 
         body 
       }
     );
     const txt = await r.text();
     if (!r.ok) {
-      console.error('[SYNC] Push failed:', r.status, txt);
+      console.error('[SYNC] Push failed status:', r.status, 'response:', txt);
       throw new Error(`${r.status}: ${txt}`);
     }
-    console.log('[SYNC] Push OK:', r.status);
+    // D) Verify write success from returned row
+    try {
+      const rows = JSON.parse(txt);
+      const returnedAt = rows?.[0]?.updated_at;
+      console.log('[SYNC] Push OK, returned updated_at:', returnedAt);
+    } catch(_) {
+      console.log('[SYNC] Push OK, status:', r.status);
+    }
     return true;
   } catch(e) { 
-    console.error('[SYNC] Push exception:', e); 
+    console.error('[SYNC] Push exception:', e.message); 
     throw e;
   }
 }
@@ -498,7 +518,7 @@ function ToggleGroup({options,value,onChange,color=C.acc}){return<div style={{di
 // -- LOGIN -----------------------------------------------------
 function LoginScreen({onLogin}){
   const[email,setEmail]=useState('');const[pw,setPw]=useState('');const[err,setErr]=useState('');const[loading,setLoading]=useState(false);
-  async function attempt(){setLoading(true);setErr('');try{const match=await checkCredentials(email,pw);if(match){onLogin(email.toLowerCase().trim().replace(/\s/g,''));}else{setErr('Incorrect email or password.');setLoading(false);}}catch{setErr('Login error  -  please try again.');setLoading(false);}}
+  async function attempt(){setLoading(true);setErr('');try{const match=await checkCredentials(email,pw);if(match){onLogin(email.toLowerCase().trim());}else{setErr('Incorrect email or password.');setLoading(false);}}catch{setErr('Login error  -  please try again.');setLoading(false);}}
   return(<div style={{fontFamily:font.body,background:C.bg,minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
     <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box;}body{margin:0;background:${C.bg};}input,select,textarea{-webkit-appearance:none;}`}</style>
     <div style={{width:'100%',maxWidth:360}}>
@@ -521,7 +541,7 @@ function LoginScreen({onLogin}){
 // -- MAIN APP -------------------------------------------------
 export default function App(){
   const[user,setUser]=useState(()=>{try{return localStorage.getItem('sb_user')||null;}catch{return null;}});
-  if(!user)return<LoginScreen onLogin={u=>{try{localStorage.setItem('sb_user',u);}catch{}setUser(u);}}/>;
+  if(!user)return<LoginScreen onLogin={u=>{try{localStorage.setItem('sb_user',u);localStorage.removeItem('sb_venues');localStorage.removeItem('sb_templates');localStorage.removeItem('sb_tours');}catch{}setUser(u);}}/>;
   return<StageBoss user={user} onLogout={()=>{try{localStorage.removeItem('sb_user');}catch{}setUser(null);}}/>;
 }
 
@@ -1015,7 +1035,11 @@ function StageBoss({user,onLogout}){
           {syncError?'Sync error - tap to retry':'Last sync: '+(lastSync?lastSync.toLocaleTimeString():'never')}
         </div>
         {syncError&&<div style={{fontSize:8,color:C.red,background:'rgba(255,71,87,0.1)',border:'1px solid rgba(255,71,87,0.3)',borderRadius:6,padding:'4px 6px',marginBottom:6,wordBreak:'break-all'}}>{syncError}</div>}
-        <button onClick={onLogout} style={{...s.btn('none',C.muted,C.bord),width:'100%',fontSize:11}}>Sign Out</button>
+        <button onClick={()=>{
+            ['sb_user','sb_venues','sb_templates','sb_tours'].forEach(k=>{try{localStorage.removeItem(k);}catch{}});
+            window.location.reload();
+          }} style={{...s.btn('none',C.yellow,C.bord),width:'100%',fontSize:11,marginBottom:6}}>Reset Cache</button>
+          <button onClick={onLogout} style={{...s.btn('none',C.muted,C.bord),width:'100%',fontSize:11}}>Sign Out</button>
       </div>
 
       {/* MAIN CONTENT */}
