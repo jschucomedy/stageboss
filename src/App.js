@@ -859,7 +859,25 @@ function LoginScreen({onLogin}){
 }
 
 // -- MAIN APP -------------------------------------------------
-export default function App(){
+
+class ErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state={err:null,info:null}; }
+  componentDidCatch(err,info){ this.setState({err,info}); }
+  render(){
+    if(this.state.err){
+      return <div style={{background:'#050508',minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:24,fontFamily:'monospace'}}>
+        <div style={{background:'#1a0a0a',border:'1px solid #ef4444',borderRadius:12,padding:24,maxWidth:600,width:'100%'}}>
+          <div style={{color:'#ef4444',fontWeight:700,fontSize:16,marginBottom:12}}>💥 StageBoss Runtime Error</div>
+          <div style={{color:'#fca5a5',fontSize:13,marginBottom:16,whiteSpace:'pre-wrap'}}>{this.state.err.toString()}</div>
+          <div style={{color:'#6d6d90',fontSize:11,whiteSpace:'pre-wrap',overflowX:'auto'}}>{this.state.info?.componentStack?.slice(0,500)}</div>
+          <button onClick={()=>window.location.reload()} style={{marginTop:16,background:'#7c3aed',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',cursor:'pointer',fontFamily:'monospace'}}>Reload</button>
+        </div>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
+function App(){
   const[user,setUser]=useState(()=>{try{return localStorage.getItem('sb_user')||null;}catch{return null;}});
   if(!user)return<LoginScreen onLogin={u=>{try{localStorage.setItem('sb_user',u);localStorage.removeItem('sb_venues');localStorage.removeItem('sb_templates');localStorage.removeItem('sb_tours');}catch{}setUser(u);}}/>;
   return<StageBoss user={user} onLogout={()=>{try{localStorage.removeItem('sb_user');}catch{}setUser(null);}}/>;
@@ -2520,3 +2538,5 @@ function TourEditor({tour,onSave,onCancel}){
     </div>
   </>;
 }
+
+export default function WrappedApp(){ return <ErrorBoundary><App/></ErrorBoundary>; }
