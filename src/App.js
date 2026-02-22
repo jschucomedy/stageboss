@@ -891,6 +891,10 @@ function StageBoss({user,onLogout}){
   const[aiVenueId,setAiVenueId]=useState(null);
   const[aiLoading,setAiLoading]=useState(false);
   const[aiResult,setAiResult]=useState('');
+  const[aiDraft,setAiDraft]=useState({});
+  const[dealVenue,setDealVenue]=useState(null);
+  const[showDealBuilder,setShowDealBuilder]=useState(false);
+  const[routeStops,setRouteStops]=useState([]);
   const[voiceActive,setVoiceActive]=useState(false);
   const[voiceTarget,setVoiceTarget]=useState(null);
   const[stateFilter2,setStateFilter2]=useState('All');
@@ -903,15 +907,7 @@ function StageBoss({user,onLogout}){
   const[lastPushStatus,setLastPushStatus]=useState('never');
   const[lastFetchStatus,setLastFetchStatus]=useState('never');
   const[cloudVenueCount,setCloudVenueCount]=useState(null);
-  // Deal Builder state
-  const[dealVenue,setDealVenue]=useState(null);
-  const[showDealBuilder,setShowDealBuilder]=useState(false);
-  // AI Outreach state
-  const[aiLoading,setAiLoading]=useState(false);
-  const[aiDraft,setAiDraft]=useState('');
-  // Route Planner state
-  const[routeStops,setRouteStops]=useState([]);
-  const[routeCalc,setRouteCalc]=useState(null);
+
   const syncTimeout=useRef(null);
   const dirtyRef=useRef(false);
   const localVersionRef=useRef(null);
