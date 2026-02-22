@@ -2243,7 +2243,7 @@ function StageBoss({user,onLogout}){
                   {label:'Agent Cut',value:fmt$(calc.agentCut),color:C.red},
                   {label:'Manager Cut',value:fmt$(calc.managerCut),color:C.red},
                   {label:'After Reps',value:fmt$(calc.afterReps),color:C.txt},
-                  {label:'Phil's Share',value:fmt$(calc.philCut),color:C.blue},
+                  {label:"Phil's Share",value:fmt$(calc.philCut),color:C.blue},
                   {label:'Show Expenses',value:fmt$(calc.showExpenses),color:C.red},
                 ].map(r=>(
                   <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:`1px solid ${C.bord}`}}>
