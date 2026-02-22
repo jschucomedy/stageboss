@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
 const BUILD_ID = '2026-02-23-v10';
