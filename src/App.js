@@ -493,10 +493,10 @@ export default function App(){
 
 // -- STAGEBOSS ------------------------------------------------
 function StageBoss({user,onLogout}){
-  const[venues,setVenues]=useState(()=>{try{return migrateData(localStorage.getItem('sb_venues'));}catch{return[];}});
-  const[templates,setTemplates]=useState(()=>{try{const s=localStorage.getItem('sb_templates');return s?JSON.parse(s):DEFAULT_TEMPLATES;}catch{return DEFAULT_TEMPLATES;}});
+  const[venues,setVenues]=useState([]);
+  const[templates,setTemplates]=useState([]);
   const[photos]=useState(DEFAULT_PHOTOS);
-  const[tours,setTours]=useState(()=>{try{const s=localStorage.getItem('sb_tours');return s?JSON.parse(s):[];}catch{return[];}});
+  const[tours,setTours]=useState([]);
   const[tab,setTab]=useState('today');
   const[search,setSearch]=useState('');
   const[statusFilter,setStatusFilter]=useState('All');
@@ -546,9 +546,9 @@ function StageBoss({user,onLogout}){
       try{
         const data=await cloudLoad(user);
         if(data){
-          if(data.venues&&data.venues.length>0) setVenues(data.venues.map(migrateVenue));
-          if(data.templates&&data.templates.length>0) setTemplates(data.templates);
-          if(data.tours&&data.tours.length>0) setTours(data.tours);
+          if(data.venues) setVenues(data.venues.map(migrateVenue));
+          if(data.templates) setTemplates(data.templates);
+          if(data.tours) setTours(data.tours);
           setLastSync(new Date());
         }
       }catch(e){console.error('Load error:',e);}
@@ -881,12 +881,12 @@ function StageBoss({user,onLogout}){
 
       {/* DESKTOP SIDEBAR */}
       <div className="sb-sidebar">
-        <div onClick={()=>setTab('today')} style={{cursor:'pointer',marginBottom:28}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:2}}>
-            <div style={{width:34,height:34,borderRadius:9,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:14,color:'#fff',fontFamily:font.head,flexShrink:0,letterSpacing:-0.5}}>SB</div>
-            <div style={{fontFamily:font.head,fontWeight:800,fontSize:22,letterSpacing:-1,lineHeight:1}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
+        <div onClick={()=>setTab('today')} style={{cursor:'pointer',marginBottom:24,paddingTop:4}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+            <div style={{width:32,height:32,borderRadius:8,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13,color:'#fff',fontFamily:font.head,flexShrink:0}}>SB</div>
+            <div style={{fontFamily:font.head,fontWeight:800,fontSize:20,letterSpacing:-1,lineHeight:1,overflow:'hidden'}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
           </div>
-          <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:4}}>Booking Command Center</div>
+          <div style={{fontSize:9,color:C.muted,letterSpacing:1.5,textTransform:'uppercase',marginTop:3,paddingLeft:2}}>Booking Command Center</div>
         </div>
         {/* Sidebar nav */}
         {[['today','[list]','Today'],['venues','[venue]','Venues'],['calendar','[cal]','Calendar'],['outreach','[email]','Outreach'],['tours','[bus]','Tours']].map(([t,icon,label])=>(
