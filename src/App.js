@@ -541,45 +541,42 @@ function StageBoss({user,onLogout}){
   const syncTimeout=useRef(null);
   const isLoadingRef=useRef(false);
 
-  // Cloud load on mount + poll every 20s for real-time sync
+  // Cloud load on mount + poll every 5s for real-time sync
   useEffect(()=>{
+    if(SB_URL==='https://placeholder.supabase.co') return;
     async function loadCloud(){
-      setSyncing(true);
       isLoadingRef.current=true;
+      setSyncing(true);
       try{
         const data=await cloudLoad(user);
         if(data){
-          if(data.venues) setVenues(data.venues.map(migrateVenue));
-          if(data.templates) setTemplates(data.templates);
+          if(data.venues&&data.venues.length>0) setVenues(data.venues.map(migrateVenue));
+          if(data.templates&&data.templates.length>0) setTemplates(data.templates);
           if(data.tours) setTours(data.tours);
           setLastSync(new Date());
         }
       }catch(e){console.error('Load error:',e);}
-      setTimeout(()=>{isLoadingRef.current=false;},1000);
       setSyncing(false);
+      setTimeout(()=>{isLoadingRef.current=false;},500);
     }
-    if(SB_URL!=='https://placeholder.supabase.co'){
-      loadCloud();
-      // Poll every 20 seconds for changes from other devices
-      const pollInterval=setInterval(loadCloud, 10000);
-      return ()=>clearInterval(pollInterval);
-    }
+    loadCloud();
+    const poll=setInterval(loadCloud,5000);
+    return()=>clearInterval(poll);
   },[user]);
 
-  // Auto-save to cloud on changes (debounced 2s) - only if data is loaded
+  // Auto-save: only fires when user makes a change (not during cloud load)
   useEffect(()=>{
     if(SB_URL==='https://placeholder.supabase.co') return;
-    if(!lastSync && venues.length===0 && tours.length===0) return; // don't save empty state before cloud loads
-    if(isLoadingRef.current) return; // don't save while loading from cloud
+    if(isLoadingRef.current) return;
+    if(!lastSync) return;
     clearTimeout(syncTimeout.current);
     syncTimeout.current=setTimeout(async()=>{
       setSyncing(true);
       await cloudSave(user,{venues,templates,tours});
-      setLastSync(new Date());
       setSyncing(false);
-    },2000);
+    },1000);
     return()=>clearTimeout(syncTimeout.current);
-  },[venues,templates,tours,user]);
+  },[venues,templates,tours]);;
 
   // -- AI OUTREACH WRITER --------------------------------------
   async function generateAIOutreach(venueId){
