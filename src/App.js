@@ -730,7 +730,7 @@ const s = {
   row:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'},
   field:(mb)=>({marginBottom:mb||12}),
   overlay:(open)=>({position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:100,opacity:open?1:0,pointerEvents:open?'auto':'none',transition:'opacity 0.2s'}),
-  panel:{position:'fixed',top:0,right:0,height:'100vh',width:'min(480px,100vw)',background:C.surf,borderLeft:`1px solid ${C.bord2}`,zIndex:101,overflowY:'auto',padding:24},
+  panel:(open)=>({position:'fixed',top:0,right:0,height:'100vh',width:'min(480px,100vw)',background:C.surf,borderLeft:`1px solid ${C.bord2}`,zIndex:101,overflowY:'auto',padding:24,transform:open?'translateX(0)':'translateX(100%)',transition:'transform 0.25s ease'}),
   handle:{width:4,height:32,background:C.bord2,borderRadius:2,margin:'0 auto 16px'},
   header:{background:C.surf,borderBottom:`1px solid ${C.bord}`,padding:'12px 16px',position:'sticky',top:0,zIndex:40},
   content:{flex:1,overflowY:'auto'},
