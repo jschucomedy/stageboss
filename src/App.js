@@ -11,8 +11,9 @@ async function cloudLoad(email) {
       headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`}
     });
     const rows = await r.json();
+    console.log('CloudLoad result:', rows?.length, 'rows, venues:', rows?.[0]?.data?.venues?.length);
     return rows?.[0]?.data || null;
-  } catch { return null; }
+  } catch(e) { console.error('CloudLoad error:', e); return null; }
 }
 async function cloudSave(email, data) {
   try {
@@ -538,11 +539,13 @@ function StageBoss({user,onLogout}){
   const[syncing,setSyncing]=useState(false);
   const[lastSync,setLastSync]=useState(null);
   const syncTimeout=useRef(null);
+  const isLoadingRef=useRef(false);
 
   // Cloud load on mount + poll every 20s for real-time sync
   useEffect(()=>{
     async function loadCloud(){
       setSyncing(true);
+      isLoadingRef.current=true;
       try{
         const data=await cloudLoad(user);
         if(data){
@@ -552,6 +555,7 @@ function StageBoss({user,onLogout}){
           setLastSync(new Date());
         }
       }catch(e){console.error('Load error:',e);}
+      setTimeout(()=>{isLoadingRef.current=false;},1000);
       setSyncing(false);
     }
     if(SB_URL!=='https://placeholder.supabase.co'){
@@ -566,6 +570,7 @@ function StageBoss({user,onLogout}){
   useEffect(()=>{
     if(SB_URL==='https://placeholder.supabase.co') return;
     if(!lastSync && venues.length===0 && tours.length===0) return; // don't save empty state before cloud loads
+    if(isLoadingRef.current) return; // don't save while loading from cloud
     clearTimeout(syncTimeout.current);
     syncTimeout.current=setTimeout(async()=>{
       setSyncing(true);
@@ -886,7 +891,7 @@ function StageBoss({user,onLogout}){
         <div onClick={()=>setTab('today')} style={{cursor:'pointer',marginBottom:24,paddingTop:4}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
             <div style={{width:32,height:32,borderRadius:8,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13,color:'#fff',fontFamily:font.head,flexShrink:0}}>SB</div>
-            <div style={{fontFamily:font.head,fontWeight:800,fontSize:20,letterSpacing:-1,lineHeight:1,overflow:'hidden'}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
+            <div style={{fontFamily:font.head,fontWeight:800,fontSize:20,letterSpacing:-1,lineHeight:1.2,whiteSpace:'nowrap'}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
           </div>
           <div style={{fontSize:9,color:C.muted,letterSpacing:1.5,textTransform:'uppercase',marginTop:3,paddingLeft:2}}>Booking Command Center</div>
         </div>
