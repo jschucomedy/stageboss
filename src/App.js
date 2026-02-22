@@ -543,13 +543,15 @@ function StageBoss({user,onLogout}){
   useEffect(()=>{
     async function loadCloud(){
       setSyncing(true);
-      const data=await cloudLoad(user);
-      if(data){
-        if(data.venues) setVenues(data.venues.map(migrateVenue));
-        if(data.templates) setTemplates(data.templates);
-        if(data.tours) setTours(data.tours);
-        setLastSync(new Date());
-      }
+      try{
+        const data=await cloudLoad(user);
+        if(data){
+          if(data.venues&&data.venues.length>0) setVenues(data.venues.map(migrateVenue));
+          if(data.templates&&data.templates.length>0) setTemplates(data.templates);
+          if(data.tours&&data.tours.length>0) setTours(data.tours);
+          setLastSync(new Date());
+        }
+      }catch(e){console.error('Load error:',e);}
       setSyncing(false);
     }
     if(SB_URL!=='https://placeholder.supabase.co'){
@@ -909,7 +911,13 @@ function StageBoss({user,onLogout}){
         <button onClick={()=>importRef.current?.click()} style={{...s.btn(C.surf2,C.muted,C.bord),width:'100%',marginBottom:8,fontSize:12}}>[folder] Import Backup</button>
         <input ref={importRef} type="file" accept=".json" style={{display:'none'}} onChange={importData}/>
         <div style={{display:'flex',gap:6,marginBottom:6}}>
-          <button onClick={async()=>{setSyncing(true);await cloudSave(user,{venues,templates,tours});setLastSync(new Date());setSyncing(false);toast2('Synced!');}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1,fontSize:10}}>
+          <button onClick={async()=>{
+            setSyncing(true);
+            const saved=await cloudSave(user,{venues,templates,tours});
+            if(saved){setLastSync(new Date());toast2('Saved to cloud!');}
+            else{toast2('Sync failed - check connection');}
+            setSyncing(false);
+          }} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1,fontSize:10}}>
             {syncing?'Syncing...':'Sync Now'}
           </button>
         </div>
@@ -1511,7 +1519,10 @@ function CalendarTab({venues,tours=[],onVenueClick,onChecklist,toast2}){
   const calEvents=venues.filter(v=>v.targetDates&&['Hold','Confirmed','Advancing','Completed'].includes(v.status));
   // Add confirmed tour show dates to calendar
   const tourEvents=[];
-  tours.forEach(t=>{(t.dates||[]).filter(d=>['Confirmed','Hold'].includes(d.status)).forEach(d=>{tourEvents.push({id:t.id+'_'+d.id,venue:d.venue||'TBD',city:d.city||'',state:d.state||'',status:d.status,guarantee:d.guarantee,targetDates:d.date,isTourDate:true,tourName:t.name});});});
+  tours.forEach(t=>{(t.dates||[]).filter(d=>['Confirmed','Hold'].includes(d.status)).forEach(d=>{const dateObj=d.date?new Date(d.date+('T12:00:00')):null;
+        const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const monthStr=dateObj?monthNames[dateObj.getMonth()]+' '+dateObj.getFullYear():d.date||'';
+        tourEvents.push({id:t.id+'_'+d.id,venue:d.venue||'TBD',city:d.city||'',state:d.state||'',status:d.status,guarantee:d.guarantee,targetDates:monthStr,isTourDate:true,tourName:t.name,exactDate:d.date});});});
   const allEvents=[...calEvents,...tourEvents];
   const grouped={};
   allEvents.forEach(v=>{const monthMatch=MONTHS.find(m=>(v.targetDates||'').includes(m));const key=monthMatch||'Undated';if(!grouped[key])grouped[key]=[];grouped[key].push(v);});
