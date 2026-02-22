@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 // -- SUPABASE CLOUD SYNC --------------------------------------
 const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
 // Anthropic API key - add yours here
-const ANTHROPIC_KEY = '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';
+const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY || '';
 const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 async function cloudLoad(email) {
   try {
