@@ -585,8 +585,13 @@ function StageBoss({user,onLogout}){
     try{
       const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
       const data=await res.json();
-      const text=data.content?.map(b=>b.text||'').join('')||'Error generating email.';
-      setAiResult(text);
+      const text=data.content?.map(b=>b.text||'').join('');
+      if(text){
+        setAiResult(text);
+      } else {
+        const errMsg=data.error?.message||JSON.stringify(data);
+        setAiResult('Error: '+errMsg);
+      }
     }catch(err){
       setAiResult(ANTHROPIC_KEY==='YOUR_ANTHROPIC_KEY_HERE'?'Add your Anthropic API key to the code first. Go to console.anthropic.com to get one.':'Could not generate email. Check your connection and API key.');
     }
