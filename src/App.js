@@ -1527,8 +1527,7 @@ function StageBoss({user,onLogout}){
 
         {/* == VENUES TAB == */}
         {tab==='venues'&&<>
-          {/* VENUES HEADER */}
-          <div style={{padding:'20px 20px 0',borderBottom:`1px solid ${C.bord}`,paddingBottom:16,marginBottom:0}}>
+          <div style={{padding:'20px 20px 0',borderBottom:`1px solid ${C.bord}`,paddingBottom:16}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
               <div>
                 <div style={{fontFamily:"'Syne',sans-serif",fontWeight:900,fontSize:22,letterSpacing:-0.5}}>Venues</div>
@@ -1544,34 +1543,24 @@ function StageBoss({user,onLogout}){
                 const color=PIPE_COLORS[st]||C.acc;
                 const active=st===statusFilter;
                 const count=st==='All'?venues.length:venues.filter(v=>v.status===st).length;
-                return<div key={st} onClick={()=>setStatusFilter(st)} style={{...s.pill(active,color),display:'flex',alignItems:'center',gap:5}}>
+                return <div key={st} onClick={()=>setStatusFilter(st)} style={{...s.pill(active,color),display:'flex',alignItems:'center',gap:5}}>
                   {st} {count>0&&<span style={{fontSize:9,opacity:0.7}}>{count}</span>}
                 </div>;
               })}
             </div>
           </div>
           <div style={{padding:'12px 20px 40px',overflowY:'auto'}}>
-          {filtered.map(v=>{
+            {filtered.map(v=>{
               const pcolor=PIPE_COLORS[v.status]||C.muted;
               const overdue=v.nextFollowUp&&isOverdue(v.nextFollowUp);
               const touchCount=(v.contactLog||[]).length;
               const warmthColor={'Cold':C.blue,'Warm':C.yellow,'Hot':C.orange,'Established':C.green}[v.warmth]||C.muted;
-              return<div key={v.id} onClick={()=>setDetailId(v.id)} style={{
-                background:C.surf,
-                border:`1px solid ${C.bord}`,
-                borderLeft:`3px solid ${pcolor}`,
-                borderRadius:12,
-                padding:'14px 16px',
-                marginBottom:8,
-                cursor:'pointer',
-                transition:'all 0.15s ease',
-                position:'relative',
-              }}>
+              return <div key={v.id} onClick={()=>setDetailId(v.id)} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:12,padding:'14px 16px',marginBottom:8,cursor:'pointer',transition:'all 0.15s ease',position:'relative'}}>
                 {overdue&&<div style={{position:'absolute',top:10,right:10,width:8,height:8,borderRadius:'50%',background:C.red,boxShadow:`0 0 8px ${C.red}`}}/>}
                 <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:14,color:C.txt,marginBottom:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{v.venue}</div>
-                    <div style={{fontSize:12,color:C.muted3,marginBottom:8}}>{v.city}, {v.state} {v.venueType&&<span style={{color:C.muted,marginLeft:4}}>· {v.venueType}</span>}</div>
+                    <div style={{fontSize:12,color:C.muted3,marginBottom:8}}>{v.city}, {v.state}{v.venueType&&<span style={{color:C.muted,marginLeft:4}}>· {v.venueType}</span>}</div>
                     <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                       <span style={s.badge(pcolor)}>{v.status}</span>
                       {v.warmth&&<span style={s.badge(warmthColor)}>{v.warmth}</span>}
@@ -1587,7 +1576,6 @@ function StageBoss({user,onLogout}){
                 </div>
               </div>;
             })}
-          </div>
           </div>
         </>}
 
