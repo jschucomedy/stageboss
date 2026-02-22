@@ -1588,7 +1588,7 @@ function StageBoss({user,onLogout}){
               </div>;
             })}
           </div>
-        </div>
+          </div>
         </>}
 
         {/* == CALENDAR TAB == */}
