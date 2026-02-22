@@ -5,38 +5,47 @@ const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
 // Anthropic API key - add yours here
 const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY || '';
 const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
-async function cloudLoad(email) {
-  try {
-    const r = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=data`, {
-      headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`}
-    });
-    const rows = await r.json();
-    console.log('CloudLoad result:', rows?.length, 'rows, venues:', rows?.[0]?.data?.venues?.length);
-    return rows?.[0]?.data || null;
-  } catch(e) { console.error('CloudLoad error:', e); return null; }
+// ── SYNC ARCHITECTURE ──────────────────────────────────────────
+// Cloud is source of truth. Each payload includes a version timestamp.
+// Load: always apply cloud data if it exists.
+// Save: upsert with new timestamp.
+// Poll: load-only every 5s. Auto-save: user-change-only.
+// ─────────────────────────────────────────────────────────────────
+
+async function cloudFetch(email) {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=data,updated_at`,
+    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
+  );
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const rows = await r.json();
+  return rows?.[0] || null;
 }
-async function cloudSave(email, data) {
-  try {
-    const res = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}`, {
-      headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`}
-    });
-    const rows = await res.json();
-    if(rows && rows.length > 0) {
-      await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}`, {
-        method: 'PATCH',
-        headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json'},
-        body: JSON.stringify({data, updated_at: new Date().toISOString()})
-      });
-    } else {
-      await fetch(`${SB_URL}/rest/v1/userdata`, {
-        method: 'POST',
-        headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json'},
-        body: JSON.stringify({email, data, updated_at: new Date().toISOString()})
-      });
-    }
-    return true;
-  } catch(e) { console.error('Sync error:',e); return false; }
+
+async function cloudPush(email, payload) {
+  // payload = { venues, templates, tours, version: ISO timestamp }
+  const check = await fetch(
+    `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}&select=updated_at`,
+    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
+  );
+  const rows = await check.json();
+  const body = JSON.stringify({ email, data: payload, updated_at: payload.version });
+  if (rows && rows.length > 0) {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(email)}`,
+      { method: 'PATCH', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }, body }
+    );
+    if (!r.ok) throw new Error(`PATCH ${r.status}`);
+  } else {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/userdata`,
+      { method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }, body }
+    );
+    if (!r.ok) throw new Error(`POST ${r.status}`);
+  }
+  return true;
 }
+
 
 // -- AUTH -----------------------------------------------------
 const _a = [
@@ -538,43 +547,74 @@ function StageBoss({user,onLogout}){
   const recognitionRef=useRef(null);
   const[syncing,setSyncing]=useState(false);
   const[lastSync,setLastSync]=useState(null);
+  const[cloudVersion,setCloudVersion]=useState(null);
   const syncTimeout=useRef(null);
-  const isLoadingRef=useRef(false);
+  const dirtyRef=useRef(false);
+  const localVersionRef=useRef(null);
 
-  // Cloud load on mount + poll every 5s for real-time sync
+  // ── CLOUD SYNC ──────────────────────────────────────────────────
+  // Load from cloud - always replaces local state (cloud = source of truth)
+  const applyCloudData = React.useCallback((data) => {
+    if (!data) return;
+    if (data.venues && data.venues.length > 0) setVenues(data.venues.map(migrateVenue));
+    if (data.templates && data.templates.length > 0) setTemplates(data.templates);
+    if (data.tours !== undefined) setTours(data.tours || []);
+  }, []);
+
   useEffect(()=>{
     if(SB_URL==='https://placeholder.supabase.co') return;
-    async function loadCloud(){
-      isLoadingRef.current=true;
-      setSyncing(true);
-      try{
-        const data=await cloudLoad(user);
-        if(data){
-          if(data.venues&&data.venues.length>0) setVenues(data.venues.map(migrateVenue));
-          if(data.templates&&data.templates.length>0) setTemplates(data.templates);
-          if(data.tours) setTours(data.tours);
-          setLastSync(new Date());
+    let active = true;
+
+    async function pollCloud() {
+      try {
+        const row = await cloudFetch(user);
+        if (!active) return;
+        if (row && row.data) {
+          const cloudVer = row.updated_at;
+          // Only apply if cloud version is newer than what we last saved
+          if (!localVersionRef.current || cloudVer > localVersionRef.current) {
+            console.log('[SYNC] Applying cloud data, version:', cloudVer, 'venues:', row.data.venues?.length);
+            dirtyRef.current = false;
+            applyCloudData(row.data);
+            setCloudVersion(cloudVer);
+            setLastSync(new Date());
+          }
         }
-      }catch(e){console.error('Load error:',e);}
-      setSyncing(false);
-      setTimeout(()=>{isLoadingRef.current=false;},500);
+      } catch(e) { console.error('[SYNC] Poll error:', e); }
     }
-    loadCloud();
-    const poll=setInterval(loadCloud,5000);
-    return()=>clearInterval(poll);
+
+    // Load immediately on mount
+    setSyncing(true);
+    pollCloud().then(()=>setSyncing(false));
+
+    // Then poll every 5 seconds
+    const interval = setInterval(()=>pollCloud(), 5000);
+    return () => { active = false; clearInterval(interval); };
   },[user]);
 
-  // Auto-save: only fires when user makes a change (not during cloud load)
+  // Auto-save: fires when user changes data, marks dirty + saves to cloud
   useEffect(()=>{
     if(SB_URL==='https://placeholder.supabase.co') return;
-    if(isLoadingRef.current) return;
-    if(!lastSync) return;
+    if(!lastSync) return; // don't save before initial cloud load
+    dirtyRef.current = true;
     clearTimeout(syncTimeout.current);
-    syncTimeout.current=setTimeout(async()=>{
+    syncTimeout.current = setTimeout(async()=>{
+      if(!dirtyRef.current) return;
+      const version = new Date().toISOString();
+      localVersionRef.current = version;
+      dirtyRef.current = false;
       setSyncing(true);
-      await cloudSave(user,{venues,templates,tours});
+      console.log('[SYNC] Saving to cloud, venues:', venues.length, 'version:', version);
+      try {
+        await cloudPush(user, {venues, templates, tours, version});
+        setLastSync(new Date());
+        console.log('[SYNC] Save successful');
+      } catch(e) { 
+        console.error('[SYNC] Save failed:', e);
+        dirtyRef.current = true; // retry next change
+      }
       setSyncing(false);
-    },1000);
+    }, 1000);
     return()=>clearTimeout(syncTimeout.current);
   },[venues,templates,tours]);;
 
@@ -917,9 +957,13 @@ function StageBoss({user,onLogout}){
         <div style={{display:'flex',gap:6,marginBottom:6}}>
           <button onClick={async()=>{
             setSyncing(true);
-            const saved=await cloudSave(user,{venues,templates,tours});
-            if(saved){setLastSync(new Date());toast2('Saved to cloud!');}
-            else{toast2('Sync failed - check connection');}
+            try{
+              const version=new Date().toISOString();
+              localVersionRef.current=version;
+              await cloudPush(user,{venues,templates,tours,version});
+              setLastSync(new Date());
+              toast2('Saved to cloud!');
+            }catch(e){toast2('Sync failed: '+e.message);}
             setSyncing(false);
           }} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1,fontSize:10}}>
             {syncing?'Syncing...':'Sync Now'}
@@ -943,7 +987,7 @@ function StageBoss({user,onLogout}){
             <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>Comedy Booking Command Center</div>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={async()=>{setSyncing(true);await cloudSave(user,{venues,templates,tours});setLastSync(new Date());setSyncing(false);toast2('Synced to cloud!');}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
+            <button onClick={async()=>{setSyncing(true);try{const version=new Date().toISOString();localVersionRef.current=version;await cloudPush(user,{venues,templates,tours,version});setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed');}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
             <button onClick={onLogout} style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer',fontFamily:font.body}}>OUT</button>
             <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:'50%',background:C.acc,border:'none',color:'#fff',fontSize:22,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>+</button>
           </div>
