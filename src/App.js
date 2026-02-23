@@ -296,7 +296,7 @@ const PRE_LOADED_VENUES = [
 const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
 // Anthropic API key - add yours here
 const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY || '';
-const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
+const SB_KEY = process.env.REACT_APP_SB_KEY || 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 // ── SYNC ARCHITECTURE ──────────────────────────────────────────
 // Cloud is source of truth. Each payload includes a version timestamp.
 // Load: always apply cloud data if it exists.
@@ -413,28 +413,159 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 // -- DEFAULT TEMPLATES ----------------------------------------
 const DEFAULT_TEMPLATES = [
   {
-    id: 'jason-phil-standard', name: 'Jason + Phil  -  Standard', situation: 'new-date',
-    subject: 'Phil Medina  -  Availability [DATES]  -  [VENUE]',
-    body: `Hi [BOOKER_FIRST]!\n\nMy name is Jason Schuster, and I'm reaching out regarding [DATES] availability with nationally touring headliner Phil Medina. We would love to bring our show to [VENUE] while routing through your area.\n\nWe currently have availability between [DATES] and are actively booking this run.\n\nAbout Phil Medina\n\nPhil Medina is a high-energy, nationally touring headliner who has performed at top clubs including the Laugh Factory, Hollywood Improv, and the Ice House. He has entertained U.S. troops, appeared at the Netflix Is A Joke Festival in Los Angeles, and is featured on Hulu's West Coast Comedy and Not Your Average Comedy. Phil continues to build strong national momentum and consistently delivers with audiences nationwide.\n\nPhil Medina Instagram: https://www.instagram.com/comicphilmedina\n\nAbout Jason Schuster\n\nJason Schuster is a bi-coastal touring comedian known for his sharp wit, strong stage presence, and spot-on impressions. He has performed at The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy, and has been featured on Kenan Presents. Jason tours regularly across the country and brings a fun, high-energy performance that plays well in club environments.\n\nJason Schuster Instagram: https://www.instagram.com/jschucomedy\n\nPlease let me know if you might have availability between [DATES]. I'd love to connect and see if we can make something happen.\n\nAppreciate your time and hope to speak soon.\n\nBest,\nJason Schuster`,
-    photoLinks: [{ label: 'Phil Medina Press Kit', url: 'https://www.instagram.com/comicphilmedina' },{ label: 'Jason Schuster Press Kit', url: 'https://www.instagram.com/jschucomedy' }],
+    id:'tmpl_jason_phil_standard',
+    name:'Jason + Phil – Standard Outreach',
+    subject:'Phil Medina – Availability [DATES] – [VENUE]',
+    body:`Hi [BOOKER_FIRST]!
+
+My name is Jason Schuster, and I'm reaching out regarding [DATES] availability with nationally touring headliner Phil Medina. We would love to bring our show to [VENUE] while routing through your area.
+
+We currently have availability between [DATES] and are actively booking this run.
+
+About Phil Medina
+
+Phil Medina is a high-energy, nationally touring headliner who has performed at top clubs including the Laugh Factory, Hollywood Improv, and the Ice House. He has entertained U.S. troops, appeared at the Netflix Is A Joke Festival in Los Angeles, and is featured on Hulu's West Coast Comedy and Not Your Average Comedy. Phil continues to build strong national momentum and consistently delivers with audiences nationwide.
+
+Phil Medina Instagram: https://www.instagram.com/comicphilmedina
+
+About Jason Schuster
+
+Jason Schuster is a bi-coastal touring comedian known for his sharp wit, strong stage presence, and spot-on impressions. He has performed at The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy, and has been featured on Kenan Presents. Jason tours regularly across the country and brings a fun, high-energy performance that plays well in club environments.
+
+Jason Schuster Instagram: https://www.instagram.com/jschucomedy
+
+Please let me know if you might have availability between [DATES]. I'd love to connect and see if we can make something happen.
+
+Appreciate your time and hope to speak soon.
+
+Best,
+Jason Schuster`,
+    touchNumber: 1,
+    tags: ['cold','club','standard'],
   },
   {
-    id: 'jason-solo', name: 'Jason Solo Tour', situation: 'new-date',
-    subject: 'Jason Schuster  -  Touring Comedian  -  [VENUE] Availability',
-    body: `Hi [BOOKER_FIRST]!\n\nMy name is Jason Schuster  -  I'm a bi-coastal touring comedian reaching out about availability at [VENUE] for [DATES].\n\nI'm known for sharp wit, strong stage presence, and spot-on impressions. I've performed at The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy, and have been featured on Kenan Presents.\n\nJason Schuster Instagram: https://www.instagram.com/jschucomedy\n\nI'd love to connect and see if we can make something work for [DATES].\n\nThanks so much!\n\nBest,\nJason Schuster`,
-    photoLinks: [{ label: 'Jason Schuster Press Kit', url: 'https://www.instagram.com/jschucomedy' }],
+    id:'tmpl_jason_solo',
+    name:'Jason Solo – Cold Outreach',
+    subject:'Jason Schuster – Touring Comedian – [VENUE] Availability',
+    body:`Hi [BOOKER_FIRST]!
+
+My name is Jason Schuster – I'm a bi-coastal touring comedian reaching out about availability at [VENUE] for [DATES].
+
+I'm known for sharp wit, strong stage presence, and spot-on impressions. I've performed at The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy, and have been featured on Kenan Presents.
+
+Jason Schuster Instagram: https://www.instagram.com/jschucomedy
+
+I'd love to connect and see if we can make something work for [DATES].
+
+Thanks so much!
+
+Best,
+Jason Schuster`,
+    touchNumber: 1,
+    tags: ['cold','solo'],
   },
   {
-    id: 'follow-up', name: 'Follow-Up', situation: 'follow-up',
-    subject: 'Following Up  -  [VENUE]  -  Phil Medina',
-    body: `Hi [BOOKER_FIRST],\n\nJust following up on my previous message  -  didn't want it to get buried!\n\nWe're still very interested in bringing Phil Medina to [VENUE] for [DATES]. Phil is building serious momentum and the clubs that get in early tend to get the best dates.\n\nWould love to connect  -  even a quick reply to let me know your timeline would be helpful.\n\nThanks again!\n\nBest,\nJason Schuster`,
-    photoLinks: [],
+    id:'tmpl_followup_1',
+    name:'Follow-Up Touch 2',
+    subject:'Following Up – [VENUE] – Phil Medina',
+    body:`Hi [BOOKER_FIRST],
+
+Just following up on my previous message – didn't want it to get buried!
+
+We're still very interested in bringing Phil Medina to [VENUE] for [DATES]. Phil is building serious momentum and the clubs that get in early tend to get the best dates.
+
+Would love to connect – even a quick reply to let me know your timeline would be helpful.
+
+Thanks again!
+
+Best,
+Jason Schuster`,
+    touchNumber: 2,
+    tags: ['follow-up'],
   },
   {
-    id: 'existing-relationship', name: 'Existing Relationship', situation: 'new-date',
-    subject: 'Back at [VENUE]  -  Phil Medina  -  [DATES]',
-    body: `Hey [BOOKER_FIRST]!\n\nHope you've been well! It's Jason  -  always love working with [VENUE].\n\nReaching out because we're routing through your area [DATES] and would love to bring Phil Medina back. Last time was a great show and the crowd loved it.\n\nLet me know if those dates work or if there's a better window. Always a pleasure!\n\nBest,\nJason Schuster`,
-    photoLinks: [{ label: 'Phil Medina Instagram', url: 'https://www.instagram.com/comicphilmedina' }],
+    id:'tmpl_followup_2',
+    name:'Follow-Up Touch 3 – Last Note',
+    subject:'Last Note – [VENUE] – Phil Medina',
+    body:`Hi [BOOKER_FIRST],
+
+One last follow-up – I don't want to be a pest, so I'll leave it here after this.
+
+If timing ever lines up in the future, we'd genuinely love to perform at [VENUE]. Feel free to reach out anytime.
+
+Wishing you a great season,
+
+Jason Schuster
+jschucomedy@gmail.com`,
+    touchNumber: 3,
+    tags: ['follow-up','final'],
+  },
+  {
+    id:'tmpl_existing',
+    name:'Existing Relationship – New Dates',
+    subject:'Back at [VENUE] – Phil Medina – [DATES]',
+    body:`Hey [BOOKER_FIRST]!
+
+Hope you've been well! It's Jason – always love working with [VENUE].
+
+Reaching out because we're routing through your area [DATES] and would love to bring Phil Medina back. Last time was a great show and the crowd loved it.
+
+Let me know if those dates work or if there's a better window. Always a pleasure!
+
+Best,
+Jason Schuster`,
+    touchNumber: 1,
+    tags: ['existing','warm'],
+  },
+  {
+    id:'tmpl_casino',
+    name:'Casino – Headline Package',
+    subject:'Headline Comedy – Phil Medina + Jason Schuster – [VENUE]',
+    body:`Hi [BOOKER_FIRST],
+
+I'm reaching out on behalf of nationally touring headliner Phil Medina regarding your entertainment calendar at [VENUE].
+
+Phil Medina is a high-energy headliner with strong national credentials – Netflix Is A Joke Festival, Hulu specials, and consistent headline runs across casino and theater rooms. He delivers a polished, crowd-pleasing show that works beautifully in entertainment venues.
+
+We're routing through your region [DATES] and have select dates available for your consideration.
+
+Package includes:
+• Phil Medina – Full headline set (60–75 min)
+• Jason Schuster – Feature/co-headliner
+• Full promo assets and press kit available on request
+
+Phil Medina Instagram: https://www.instagram.com/comicphilmedina
+Jason Schuster Instagram: https://www.instagram.com/jschucomedy
+
+Would love to connect about your upcoming calendar.
+
+Best,
+Jason Schuster
+Tour Manager / Co-Headliner`,
+    touchNumber: 1,
+    tags: ['cold','casino'],
+  },
+  {
+    id:'tmpl_college',
+    name:'College – Campus Entertainment',
+    subject:'Campus Comedy – Phil Medina + Jason Schuster – [DATES]',
+    body:`Hi [BOOKER_FIRST],
+
+I'm reaching out about bringing a nationally touring comedy show to [VENUE] for [DATES].
+
+Phil Medina and Jason Schuster are a high-energy comedy duo with strong national credits – Netflix Is A Joke Festival, Hulu specials, Comedy Store, and Jimmy Kimmel's Comedy Club. Both performers are known for clean, inclusive comedy that plays exceptionally well with college audiences.
+
+We're actively routing through your region and have availability between [DATES].
+
+Happy to send full bios, press kits, and video clips on request.
+
+Looking forward to connecting!
+
+Best,
+Jason Schuster
+jschucomedy@gmail.com`,
+    touchNumber: 1,
+    tags: ['cold','college'],
   },
 ];
 
@@ -885,7 +1016,10 @@ function App(){
 
 // -- STAGEBOSS ------------------------------------------------
 function StageBoss({user,onLogout}){
-  const[venues,setVenues]=useState([]);
+  const[venues,setVenues]=useState(()=>{
+    try{const c=localStorage.getItem('sb_cache');if(c){const p=JSON.parse(c);if(p.venues?.length)return p.venues.map(migrateVenue);}}catch{}
+    return [];
+  });
   const[templates,setTemplates]=useState([]);
   const[photos]=useState(DEFAULT_PHOTOS);
   const[tours,setTours]=useState([]);
@@ -947,6 +1081,14 @@ function StageBoss({user,onLogout}){
 
   // ── CLOUD SYNC ──────────────────────────────────────────────────
   // Safe merge: never replace local with empty/invalid cloud data
+  // Local cache for instant load
+  const saveLocal = (venues, templates, tours) => {
+    try { localStorage.setItem('sb_cache', JSON.stringify({venues,templates,tours,ts:Date.now()})); } catch{}
+  };
+  const loadLocal = () => {
+    try { const c=localStorage.getItem('sb_cache'); return c?JSON.parse(c):null; } catch{ return null; }
+  };
+
   const applyCloudData = useCallback((data, cloudVer) => {
     if (!data) return false;
     const hasVenues = data.venues && data.venues.length > 0;
@@ -1010,6 +1152,9 @@ function StageBoss({user,onLogout}){
     return () => { active = false; clearInterval(interval); };
   },[user]);
 
+  // Cache locally for instant reload
+  useEffect(()=>{ if(venues.length>0) saveLocal(venues,templates,tours); },[venues,templates,tours]);
+
   // Auto-save: fires 1s after user changes data
   useEffect(()=>{
     if(SB_URL==='https://placeholder.supabase.co') return;
@@ -1033,6 +1178,8 @@ function StageBoss({user,onLogout}){
         setLastPushStatus('error: '+e.message);
         setSyncError(e.message);
         dirtyRef.current = true;
+        // Retry after 5 seconds
+        setTimeout(()=>{ if(dirtyRef.current) dirtyRef.current=true; }, 5000);
       }
       setSyncing(false);
     }, 1000);
@@ -1042,29 +1189,66 @@ function StageBoss({user,onLogout}){
   // -- AI OUTREACH WRITER --------------------------------------
   async function generateAIOutreach(venueId){
     const v=venues.find(x=>x.id===venueId);
-    if(!v)return;
-    setAiVenueId(venueId);setAiOpen(true);setAiLoading(true);setAiResult('');
+    if(!v) return;
+    setAiVenueId(venueId); setAiOpen(true); setAiLoading(true); setAiResult('');
     const touches=(v.contactLog||[]).length;
     const touchNum=touches+1;
     const isFollowUp=touches>0;
-    const prompt='You are Jason Schuster, a bi-coastal touring comedian and tour manager for Phil Medina. Write a SHORT, natural, human booking outreach email. DO NOT sound like a form letter.\n\nVenue: '+v.venue+'\nCity: '+v.city+', '+v.state+'\nBooker: '+(v.booker||'their booker')+(v.bookerLast?' '+v.bookerLast:'')+'\nVenue type: '+(v.venueType||'comedy club')+'\nCapacity: '+(v.capacity||'unknown')+'\nRelationship: '+(v.relationship||'new contact')+'\nTouch number: '+touchNum+'\nTarget dates: '+(v.targetDates||'flexible')+'\nDeal preference: '+(v.dealType||'Flat Guarantee')+'\nHistory: '+(v.history||'none')+'\n\nPHIL MEDINA credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Fest, Hulu West Coast Comedy Special.\nJASON SCHUSTER credits: Comedy Store, Jimmy Kimmels Comedy Club, Kenan Presents.\n\n'+(isFollowUp?'This is follow-up #'+touchNum+'. Be brief, reference the previous outreach, keep it warm and persistent.':'This is first contact. Be warm, professional, and concise.')+'\n\nRules:\n- Under 150 words\n- Natural tone, not corporate\n- Mention Phil AND Jason by name\n- End with clear availability ask\n- Sign as Jason Schuster\n\nWrite ONLY the email body, no subject line.';
+    const template=isFollowUp
+      ? DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_followup_1')
+      : (v.venueType==='Casino'?DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_casino')
+        :(v.venueType==='College'?DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_college')
+        :DEFAULT_TEMPLATES[0]));
+    const baseEmail=template?.body||DEFAULT_TEMPLATES[0].body;
+    const promptText=[
+      'You are helping Jason Schuster book comedy shows. Adapt the following email template for this specific venue.',
+      'Venue: '+v.venue+' in '+v.city+', '+v.state,
+      'Booker: '+(v.booker||'the talent buyer'),
+      'Venue type: '+v.venueType,
+      'Touch number: '+touchNum+(isFollowUp?' (this is a follow-up)':''),
+      'Previous contact notes: '+((v.contactLog||[]).slice(-2).map(l=>l.note).join('; ')||'none'),
+      '',
+      'BASE TEMPLATE TO ADAPT:',
+      baseEmail,
+      '',
+      'Instructions: Personalize the greeting and any specific details for this venue. Keep Jason voice - warm, professional, specific. Keep it concise. Output ONLY the final email with Subject line first.'
+    ].join('
+');
+    const apiKey=process.env.REACT_APP_ANTHROPIC_KEY||ANTHROPIC_KEY;
+    if(!apiKey||apiKey===''){
+      setAiResult('No Anthropic API key found. Add REACT_APP_ANTHROPIC_KEY to your Netlify environment variables.');
+      setAiLoading(false);
+      return;
+    }
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-api-key':apiKey,
+          'anthropic-version':'2023-06-01',
+        },
+        body:JSON.stringify({
+          model:'claude-haiku-4-5-20251001',
+          max_tokens:800,
+          messages:[{role:'user',content:promptText}]
+        })
+      });
       const data=await res.json();
-      const text=data.content?.map(b=>b.text||'').join('');
-      if(text){
-        setAiResult(text);
-      } else {
-        const errMsg=data.error?.message||JSON.stringify(data);
-        setAiResult('Error: '+errMsg);
+      if(!res.ok){
+        setAiResult('API Error '+res.status+': '+(data.error?.message||JSON.stringify(data)));
+        setAiLoading(false);
+        return;
       }
+      const text=data.content?.map(b=>b.text||'').join('')||'';
+      setAiResult(text||'No response from AI');
     }catch(err){
-      setAiResult(ANTHROPIC_KEY==='YOUR_ANTHROPIC_KEY_HERE'?'Add your Anthropic API key to the code first. Go to console.anthropic.com to get one.':'Could not generate email. Check your connection and API key.');
+      setAiResult('Network error: '+err.message+'. Check your API key in Netlify env vars.');
     }
     setAiLoading(false);
   }
 
-  function copyAiResult(){
+    function copyAiResult(){
     if(!aiResult)return;
     try{navigator.clipboard.writeText(aiResult);}catch{const t=document.createElement('textarea');t.value=aiResult;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}
     toast2('AI email copied OK');
@@ -1455,110 +1639,106 @@ function StageBoss({user,onLogout}){
       <div className="sb-content" style={s.content}>
 
         {/* == TODAY TAB == */}
-        {tab==='today'&&<div style={{padding:'20px 20px 40px'}}>
+        {tab==='today'&&<div style={{padding:'16px 16px 80px',overflowY:'auto'}}>
           {/* HEADER */}
-          <div style={{marginBottom:24}}>
-            <div style={{fontSize:11,color:C.muted2,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700,marginBottom:6}}>
-              {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}
+          <div style={{marginBottom:20}}>
+            <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:2}}>
+              {(()=>{const h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';})()}, Jason 👋
             </div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:900,fontSize:28,letterSpacing:-1,lineHeight:1,marginBottom:4}}>
-              Good {new Date().getHours()<12?'Morning':new Date().getHours()<17?'Afternoon':'Evening'}, Jason 👋
-            </div>
-            <div style={{fontSize:13,color:C.muted3}}>Here's your booking dashboard</div>
+            <div style={{fontSize:12,color:C.muted3}}>{new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
           </div>
 
-          {/* STAT CARDS ROW */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
-            {[
-              {label:'Total Venues',value:venues.length,color:C.acc2,icon:'🏛️'},
-              {label:'In Pipeline',value:venues.filter(v=>!['Lead','Lost'].includes(v.status)).length,color:C.green,icon:'📈'},
-              {label:'Confirmed',value:venues.filter(v=>v.status==='Confirmed').length,color:C.yellow,icon:'✅'},
-              {label:'Follow Up Today',value:venues.filter(v=>v.nextFollowUp&&new Date(v.nextFollowUp)<=new Date()).length,color:C.orange,icon:'⚡'},
-            ].map(stat=>(
-              <div key={stat.label} style={{...s.stat(stat.color),textAlign:'center'}}>
-                <div style={{fontSize:22,marginBottom:6}}>{stat.icon}</div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:900,fontSize:26,color:stat.color,lineHeight:1}}>{stat.value}</div>
-                <div style={{fontSize:10,color:C.muted3,marginTop:4,letterSpacing:'0.06em',textTransform:'uppercase'}}>{stat.label}</div>
+          {/* INCOME GOAL BANNER */}
+          {(()=>{
+            const confirmed=venues.filter(v=>v.status==='Confirmed'||v.status==='Advancing'||v.status==='Completed');
+            const projectedGross=confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
+            const yearGoal=100000;
+            const pct=Math.min(100,Math.round((projectedGross/yearGoal)*100));
+            return <div style={{background:'linear-gradient(135deg,rgba(124,58,237,0.12),rgba(236,72,153,0.06))',border:`1px solid ${C.acc}30`,borderRadius:14,padding:16,marginBottom:16}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:10,color:C.acc2,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700}}>Year Progress</div>
+                  <div style={{fontFamily:font.head,fontWeight:900,fontSize:24,color:C.green}}>${projectedGross.toLocaleString()}</div>
+                  <div style={{fontSize:11,color:C.muted3}}>of $100,000 goal · {confirmed.length} confirmed shows</div>
+                </div>
+                <div style={{fontSize:24,fontWeight:900,fontFamily:font.head,color:pct>=100?C.green:C.acc2}}>{pct}%</div>
               </div>
-            ))}
-          </div>
+              <div style={{background:C.bord,borderRadius:99,height:6,overflow:'hidden'}}>
+                <div style={{background:`linear-gradient(90deg,${C.acc},${C.green})`,height:'100%',width:pct+'%',borderRadius:99,transition:'width 0.5s ease'}}/>
+              </div>
+            </div>;
+          })()}
 
-          {/* PIPELINE BREAKDOWN */}
-          <div style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:14,padding:'18px 20px',marginBottom:16}}>
-            <div style={{fontSize:11,color:C.muted2,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:700,marginBottom:14}}>Pipeline Breakdown</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {PIPELINE.map(stage=>{
-                const count=venues.filter(v=>v.status===stage).length;
-                const pct=venues.length>0?Math.round((count/venues.length)*100):0;
-                const color=PIPE_COLORS[stage]||C.acc;
-                return count>0&&<div key={stage} style={{display:'flex',alignItems:'center',gap:10}}>
-                  <div style={{width:80,fontSize:11,color:C.muted3,fontWeight:600}}>{stage}</div>
-                  <div style={{flex:1,height:6,background:C.surf3,borderRadius:3,overflow:'hidden'}}>
-                    <div style={{width:`${pct}%`,height:'100%',background:color,borderRadius:3,transition:'width 0.5s ease'}}/>
+          {/* DAILY CONTACT LIST */}
+          {(()=>{
+            const today=new Date();
+            today.setHours(0,0,0,0);
+            const priorityScore=(v)=>{
+              let score=0;
+              if(v.nextFollowUp&&new Date(v.nextFollowUp)<=today) score+=100;
+              const w={'Hot':40,'Warm':20,'Established':30,'Cold':5};
+              score+=w[v.warmth]||0;
+              const p={'Negotiating':35,'Responded':30,'Follow-Up':25,'Contacted':15,'Lead':5,'Hold':10};
+              score+=p[v.status]||0;
+              return score;
+            };
+            const due=venues.filter(v=>v.status!=='Completed'&&v.status!=='Lost'&&(
+              !v.nextFollowUp||(new Date(v.nextFollowUp)<=new Date())
+            )).sort((a,b)=>priorityScore(b)-priorityScore(a)).slice(0,5);
+            if(!due.length) return null;
+            return <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:C.orange,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700,marginBottom:10}}>⚡ Contact Today · {due.length}</div>
+              {due.map(v=>{
+                const touches=(v.contactLog||[]).length;
+                const tmpl=touches>0?DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_followup_1'):DEFAULT_TEMPLATES[0];
+                return <div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${PIPE_COLORS[v.status]||C.acc}`,borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:13}}>{v.venue}</div>
+                      <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {v.status} · Touch #{touches+1}</div>
+                    </div>
+                    <div style={{display:'flex',gap:6,flexShrink:0}}>
+                      <button onClick={()=>{setComposeId(v.id);}} style={{...s.btn(C.acc,C.txt,'transparent'),fontSize:11,padding:'5px 10px',fontWeight:700}}>✉️ Compose</button>
+                      <button onClick={()=>setDetailId(v.id)} style={{...s.btn(C.surf2,C.muted3,C.bord2),fontSize:11,padding:'5px 10px'}}>View</button>
+                    </div>
                   </div>
-                  <div style={{width:30,fontSize:11,color:color,fontWeight:700,textAlign:'right'}}>{count}</div>
                 </div>;
               })}
-            </div>
-          </div>
+            </div>;
+          })()}
 
-          {/* FOLLOW UPS DUE */}
-          {venues.filter(v=>v.nextFollowUp&&new Date(v.nextFollowUp)<=new Date()).length>0&&(
-            <div style={{background:`${C.orange}0a`,border:`1px solid ${C.orange}30`,borderRadius:14,padding:'18px 20px',marginBottom:16}}>
-              <div style={{fontSize:11,color:C.orange,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:700,marginBottom:12}}>⚡ Follow-Ups Due</div>
-              {venues.filter(v=>v.nextFollowUp&&new Date(v.nextFollowUp)<=new Date()).slice(0,5).map(v=>(
-                <div key={v.id} onClick={()=>{setTab('venues');}} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 0',borderBottom:`1px solid ${C.bord}`,cursor:'pointer'}}>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:600,color:C.txt}}>{v.venue}</div>
-                    <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {v.status}</div>
-                  </div>
-                  <div style={s.badge(C.orange)}>Due</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* RECENT TOURS */}
-          {tours.length>0&&<div style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:14,padding:'18px 20px',marginBottom:16}}>
-            <div style={{fontSize:11,color:C.muted2,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:700,marginBottom:12}}>🚌 Active Tours</div>
-            {tours.slice(0,3).map(t=>(
-              <div key={t.id} onClick={()=>setTab('tours')} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 0',borderBottom:`1px solid ${C.bord}`,cursor:'pointer'}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600}}>{t.name}</div>
-                  <div style={{fontSize:11,color:C.muted3}}>{(t.dates||[]).length} dates</div>
-                </div>
-                <div style={s.badge(C.green)}>Active</div>
+          {/* STAT CARDS */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+            {[
+              {label:'Total Venues',value:venues.length,color:C.acc2,icon:'🏛️'},
+              {label:'In Pipeline',value:venues.filter(v=>!['Lead','Lost','Completed'].includes(v.status)).length,color:C.green,icon:'📈'},
+              {label:'Confirmed',value:venues.filter(v=>v.status==='Confirmed'||v.status==='Advancing').length,color:C.yellow,icon:'✅'},
+              {label:'Follow Up',value:venues.filter(v=>v.nextFollowUp&&isOverdue(v.nextFollowUp)).length,color:C.orange,icon:'⚡'},
+            ].map(stat=>(
+              <div key={stat.label} style={{...s.stat(stat.color),textAlign:'center'}}>
+                <div style={{fontSize:22,marginBottom:4}}>{stat.icon}</div>
+                <div style={{fontFamily:font.head,fontWeight:900,fontSize:26,color:stat.color}}>{stat.value}</div>
+                <div style={{fontSize:10,color:C.muted3,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600}}>{stat.label}</div>
               </div>
             ))}
-          </div>}
+          </div>
 
           {/* QUICK ACTIONS */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <button onClick={()=>setTab('venues')} style={{...s.btn(`${C.acc}15`,C.acc2,`${C.acc}40`),padding:'14px',flexDirection:'column',gap:4,height:'auto'}}>
-              <span style={{fontSize:20}}>🏛️</span>
-              <span style={{fontSize:12,fontWeight:700}}>Browse Venues</span>
-              <span style={{fontSize:10,color:C.muted3}}>CRM Pipeline</span>
-            </button>
-            <button onClick={()=>setTab('outreach')} style={{...s.btn(`${C.green}15`,C.green,`${C.green}40`),padding:'14px',flexDirection:'column',gap:4,height:'auto'}}>
-              <span style={{fontSize:20}}>✉️</span>
-              <span style={{fontSize:12,fontWeight:700}}>Send Outreach</span>
-              <span style={{fontSize:10,color:C.muted3}}>Email & Contact</span>
-            </button>
-            <button onClick={()=>setTab('tours')} style={{...s.btn(`${C.yellow}15`,C.yellow,`${C.yellow}40`),padding:'14px',flexDirection:'column',gap:4,height:'auto'}}>
-              <span style={{fontSize:20}}>🗺️</span>
-              <span style={{fontSize:12,fontWeight:700}}>Plan Tour</span>
-              <span style={{fontSize:10,color:C.muted3}}>Routing & P&L</span>
-            </button>
-            <button onClick={()=>setTab('calendar')} style={{...s.btn(`${C.blue}15`,C.blue,`${C.blue}40`),padding:'14px',flexDirection:'column',gap:4,height:'auto'}}>
-              <span style={{fontSize:20}}>📅</span>
-              <span style={{fontSize:12,fontWeight:700}}>View Calendar</span>
-              <span style={{fontSize:10,color:C.muted3}}>All Dates</span>
-            </button>
+            {[
+              {label:'Add Venue',icon:'➕',color:C.acc,action:()=>setAddOpen(true)},
+              {label:'Browse 150+',icon:'🏛️',color:C.blue,action:()=>setDbOpen(true)},
+              {label:'Plan Tour',icon:'🗺️',color:C.green,action:()=>setTab('tours')},
+              {label:'View Calendar',icon:'📅',color:C.yellow,action:()=>setTab('calendar')},
+            ].map(a=>(
+              <button key={a.label} onClick={a.action} style={{...s.btn(a.color+'15',a.color,a.color+'40'),padding:'14px 10px',flexDirection:'column',gap:6,fontSize:11,fontWeight:700,borderRadius:12,height:70}}>
+                <span style={{fontSize:22}}>{a.icon}</span>{a.label}
+              </button>
+            ))}
           </div>
         </div>}
 
-        {/* == VENUES TAB == */}
-        {tab==='venues'&&<>
+                {tab==='venues'&&<>
           <div style={{padding:'20px 20px 0',borderBottom:`1px solid ${C.bord}`,paddingBottom:16}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
               <div>
@@ -1925,10 +2105,13 @@ function StageBoss({user,onLogout}){
 
       {/* NAV - mobile only */}
       <nav className="sb-mobile-nav" style={s.nav}>
-        {[['tours','[bus]','Tours'],['venues','[venue]','Venues'],['calendar','[cal]','Cal'],['outreach','[email]','Outreach'],['today','[list]','Today']].map(([t,icon,label])=>(
-          <button key={t} onClick={()=>setTab(t)} style={s.navBtn(tab===t)}><span style={{fontSize:18,lineHeight:1}}>{icon}</span>{label}</button>
+        {[['today','🏠','Today'],['venues','🏛️','Venues'],['outreach','✉️','Outreach'],['tours','🗺️','Tours'],['calendar','📅','Cal']].map(([t,icon,label])=>(
+          <button key={t} onClick={()=>setTab(t)} style={{background:'none',border:'none',color:tab===t?C.acc2:C.muted,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'6px 12px',fontFamily:'inherit',minWidth:56}}>
+            <span style={{fontSize:20}}>{icon}</span>
+            <span style={{fontSize:10,fontWeight:tab===t?700:400,letterSpacing:'0.02em'}}>{label}</span>
+          </button>
         ))}
-      </nav>
+        </nav>
 
       {/* == DETAIL PANEL == */}
       <Panel open={!!dv} onClose={()=>setDetailId(null)} title={dv?.venue||''} badge={dv&&<div style={{display:'flex',gap:6,flexWrap:'wrap'}}><StatusPill status={dv.status}/><WarmthDot warmth={dv.warmth||'Cold'}/></div>}>
