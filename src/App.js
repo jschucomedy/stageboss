@@ -1211,9 +1211,8 @@ function StageBoss({user,onLogout}){
       'BASE TEMPLATE TO ADAPT:',
       baseEmail,
       '',
-      'Instructions: Personalize the greeting and any specific details for this venue. Keep Jason voice - warm, professional, specific. Keep it concise. Output ONLY the final email with Subject line first.'
-    ].join('
-');
+      'Instructions: Personalize the greeting and any specific details for this venue. Keep Jason voice - warm, professional, specific. Keep it concise. Output ONLY the final email with Subject line first.',
+    ].join('\n');
     const apiKey=process.env.REACT_APP_ANTHROPIC_KEY||ANTHROPIC_KEY;
     if(!apiKey||apiKey===''){
       setAiResult('No Anthropic API key found. Add REACT_APP_ANTHROPIC_KEY to your Netlify environment variables.');
