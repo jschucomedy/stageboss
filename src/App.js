@@ -1532,7 +1532,7 @@ function StageBoss({user,onLogout}){
       <div className="sb-sidebar">
         <div onClick={()=>setTab('today')} style={{cursor:'pointer',marginBottom:24,paddingTop:4}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
-            <div style={{width:32,height:32,borderRadius:8,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13,color:'#fff',fontFamily:font.head,flexShrink:0}}>SB</div>
+            <div style={{width:36,height:36,borderRadius:8,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:12,color:'#fff',fontFamily:font.head,flexShrink:0,letterSpacing:'-0.5px'}}>SB</div>
             <div style={{fontFamily:"'Syne',sans-serif",fontWeight:900,fontSize:21,letterSpacing:-0.5,lineHeight:1.1,whiteSpace:'nowrap'}}>Stage<span style={{background:'linear-gradient(135deg,#a78bfa,#ec4899)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Boss</span></div>
           </div>
           <div style={{fontSize:9,color:C.muted,letterSpacing:1.5,textTransform:'uppercase',marginTop:3,paddingLeft:2}}>Booking Command Center</div>
@@ -1614,7 +1614,7 @@ function StageBoss({user,onLogout}){
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <div onClick={()=>setTab('today')} style={{cursor:'pointer'}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <div style={{width:30,height:30,borderRadius:8,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13,color:'#fff',fontFamily:font.head,flexShrink:0}}>SB</div>
+              <div style={{width:36,height:36,borderRadius:8,background:'linear-gradient(135deg,#6c5ce7,#a29bfe)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:12,color:'#fff',fontFamily:font.head,flexShrink:0,letterSpacing:'-0.5px'}}>SB</div>
               <div style={{fontFamily:font.head,fontWeight:800,fontSize:24,letterSpacing:-1,lineHeight:1}}>Stage<span style={{color:C.acc2}}>Boss</span></div>
             </div>
             <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>Comedy Booking Command Center</div>
