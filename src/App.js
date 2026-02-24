@@ -928,6 +928,29 @@ function fillTemplate(template,venue,dates=''){
     .replace(/\[SCHOOL\/UNIVERSITY\]/g,venue.venue||'your campus');
 }
 
+// ── GMAIL OPENER ─────────────────────────────────────────────
+// On iOS: uses googlegmail:// scheme to open Gmail app directly.
+// On desktop: uses https://mail.google.com compose URL.
+function openGmail(to, subject, body) {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const su = encodeURIComponent(subject);
+  const bd = encodeURIComponent(body);
+  const toEnc = encodeURIComponent(to);
+  if (isMobile) {
+    // Try Gmail app first, fall back to web Gmail if not installed
+    const appUrl = `googlegmail://co?to=${toEnc}&subject=${su}&body=${bd}`;
+    const webUrl = `https://mail.google.com/mail/?view=cm&to=${toEnc}&su=${su}&body=${bd}`;
+    // Use a short timeout fallback — if app doesn't open, open web
+    const fallback = setTimeout(() => { window.open(webUrl, '_blank'); }, 1000);
+    window.location.href = appUrl;
+    // Clear fallback if app opened (page will blur)
+    window.addEventListener('blur', () => clearTimeout(fallback), { once: true });
+  } else {
+    const url = `https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to=${toEnc}&su=${su}&body=${bd}`;
+    window.open(url, '_blank');
+  }
+}
+
 // ── DEAL CALCULATOR ──────────────────────────────────────────
 function calcDeal(d) {
   if(!d) return {};
@@ -1366,8 +1389,7 @@ function StageBoss({user,onLogout,accessToken}){
   function openAiInGmail(){
     const v=venues.find(x=>x.id===aiVenueId);
     if(!v||!aiResult)return;
-    const gmailUrl='https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to='+encodeURIComponent(v.email||'')+'&su='+encodeURIComponent('Phil Medina - Availability - '+v.venue)+'&body='+encodeURIComponent(aiResult);
-    window.open(gmailUrl,'_blank');
+    openGmail(v.email||'', 'Phil Medina - Availability - '+v.venue, aiResult);
     // Also copy to clipboard as fallback
     setTimeout(()=>{
       try{navigator.clipboard.writeText('To: '+v.email+'\nSubject: Phil Medina - Availability - '+v.venue+'\n\n'+aiResult);}catch{}
@@ -1571,7 +1593,7 @@ function StageBoss({user,onLogout,accessToken}){
       .map(line => encodeURIComponent(line))
       .join('%0D%0A');
   }
-  const mailto=cv?.email?`https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to=${encodeURIComponent(cv.email)}&su=${encodeURIComponent(filledSubject)}&body=${encodeURIComponent(fullBody)}`:null;
+  const mailto=cv?.email?true:null; // openGmail used directly in onClick below
   const dbStates=['All',...new Set(VENUE_DATABASE.map(v=>v.state).sort())];
   const myVenueStates=['All',...new Set(venues.map(v=>v.state).filter(Boolean).sort())];
   const dbTypes=['All',...VENUE_TYPES];
@@ -2001,8 +2023,7 @@ function StageBoss({user,onLogout,accessToken}){
                     const subject=emailLines[0].replace(/^Subject:\s*/i,'');
                     const body=emailLines.slice(2).join('\n');
                     const emailAddr=v?.email||'';
-                    const gmailUrl='https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(emailAddr)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-                    window.open(gmailUrl,'_blank');
+                    openGmail(emailAddr, subject, body);
                   }} style={{...s.btn('linear-gradient(135deg,#10b981,#059669)',C.txt,'transparent'),fontWeight:700}}>
                     📧 Open in Gmail
                   </button>
@@ -2341,14 +2362,14 @@ function StageBoss({user,onLogout,accessToken}){
                 if(!token3){toast2('Session expired. Please log out and log in again.');return;}
                 fetch('/.netlify/functions/generate-email',{method:'POST',
                   headers:{'Content-Type':'application/json','Authorization':'Bearer '+token3},
-                  body:JSON.stringify({venue:cv,tone:'professional',dates:co.dates||'',touchHistory:(cv.contactLog||[]).slice(-5)})})
+                  body:JSON.stringify({venue:cv,tone:'professional',dates:co.customDates||'',touchHistory:(cv.contactLog||[]).slice(-5)})})
                 .then(r=>r.json()).then(d=>{if(d.error){toast2(d.error);return;}setComposeOpts(o=>({...o,aiNote:d.body,filledBody:d.body}));toast2('AI draft ready!');})
                 .catch(e=>toast2('Connection error: '+e.message));
               });
               toast2('Generating AI draft...');
             }} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),width:'100%',marginBottom:8,fontSize:12}}>AI Draft Email (relationship-aware)</button>}
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-              {mailto&&<button onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');const gmailUrl='https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to='+encodeURIComponent(cv?.email||'')+'&su='+encodeURIComponent(filledSubject)+'&body='+encodeURIComponent(fullBody);window.open(gmailUrl,'_blank');}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>[email] Open Gmail</button>}
+              {mailto&&<button onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');openGmail(cv?.email||'',filledSubject,fullBody);}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>[email] Open Gmail</button>}
               <button onClick={()=>copyText(`Subject: ${filledSubject}\n\n${fullBody}`,'Email',toast2)} style={{...s.btn(C.surf2,C.txt,C.bord),flex:'0 0 auto',padding:'12px 14px'}}>Copy</button>
             </div>
           </div>
