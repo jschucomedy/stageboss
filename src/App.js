@@ -1504,8 +1504,9 @@ function StageBoss({user,onLogout,accessToken}){
     return venues.filter(v=>{
       const mq=!q||v.venue.toLowerCase().includes(q)||v.city.toLowerCase().includes(q)||(v.booker||'').toLowerCase().includes(q)||(v.state||'').toLowerCase().includes(q);
       const ms=statusFilter==='All'||v.status===statusFilter;
-      const mst=stateFilter2==='All'||v.state===stateFilter2;
-      return mq&&ms&&mst;
+      const mst=stateFilter==='All'||v.state===stateFilter;
+      const mct=cityFilter==='All'||v.city===cityFilter;
+      return mq&&ms&&mst&&mct;
     });
   },[venues,search,statusFilter,stateFilter,cityFilter]);
 
