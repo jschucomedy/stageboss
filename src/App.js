@@ -1214,7 +1214,7 @@ function StageBoss({user,onLogout,accessToken}){
       console.log('[SYNC] No cloud venues - seeding with pre-loaded directory');
       setVenues(PRE_LOADED_VENUES.map(migrateVenue));
     }
-    if (hasTemplates) setTemplates(data.templates);
+    if (hasTemplates) setTemplates(data.templates); else setTemplates(DEFAULT_TEMPLATES);
     setTours(data.tours || []);
     setCloudVersion(cloudVer);
     cloudInitialized.current = true;
@@ -1460,8 +1460,8 @@ function StageBoss({user,onLogout,accessToken}){
   const srV=showReportId?getV(showReportId):null;
   const editTpl=editTemplateId?templates.find(t=>t.id===editTemplateId):null;
   const editTour=editTourId?tours.find(t=>t.id===editTourId):null;
-  const co=composeId?(composeOpts[composeId]||{templateId:'jason-phil-standard',customDates:'',customNote:''}):{};
-  function setCo(id,fields){setComposeOpts(p=>({...p,[id]:{...(p[id]||{templateId:'jason-phil-standard',customDates:'',customNote:''}), ...fields}}));}
+  const co=composeId?(composeOpts[composeId]||{templateId:'tmpl_jason_phil_standard',customDates:'',customNote:''}):{};
+  function setCo(id,fields){setComposeOpts(p=>({...p,[id]:{...(p[id]||{templateId:'tmpl_jason_phil_standard',customDates:'',customNote:''}), ...fields}}));}
 
   // -- Analytics --
   const stats=useMemo(()=>{
