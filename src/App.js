@@ -1346,12 +1346,8 @@ function StageBoss({user,onLogout,accessToken}){
       }
 
       // Store subject separately for Gmail
-      setAiDraft(prev => ({ ...prev, subject: data.subject, generated: data.subject + '
-
-' + data.body }));
-      setAiResult(data.subject + '
-
-' + data.body);
+      setAiDraft(prev => ({ ...prev, subject: data.subject, generated: data.subject + '\n\n' + data.body }));
+      setAiResult(data.subject + '\n\n' + data.body);
 
     } catch (err) {
       setAiResult('Connection error. Check your internet and try again.');
