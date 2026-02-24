@@ -1,7 +1,7 @@
 [build]
   command = "npm run build"
   publish = "build"
+  functions = "netlify/functions"
 
 [build.environment]
-  REACT_APP_ANTHROPIC_KEY = ""
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
