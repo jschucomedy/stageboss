@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
 const BUILD_ID = '2026-02-23-v10';
@@ -294,9 +295,15 @@ const PRE_LOADED_VENUES = [
 ];
 
 const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
-// Anthropic API key - add yours here
-const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY || '';
+// AI calls are routed through /.netlify/functions/generate-email (server-side).
+// No Anthropic key in the client. No FUNCTION_SECRET.
+// Auth uses Supabase Auth JWTs — access_token sent as Authorization: Bearer header.
 const SB_KEY = process.env.REACT_APP_SB_KEY || 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
+// Supabase Auth client — signIn/signOut/getSession only. Data sync uses REST below.
+const sbAuthClient = createSupabaseClient(SB_URL, SB_KEY);
+
+// Supabase Auth client — used ONLY for signIn/signOut/getSession.
+// Data sync uses the direct REST calls below (unchanged).
 // ── SYNC ARCHITECTURE ──────────────────────────────────────────
 // Cloud is source of truth. Each payload includes a version timestamp.
 // Load: always apply cloud data if it exists.
@@ -349,14 +356,16 @@ async function cloudPush(email, venues, templates, tours) {
 }
 
 
-// -- AUTH -----------------------------------------------------
-const _a = [
-  { e: 'jschucomedy@gmail.com',     p: btoa('MainEvent27') },
-  { e: 'comicphilmedina@gmail.com', p: btoa('MainEvent27') },
-];
+// -- AUTH (Supabase Auth) ---------------------------------------------
+// signIn returns a session with access_token used for JWT-gated functions.
+// No hardcoded credentials. No plaintext passwords in source.
 async function checkCredentials(email, pw) {
-  const e = email.toLowerCase().trim().replace(/\s/g,'');
-  return _a.find(u => u.e === e && atob(u.p) === pw.trim()) || null;
+  const { data, error } = await sbAuthClient.auth.signInWithPassword({
+    email: email.toLowerCase().trim(),
+    password: pw.trim(),
+  });
+  if (error || !data.session) return null;
+  return data.session; // { access_token, user: { email } }
 }
 
 // -- SCHEMA + MIGRATION ---------------------------------------
@@ -414,96 +423,168 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const DEFAULT_TEMPLATES = [
   {
     id:'tmpl_jason_phil_standard',
-    name:'Jason + Phil – Standard Outreach',
-    subject:'Phil Medina – Availability [DATES] – [VENUE]',
+    name:'Comedy Club – Touch 1 (Standard)',
+    subject:'Phil Medina - [DATES] - [VENUE]',
+    tone:'professional',
+    touchNumber:1,
+    venueTypes:['Comedy Club','Prestige Club','Bar/Lounge'],
     body:`Hi [BOOKER_FIRST]!
 
-My name is Jason Schuster, and I'm reaching out regarding [DATES] availability with nationally touring headliner Phil Medina. We would love to bring our show to [VENUE] while routing through your area.
+My name is Jason Schuster, and I'm reaching out regarding [DATES] availability with nationally touring headliner Phil Medina. We'd love to perform at [VENUE].
 
-We currently have availability between [DATES] and are actively booking this run.
+We will be traveling through your region and currently have availability between [DATES].
 
 About Phil Medina
+Phil Medina is a powerhouse headlining comedian who has performed at top clubs including the Laugh Factory, Hollywood Improv, and the Ice House. Known for his electric stage presence, Phil has headlined across the country, entertained U.S. troops, and was featured at the Netflix Is A Joke Festival in Los Angeles. He is also featured on Hulu's West Coast Comedy and Not Your Average Comedy, and continues to build strong national momentum with polished, high-energy performances that connect with wide audiences.
 
-Phil Medina is a high-energy, nationally touring headliner who has performed at top clubs including the Laugh Factory, Hollywood Improv, and the Ice House. He has entertained U.S. troops, appeared at the Netflix Is A Joke Festival in Los Angeles, and is featured on Hulu's West Coast Comedy and Not Your Average Comedy. Phil continues to build strong national momentum and consistently delivers with audiences nationwide.
-
-Phil Medina Instagram: https://www.instagram.com/comicphilmedina
+Phil Medina Instagram: [HEADLINER_IG]
 
 About Jason Schuster
+Jason Schuster is a bi-coastal touring comedian recognized for his sharp wit, dynamic stage presence, and spot-on impressions. He regularly performs across the country and has appeared at renowned venues including The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy. Jason is also a regular on social media, where his sketches and impressions reach a wide audience, and he has been featured on Kenan Presents. He performs alongside some of the biggest names in comedy and consistently delivers engaging, high-energy sets.
 
-Jason Schuster is a bi-coastal touring comedian known for his sharp wit, strong stage presence, and spot-on impressions. He has performed at The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy, and has been featured on Kenan Presents. Jason tours regularly across the country and brings a fun, high-energy performance that plays well in club environments.
+Jason Schuster Instagram: [MY_IG]
 
-Jason Schuster Instagram: https://www.instagram.com/jschucomedy
+Please let me know if you have availability between [DATES]. I would love to connect and see if we can make something happen while routing through.
 
-Please let me know if you might have availability between [DATES]. I'd love to connect and see if we can make something happen.
-
-Appreciate your time and hope to speak soon.
+Thank you for your time, and I hope we can connect!
 
 Best,
-Jason Schuster`,
-    touchNumber: 1,
-    tags: ['cold','club','standard'],
+[MY_NAME]
+jschucomedy@gmail.com`,
+  },
+  {
+    id:'tmpl_casino',
+    name:'Casino – Touch 1',
+    subject:'Phil Medina - [DATES] - [VENUE] (Casino)',
+    tone:'professional',
+    touchNumber:1,
+    venueTypes:['Casino'],
+    body:`Hi [BOOKER_FIRST]!
+
+My name is Jason Schuster, and I'm reaching out regarding [DATES] availability with nationally touring headliner Phil Medina. We'd love to bring a high-energy comedy night to [VENUE] in [CITY], [STATE].
+
+We will be traveling through your region and currently have availability between [DATES].
+
+About Phil Medina
+Phil Medina is a powerhouse headlining comedian who has performed at top clubs including the Laugh Factory, Hollywood Improv, and the Ice House. Known for his electric stage presence, Phil has headlined across the country, entertained U.S. troops, and was featured at the Netflix Is A Joke Festival in Los Angeles. He is also featured on Hulu's West Coast Comedy and Not Your Average Comedy, and continues to build strong national momentum with polished, high-energy performances that connect with wide audiences.
+
+Phil Medina Instagram: [HEADLINER_IG]
+
+About Jason Schuster
+Jason Schuster is a bi-coastal touring comedian recognized for his sharp wit, dynamic stage presence, and spot-on impressions. He regularly performs across the country and has appeared at renowned venues including The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy.
+
+Jason Schuster Instagram: [MY_IG]
+
+If you have availability between [DATES], I'd love to connect and discuss options (guarantee, door deal, or a structure that makes sense for your room).
+
+Thank you for your time!
+
+Best,
+[MY_NAME]
+jschucomedy@gmail.com`,
+  },
+  {
+    id:'tmpl_college',
+    name:'College/University – Touch 1',
+    subject:'Phil Medina + Jason Schuster - [DATES] - [VENUE] Comedy Event',
+    tone:'professional',
+    touchNumber:1,
+    venueTypes:['College'],
+    body:`Hi [BOOKER_FIRST]!
+
+My name is Jason Schuster, and I'm reaching out regarding [DATES] availability for a comedy event featuring nationally touring headliner Phil Medina (with me as the feature). We'd love to explore performing at [VENUE] / [CITY], [STATE] if you're booking student programming or campus events.
+
+We'll be traveling through your region and currently have availability between [DATES].
+
+Phil Medina Instagram: [HEADLINER_IG]
+Jason Schuster Instagram: [MY_IG]
+
+If you're booking for those dates, I'd love to connect and see what format works best (stand-up show, student event, fundraiser, etc.).
+
+Thank you!
+Best,
+[MY_NAME]
+jschucomedy@gmail.com`,
+  },
+  {
+    id:'tmpl_followup_1',
+    name:'Follow-Up – Touch 2 (Short/Friendly)',
+    subject:'Quick follow-up - Phil Medina - [DATES]',
+    tone:'friendly',
+    touchNumber:2,
+    venueTypes:['all'],
+    body:`Hi [BOOKER_FIRST]!
+
+Just following up on my note about bringing Phil Medina to [VENUE] while we're routing through the area.
+
+Do you have any availability between [DATES]?
+
+Thanks so much,
+[MY_NAME]
+jschucomedy@gmail.com`,
+  },
+  {
+    id:'tmpl_followup_2',
+    name:'Follow-Up – Touch 3 (Professional/Firmer)',
+    subject:'Checking in - Phil Medina - [DATES] at [VENUE]',
+    tone:'professional',
+    touchNumber:3,
+    venueTypes:['all'],
+    body:`Hi [BOOKER_FIRST]!
+
+Wanted to circle back one more time regarding [DATES] availability for Phil Medina at [VENUE].
+
+If those dates aren't open, are there any nearby dates that would work better on your end? Happy to adjust routing if there's a good opportunity.
+
+Thank you,
+[MY_NAME]
+jschucomedy@gmail.com`,
+  },
+  {
+    id:'tmpl_followup_3',
+    name:'Follow-Up – Touch 4 (Final)',
+    subject:'Final check - Phil Medina - [DATES]',
+    tone:'short',
+    touchNumber:4,
+    venueTypes:['all'],
+    body:`Hi [BOOKER_FIRST]!
+
+Last quick check-in on [DATES] for [VENUE]. If it's a "not this run," no worries at all — I'd still love to stay on your radar for future dates.
+
+Thanks again,
+[MY_NAME]
+jschucomedy@gmail.com`,
   },
   {
     id:'tmpl_jason_solo',
     name:'Jason Solo – Cold Outreach',
     subject:'Jason Schuster – Touring Comedian – [VENUE] Availability',
+    tone:'professional',
+    touchNumber:1,
+    venueTypes:['Comedy Club','Bar/Lounge'],
     body:`Hi [BOOKER_FIRST]!
 
 My name is Jason Schuster – I'm a bi-coastal touring comedian reaching out about availability at [VENUE] for [DATES].
 
 I'm known for sharp wit, strong stage presence, and spot-on impressions. I've performed at The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy, and have been featured on Kenan Presents.
 
-Jason Schuster Instagram: https://www.instagram.com/jschucomedy
+Jason Schuster Instagram: [MY_IG]
 
 I'd love to connect and see if we can make something work for [DATES].
 
 Thanks so much!
 
 Best,
-Jason Schuster`,
-    touchNumber: 1,
-    tags: ['cold','solo'],
-  },
-  {
-    id:'tmpl_followup_1',
-    name:'Follow-Up Touch 2',
-    subject:'Following Up – [VENUE] – Phil Medina',
-    body:`Hi [BOOKER_FIRST],
-
-Just following up on my previous message – didn't want it to get buried!
-
-We're still very interested in bringing Phil Medina to [VENUE] for [DATES]. Phil is building serious momentum and the clubs that get in early tend to get the best dates.
-
-Would love to connect – even a quick reply to let me know your timeline would be helpful.
-
-Thanks again!
-
-Best,
-Jason Schuster`,
-    touchNumber: 2,
-    tags: ['follow-up'],
-  },
-  {
-    id:'tmpl_followup_2',
-    name:'Follow-Up Touch 3 – Last Note',
-    subject:'Last Note – [VENUE] – Phil Medina',
-    body:`Hi [BOOKER_FIRST],
-
-One last follow-up – I don't want to be a pest, so I'll leave it here after this.
-
-If timing ever lines up in the future, we'd genuinely love to perform at [VENUE]. Feel free to reach out anytime.
-
-Wishing you a great season,
-
 Jason Schuster
 jschucomedy@gmail.com`,
-    touchNumber: 3,
-    tags: ['follow-up','final'],
   },
   {
     id:'tmpl_existing',
     name:'Existing Relationship – New Dates',
     subject:'Back at [VENUE] – Phil Medina – [DATES]',
+    tone:'friendly',
+    touchNumber:1,
+    venueTypes:['all'],
     body:`Hey [BOOKER_FIRST]!
 
 Hope you've been well! It's Jason – always love working with [VENUE].
@@ -513,59 +594,8 @@ Reaching out because we're routing through your area [DATES] and would love to b
 Let me know if those dates work or if there's a better window. Always a pleasure!
 
 Best,
-Jason Schuster`,
-    touchNumber: 1,
-    tags: ['existing','warm'],
-  },
-  {
-    id:'tmpl_casino',
-    name:'Casino – Headline Package',
-    subject:'Headline Comedy – Phil Medina + Jason Schuster – [VENUE]',
-    body:`Hi [BOOKER_FIRST],
-
-I'm reaching out on behalf of nationally touring headliner Phil Medina regarding your entertainment calendar at [VENUE].
-
-Phil Medina is a high-energy headliner with strong national credentials – Netflix Is A Joke Festival, Hulu specials, and consistent headline runs across casino and theater rooms. He delivers a polished, crowd-pleasing show that works beautifully in entertainment venues.
-
-We're routing through your region [DATES] and have select dates available for your consideration.
-
-Package includes:
-• Phil Medina – Full headline set (60–75 min)
-• Jason Schuster – Feature/co-headliner
-• Full promo assets and press kit available on request
-
-Phil Medina Instagram: https://www.instagram.com/comicphilmedina
-Jason Schuster Instagram: https://www.instagram.com/jschucomedy
-
-Would love to connect about your upcoming calendar.
-
-Best,
-Jason Schuster
-Tour Manager / Co-Headliner`,
-    touchNumber: 1,
-    tags: ['cold','casino'],
-  },
-  {
-    id:'tmpl_college',
-    name:'College – Campus Entertainment',
-    subject:'Campus Comedy – Phil Medina + Jason Schuster – [DATES]',
-    body:`Hi [BOOKER_FIRST],
-
-I'm reaching out about bringing a nationally touring comedy show to [VENUE] for [DATES].
-
-Phil Medina and Jason Schuster are a high-energy comedy duo with strong national credits – Netflix Is A Joke Festival, Hulu specials, Comedy Store, and Jimmy Kimmel's Comedy Club. Both performers are known for clean, inclusive comedy that plays exceptionally well with college audiences.
-
-We're actively routing through your region and have availability between [DATES].
-
-Happy to send full bios, press kits, and video clips on request.
-
-Looking forward to connecting!
-
-Best,
 Jason Schuster
 jschucomedy@gmail.com`,
-    touchNumber: 1,
-    tags: ['cold','college'],
   },
 ];
 
@@ -880,10 +910,20 @@ function formatCurrency(n){if(!n&&n!==0)return' - ';return'$'+Number(n).toLocale
 function daysUntil(d){if(!d)return null;return Math.ceil((new Date(d)-new Date())/(1000*60*60*24));}
 function isOverdue(d){const x=daysUntil(d);return x!==null&&x<0;}
 function fillTemplate(template,venue,dates=''){
-  const bookerFirst=venue.booker||'there';
-  const bookerFull=venue.bookerLast?`${venue.booker} ${venue.bookerLast}`:venue.booker||'there';
-  const filledDates=dates||venue.targetDates||'[DATES]';
-  return template.replace(/\[VENUE\]/g,venue.venue||'[VENUE]').replace(/\[BOOKER_FIRST\]/g,bookerFirst).replace(/\[BOOKER_FULL\]/g,bookerFull).replace(/\[BOOKER\]/g,bookerFirst).replace(/\[CITY\]/g,venue.city||'[CITY]').replace(/\[STATE\]/g,venue.state||'[STATE]').replace(/\[DATES\]/g,filledDates).replace(/\[EMAIL\]/g,venue.email||'[EMAIL]').replace(/\[CAPACITY\]/g,venue.capacity||'[CAPACITY]');
+  if(!template||!template.body) return '';
+  const HEADLINER_IG='https://www.instagram.com/comicphilmedina?igsh=eHQ3OXg4Mmw2dnpu';
+  const MY_IG='https://www.instagram.com/jschucomedy?igsh=MTg2N3R4dWhkaWc4bw%3D%3D&utm_source=qr';
+  return template.body
+    .replace(/\[VENUE\]/g,venue.venue||'your venue')
+    .replace(/\[BOOKER_FIRST\]/g,venue.booker||'there')
+    .replace(/\[CITY\]/g,venue.city||'')
+    .replace(/\[STATE\]/g,venue.state||'')
+    .replace(/\[DATES\]/g,dates||'[dates TBD]')
+    .replace(/\[MY_NAME\]/g,'Jason Schuster')
+    .replace(/\[HEADLINER_NAME\]/g,'Phil Medina')
+    .replace(/\[HEADLINER_IG\]/g,HEADLINER_IG)
+    .replace(/\[MY_IG\]/g,MY_IG)
+    .replace(/\[SCHOOL\/UNIVERSITY\]/g,venue.venue||'your campus');
 }
 
 // ── DEAL CALCULATOR ──────────────────────────────────────────
@@ -959,7 +999,21 @@ function ToggleGroup({options,value,onChange,color=C.acc}){return<div style={{di
 // -- LOGIN -----------------------------------------------------
 function LoginScreen({onLogin}){
   const[email,setEmail]=useState('');const[pw,setPw]=useState('');const[err,setErr]=useState('');const[loading,setLoading]=useState(false);
-  async function attempt(){setLoading(true);setErr('');try{const match=await checkCredentials(email,pw);if(match){onLogin(email.toLowerCase().trim());}else{setErr('Incorrect email or password.');setLoading(false);}}catch{setErr('Login error  -  please try again.');setLoading(false);}}
+  async function attempt(){
+    setLoading(true);setErr('');
+    try{
+      const session=await checkCredentials(email,pw);
+      if(session){
+        onLogin(session); // passes full {access_token, user:{email}} to App()
+      }else{
+        setErr('Incorrect email or password.');
+        setLoading(false);
+      }
+    }catch(e){
+      setErr('Login error — please try again.');
+      setLoading(false);
+    }
+  }
   return(<div style={{fontFamily:font.body,background:C.bg,minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
     <style>{`
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Syne:wght@700;800;900&display=swap');
@@ -1009,13 +1063,70 @@ class ErrorBoundary extends React.Component {
   }
 }
 function App(){
-  const[user,setUser]=useState(()=>{try{return localStorage.getItem('sb_user')||null;}catch{return null;}});
-  if(!user)return<LoginScreen onLogin={u=>{try{localStorage.setItem('sb_user',u);localStorage.removeItem('sb_venues');localStorage.removeItem('sb_templates');localStorage.removeItem('sb_tours');}catch{}setUser(u);}}/>;
-  return<StageBoss user={user} onLogout={()=>{try{localStorage.removeItem('sb_user');}catch{}setUser(null);}}/>;
+  // session: { email, access_token } — email used for sync, access_token for JWT-gated functions
+  const[session,setSession]=useState(()=>{
+    try{
+      const stored=localStorage.getItem('sb_session');
+      return stored?JSON.parse(stored):null;
+    }catch{return null;}
+  });
+
+  // On mount: restore session from Supabase if still valid
+  useEffect(()=>{
+    sbAuthClient.auth.getSession().then(({data})=>{
+      if(data?.session){
+        const s={email:data.session.user.email, access_token:data.session.access_token};
+        setSession(s);
+        try{localStorage.setItem('sb_session',JSON.stringify(s));}catch{}
+      }
+    });
+    // Listen for auth state changes (token refresh, sign-out)
+    const{data:{subscription}}=sbAuthClient.auth.onAuthStateChange((_event,s)=>{
+      if(s){
+        const updated={email:s.user.email, access_token:s.access_token};
+        setSession(updated);
+        try{localStorage.setItem('sb_session',JSON.stringify(updated));}catch{}
+      } else {
+        setSession(null);
+        try{localStorage.removeItem('sb_session');}catch{}
+      }
+    });
+    return()=>subscription.unsubscribe();
+  },[]);
+
+  if(!session) return <LoginScreen onLogin={s=>{
+    // s is the full Supabase session object from signInWithPassword
+    const stored={email:s.user.email, access_token:s.access_token};
+    setSession(stored);
+    try{
+      localStorage.setItem('sb_session',JSON.stringify(stored));
+      localStorage.removeItem('sb_venues');
+      localStorage.removeItem('sb_templates');
+      localStorage.removeItem('sb_tours');
+    }catch{}
+  }}/>;
+
+  return <StageBoss
+    user={session.email}
+    accessToken={session.access_token}
+    onLogout={()=>{
+      sbAuthClient.auth.signOut();
+      setSession(null);
+      try{localStorage.removeItem('sb_session');}catch{}
+    }}
+  />;
 }
 
 // -- STAGEBOSS ------------------------------------------------
-function StageBoss({user,onLogout}){
+function StageBoss({user,onLogout,accessToken}){
+  // getToken: returns current Supabase access_token for JWT-gated API calls.
+  // If the session has expired, Supabase auto-refreshes via onAuthStateChange in App().
+  // If still null after refresh, shows "please log in again" to the user.
+  async function getToken(){
+    const{data}=await sbAuthClient.auth.getSession();
+    return data?.session?.access_token || accessToken || null;
+  }
+
   const[venues,setVenues]=useState(()=>{
     try{const c=localStorage.getItem('sb_cache');if(c){const p=JSON.parse(c);if(p.venues?.length)return p.venues.map(migrateVenue);}}catch{}
     return [];
@@ -1026,6 +1137,8 @@ function StageBoss({user,onLogout}){
   const[tab,setTab]=useState('today');
   const[search,setSearch]=useState('');
   const[statusFilter,setStatusFilter]=useState('All');
+  const[stateFilter,setStateFilter]=useState('All');
+  const[cityFilter,setCityFilter]=useState('All');
   const[toast,setToast]=useState('');
   const[activeFilter,setActiveFilter]=useState('All');
   // panel states
@@ -1186,63 +1299,62 @@ function StageBoss({user,onLogout}){
     return()=>clearTimeout(syncTimeout.current);
   },[venues,templates,tours]);;
 
-  // -- AI OUTREACH WRITER --------------------------------------
-  async function generateAIOutreach(venueId){
-    const v=venues.find(x=>x.id===venueId);
-    if(!v) return;
+  // -- AI OUTREACH WRITER (secure - calls server-side Netlify Function) ------
+  async function generateAIOutreach(venueId, templateId, dates){
+    const v = venues.find(x => x.id === venueId);
+    if (!v) return;
     setAiVenueId(venueId); setAiOpen(true); setAiLoading(true); setAiResult('');
-    const touches=(v.contactLog||[]).length;
-    const touchNum=touches+1;
-    const isFollowUp=touches>0;
-    const template=isFollowUp
-      ? DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_followup_1')
-      : (v.venueType==='Casino'?DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_casino')
-        :(v.venueType==='College'?DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_college')
-        :DEFAULT_TEMPLATES[0]));
-    const baseEmail=template?.body||DEFAULT_TEMPLATES[0].body;
-    const promptText=[
-      'You are helping Jason Schuster book comedy shows. Adapt the following email template for this specific venue.',
-      'Venue: '+v.venue+' in '+v.city+', '+v.state,
-      'Booker: '+(v.booker||'the talent buyer'),
-      'Venue type: '+v.venueType,
-      'Touch number: '+touchNum+(isFollowUp?' (this is a follow-up)':''),
-      'Previous contact notes: '+((v.contactLog||[]).slice(-2).map(l=>l.note).join('; ')||'none'),
-      '',
-      'BASE TEMPLATE TO ADAPT:',
-      baseEmail,
-      '',
-      'Instructions: Personalize the greeting and any specific details for this venue. Keep Jason voice - warm, professional, specific. Keep it concise. Output ONLY the final email with Subject line first.',
-    ].join('\n');
-    const apiKey=process.env.REACT_APP_ANTHROPIC_KEY||ANTHROPIC_KEY;
-    if(!apiKey||apiKey===''){
-      setAiResult('No Anthropic API key found. Add REACT_APP_ANTHROPIC_KEY to your Netlify environment variables.');
-      setAiLoading(false);
-      return;
+
+    const touchHistory = (v.contactLog || []).slice(-5);
+    const touchNum = touchHistory.length + 1;
+
+    // Pick best template if none selected
+    let tmpl = templateId ? templates.find(t => t.id === templateId) : null;
+    if (!tmpl) {
+      if (touchNum === 2) tmpl = templates.find(t => t.id === 'tmpl_followup_1');
+      else if (touchNum === 3) tmpl = templates.find(t => t.id === 'tmpl_followup_2');
+      else if (touchNum >= 4) tmpl = templates.find(t => t.id === 'tmpl_followup_3');
+      else if (v.venueType === 'Casino') tmpl = templates.find(t => t.id === 'tmpl_casino');
+      else if (v.venueType === 'College') tmpl = templates.find(t => t.id === 'tmpl_college');
+      else tmpl = templates.find(t => t.id === 'tmpl_jason_phil_standard');
     }
-    try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'x-api-key':apiKey,
-          'anthropic-version':'2023-06-01',
+
+    const token1 = await getToken();
+    if (!token1) { setAiResult('Session expired. Please log out and log in again.'); setAiLoading(false); return; }
+    try {
+      const res = await fetch('/.netlify/functions/generate-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token1,
         },
-        body:JSON.stringify({
-          model:'claude-haiku-4-5-20251001',
-          max_tokens:800,
-          messages:[{role:'user',content:promptText}]
+        body: JSON.stringify({
+          venue: v,
+          template: tmpl ? { subject: tmpl.subject, body: fillTemplate(tmpl, v, dates || '') } : null,
+          tone: aiDraft.tone || 'professional',
+          dates: dates || aiDraft.dates || '',
+          touchHistory,
         })
       });
-      const data=await res.json();
-      if(!res.ok){
-        setAiResult('API Error '+res.status+': '+(data.error?.message||JSON.stringify(data)));
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAiResult('Error: ' + (data.error || 'Unknown error. Try again.'));
         setAiLoading(false);
         return;
       }
-      const text=data.content?.map(b=>b.text||'').join('')||'';
-      setAiResult(text||'No response from AI');
-    }catch(err){
-      setAiResult('Network error: '+err.message+'. Check your API key in Netlify env vars.');
+
+      // Store subject separately for Gmail
+      setAiDraft(prev => ({ ...prev, subject: data.subject, generated: data.subject + '
+
+' + data.body }));
+      setAiResult(data.subject + '
+
+' + data.body);
+
+    } catch (err) {
+      setAiResult('Connection error. Check your internet and try again.');
     }
     setAiLoading(false);
   }
@@ -1376,6 +1488,21 @@ function StageBoss({user,onLogout}){
 
   const needsPaidMark=useMemo(()=>venues.filter(v=>{if(v.paid||!v.targetDates)return false;return['Confirmed','Advancing','Completed'].includes(v.status);}),[venues]);
 
+  // State and city options derived from venues
+  const stateOptions = useMemo(()=>{
+    const states = [...new Set(venues.map(v=>v.state).filter(Boolean))].sort();
+    return ['All', ...states];
+  }, [venues]);
+
+  const cityOptions = useMemo(()=>{
+    const cities = [...new Set(
+      venues
+        .filter(v => stateFilter==='All' || v.state===stateFilter)
+        .map(v=>v.city).filter(Boolean)
+    )].sort();
+    return ['All', ...cities];
+  }, [venues, stateFilter]);
+
   const filtered=useMemo(()=>{
     const q=search.toLowerCase();
     return venues.filter(v=>{
@@ -1384,7 +1511,7 @@ function StageBoss({user,onLogout}){
       const mst=stateFilter2==='All'||v.state===stateFilter2;
       return mq&&ms&&mst;
     });
-  },[venues,search,statusFilter]);
+  },[venues,search,statusFilter,stateFilter,cityFilter]);
 
   const dbFiltered=useMemo(()=>{
     const q=dbSearch.toLowerCase();
@@ -1748,7 +1875,16 @@ function StageBoss({user,onLogout}){
                 + Add Venue
               </button>
             </div>
-            <input style={{...s.input(),background:C.surf2,marginBottom:12}} placeholder="🔍  Search venues, cities, bookers, states..." value={search} onChange={e=>setSearch(e.target.value)}/>
+            <input style={{...s.input(),background:C.surf2,marginBottom:8}} placeholder="🔍  Search venues, cities, bookers, states..." value={search} onChange={e=>setSearch(e.target.value)}/>
+            <div style={{display:'flex',gap:6,marginBottom:10}}>
+              <select value={stateFilter} onChange={e=>{setStateFilter(e.target.value);setCityFilter('All');}} style={{...s.select,flex:1,padding:'7px 10px',fontSize:12}}>
+                {stateOptions.map(s=><option key={s} value={s}>{s==='All'?'All States':s}</option>)}
+              </select>
+              <select value={cityFilter} onChange={e=>setCityFilter(e.target.value)} style={{...s.select,flex:1,padding:'7px 10px',fontSize:12}} disabled={stateFilter==='All'}>
+                {cityOptions.map(c=><option key={c} value={c}>{c==='All'?'All Cities':c}</option>)}
+              </select>
+              {(stateFilter!=='All'||cityFilter!=='All')&&<button onClick={()=>{setStateFilter('All');setCityFilter('All');}} style={{...s.btn(C.orange+'20',C.orange,C.orange+'40'),padding:'7px 10px',fontSize:11,fontWeight:700,flexShrink:0}}>✕ Reset</button>}
+            </div>
             <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',paddingBottom:2}}>
               {['All',...PIPELINE].map(st=>{
                 const color=PIPE_COLORS[st]||C.acc;
@@ -1826,30 +1962,26 @@ function StageBoss({user,onLogout}){
               <button onClick={async()=>{
                 const v=venues.find(x=>x.id===aiDraft.venueId);
                 if(!v){toast2('Select a venue first');return;}
-                if(!ANTHROPIC_KEY){toast2('No API key - add REACT_APP_ANTHROPIC_KEY to Netlify');return;}
+                // API key handled server-side
                 setAiLoading(true);
-                const touchNum=(v.contactLog||[]).length+1;
-                const history=(v.contactLog||[]).slice(-3).map(l=>l.date+': '+l.note).join(', ')||'No previous contact';
-                const promptText=[
-                  'You are Jason Schubert booking assistant. Write a '+(aiDraft.tone||'professional')+' booking inquiry email.',
-                  'From: Jason Schubert. To: '+(v.booker||'Talent Buyer')+' at '+v.venue+' in '+v.city+', '+v.state+'.',
-                  'Venue type: '+v.venueType+'. Capacity: '+(v.capacity||'unknown')+'.',
-                  'Touch number: '+touchNum+'. Previous contact: '+history+'. Warmth: '+(v.warmth||'Cold')+'.',
-                  'Rules: Jason is a national touring comedian 15+ years. Never invent contact info. Under 200 words.',
-                  'Format: Subject line, blank line, then email body.',
-                  'Sign as: Jason Schubert, jschucomedy@gmail.com, @jschucomedy',
-                  'Write the email now:'
-                ].join('\n');
+                // Call secure server-side function
+                const token2=await getToken();
+                if(!token2){toast2('Session expired. Please log out and log in again.');setAiLoading(false);return;}
                 try{
-                  const r=await fetch('https://api.anthropic.com/v1/messages',{
+                  const r=await fetch('/.netlify/functions/generate-email',{
                     method:'POST',
-                    headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
-                    body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:promptText}]})
+                    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token2},
+                    body:JSON.stringify({
+                      venue:v,
+                      tone:aiDraft.tone||'professional',
+                      dates:aiDraft.dates||'',
+                      touchHistory:(v.contactLog||[]).slice(-5),
+                    })
                   });
                   const data=await r.json();
-                  const txt=data.content?.[0]?.text||'';
-                  setAiDraft(prev=>({...prev,generated:txt}));
-                }catch(e){toast2('AI error: '+e.message);}
+                  if(!r.ok){toast2(data.error||'AI error');setAiLoading(false);return;}
+                  setAiDraft(prev=>({...prev,generated:data.subject+'\n\n'+data.body}));
+                }catch(e){toast2('Connection error: '+e.message);}
                 setAiLoading(false);
               }} style={{...s.btn('linear-gradient(135deg,#7c3aed,#ec4899)',C.txt,'transparent'),fontWeight:700,padding:'10px 20px'}}>
                 {aiLoading?'✨ Generating...':'✨ Generate AI Draft'}
@@ -2168,6 +2300,28 @@ function StageBoss({user,onLogout}){
       <Panel open={!!cv} onClose={()=>setComposeId(null)} title={cv?.venue||''}>
         {cv&&<>
           <div style={s.sectionTitle}>[list] Template</div>
+          {/* SEQUENCE QUICK SELECT */}
+          {(()=>{
+            const touches=(cv.contactLog||[]).length;
+            const nextTouch=touches+1;
+            const seqMap={1:'tmpl_jason_phil_standard',2:'tmpl_followup_1',3:'tmpl_followup_2',4:'tmpl_followup_3'};
+            if(cv.venueType==='Casino') seqMap[1]='tmpl_casino';
+            if(cv.venueType==='College') seqMap[1]='tmpl_college';
+            return <div style={{marginBottom:10}}>
+              <div style={{fontSize:10,color:C.muted3,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700,marginBottom:6}}>Quick Touch Select</div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {[1,2,3,4].map(n=>{
+                  const isNext=n===nextTouch;
+                  const isPast=n<nextTouch;
+                  return <button key={n} onClick={()=>setCo(cv.id,{templateId:seqMap[n]||'tmpl_jason_phil_standard'})}
+                    style={{...s.btn(isNext?C.acc:isPast?C.surf3:C.surf2,isNext?'#fff':isPast?C.muted:C.txt,isNext?'transparent':C.bord),fontSize:11,padding:'5px 12px',fontWeight:isNext?700:400}}>
+                    Touch {n}{isNext?' ← Next':''}
+                  </button>;
+                })}
+              </div>
+            </div>;
+          })()}
+          <div style={{fontSize:10,color:C.muted3,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700,marginBottom:6}}>Template</div>
           <select style={{...s.select,marginBottom:14}} value={co.templateId} onChange={e=>setCo(cv.id,{templateId:e.target.value})}>{templates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
           <div style={s.field()}><label style={s.label}>Target Dates</label><input style={s.input(12)} value={co.customDates||''} onChange={e=>setCo(cv.id,{customDates:e.target.value})} placeholder="e.g. June 21-24"/></div>
           <div style={s.field()}><label style={s.label}>Personal Note</label><textarea style={{...s.input(12),resize:'none',minHeight:56}} value={co.customNote||''} onChange={e=>setCo(cv.id,{customNote:e.target.value})} placeholder="A personal note, compliment, mutual contact..."/></div>
@@ -2183,10 +2337,15 @@ function StageBoss({user,onLogout}){
               const touches=(cv.contactLog||[]).length;
               const isNew=touches===0;
               const prompt='You are Jason Schuster, comedian and tour manager for Phil Medina. Write a SHORT natural booking email.\n\nVenue: '+cv.venue+'\nCity: '+cv.city+', '+cv.state+'\nBooker: '+(cv.booker||'their booker')+(cv.bookerLast?' '+cv.bookerLast:'')+'\nRelationship: '+(isNew?'brand new contact, first outreach':'existing contact, touch #'+(touches+1))+'\nPrevious contacts: '+touches+'\nHistory: '+(cv.history||'none')+'\nWarmth: '+(cv.warmth||'Cold')+'\nStatus: '+cv.status+'\nTarget dates: '+(cv.targetDates||'flexible')+'\n\nPhil Medina credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Fest, Hulu West Coast Comedy.\nJason Schuster credits: Comedy Store, Jimmy Kimmel Comedy Club, Kenan Presents.\n\n'+(isNew?'First outreach - warm, professional, brief.':'Follow-up - reference previous outreach, stay persistent but friendly.')+'\n\nWrite ONLY the email body under 120 words. Sign as Jason Schuster.';
-              if(!ANTHROPIC_KEY||ANTHROPIC_KEY==='YOUR_ANTHROPIC_KEY_HERE'){toast2('Add your Anthropic API key to App.js line 6');return;}
-              fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})})
-              .then(r=>r.json()).then(d=>{const txt=d.content?.[0]?.text||'';if(txt){setComposeOpts(o=>({...o,customNote:txt}));toast2('AI draft ready!');}else{toast2('AI error: '+(d.error?.message||'check API key'));}})
-              .catch(e=>toast2('AI error: '+e.message));
+              // API key handled server-side
+              getToken().then(token3=>{
+                if(!token3){toast2('Session expired. Please log out and log in again.');return;}
+                fetch('/.netlify/functions/generate-email',{method:'POST',
+                  headers:{'Content-Type':'application/json','Authorization':'Bearer '+token3},
+                  body:JSON.stringify({venue:cv,tone:'professional',dates:co.dates||'',touchHistory:(cv.contactLog||[]).slice(-5)})})
+                .then(r=>r.json()).then(d=>{if(d.error){toast2(d.error);return;}setComposeOpts(o=>({...o,aiNote:d.body,filledBody:d.body}));toast2('AI draft ready!');})
+                .catch(e=>toast2('Connection error: '+e.message));
+              });
               toast2('Generating AI draft...');
             }} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),width:'100%',marginBottom:8,fontSize:12}}>AI Draft Email (relationship-aware)</button>}
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
