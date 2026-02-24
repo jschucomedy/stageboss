@@ -910,10 +910,12 @@ function formatCurrency(n){if(!n&&n!==0)return' - ';return'$'+Number(n).toLocale
 function daysUntil(d){if(!d)return null;return Math.ceil((new Date(d)-new Date())/(1000*60*60*24));}
 function isOverdue(d){const x=daysUntil(d);return x!==null&&x<0;}
 function fillTemplate(template,venue,dates=''){
-  if(!template||!template.body) return '';
+  // Accept either a full template object or a plain string
+  const text = typeof template === 'string' ? template : template?.body;
+  if(!text) return '';
   const HEADLINER_IG='https://www.instagram.com/comicphilmedina?igsh=eHQ3OXg4Mmw2dnpu';
   const MY_IG='https://www.instagram.com/jschucomedy?igsh=MTg2N3R4dWhkaWc4bw%3D%3D&utm_source=qr';
-  return template.body
+  return text
     .replace(/\[VENUE\]/g,venue.venue||'your venue')
     .replace(/\[BOOKER_FIRST\]/g,venue.booker||'there')
     .replace(/\[CITY\]/g,venue.city||'')
