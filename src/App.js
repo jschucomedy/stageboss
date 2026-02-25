@@ -928,6 +928,298 @@ function fillTemplate(template,venue,dates=''){
     .replace(/\[SCHOOL\/UNIVERSITY\]/g,venue.venue||'your campus');
 }
 
+// ── EXPORT / PRINT ENGINE ────────────────────────────────────
+// Uses browser print dialog (Save as PDF on desktop, Share on iOS).
+// No external library needed. Clean printable HTML injected into a new window.
+
+function printExport(type, data) {
+  const { tours, venues, year } = data;
+  const fmt = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0 });
+  const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  let title = '';
+  let html = '';
+
+  if (type === 'pnl') {
+    // ── P&L STATEMENT ──────────────────────────────────────────
+    title = `StageBoss P&L — ${year}`;
+
+    // Collect all confirmed/completed venues with guarantee
+    const confirmed = venues
+      .filter(v => ['Confirmed','Advancing','Completed'].includes(v.status) && (v.guarantee > 0 || v.paid))
+      .sort((a, b) => (a.confirmedViaEmailDate || '').localeCompare(b.confirmedViaEmailDate || ''));
+
+    // Collect tour dates too
+    const tourShows = [];
+    tours.forEach(t => {
+      (t.dates || []).filter(d => ['Confirmed','Completed'].includes(d.status) && d.guarantee > 0)
+        .forEach(d => tourShows.push({ ...d, tourName: t.name }));
+    });
+
+    const totalConfirmed = confirmed.reduce((a, v) => a + Number(v.guarantee || 0), 0);
+    const totalPaid = confirmed.filter(v => v.paid).reduce((a, v) => a + Number(v.guarantee || 0), 0);
+    const totalUnpaid = totalConfirmed - totalPaid;
+    const totalTour = tourShows.reduce((a, d) => a + Number(d.guarantee || 0), 0);
+    const grandTotal = totalConfirmed + totalTour;
+
+    const rows = confirmed.map(v => `
+      <tr>
+        <td>${fmtDate(v.confirmedViaEmailDate || v.showDate || '')}</td>
+        <td><strong>${v.venue}</strong></td>
+        <td>${v.city}, ${v.state}</td>
+        <td>${v.package || 'Jason + Phil'}</td>
+        <td>${v.dealType || v.agreementType || '—'}</td>
+        <td class="money">${fmt(v.guarantee)}</td>
+        <td class="${v.paid ? 'paid' : 'unpaid'}">${v.paid ? '✓ Paid' : 'Pending'}</td>
+      </tr>`).join('');
+
+    const tourRows = tourShows.length ? tourShows.map(d => `
+      <tr class="tour-row">
+        <td>${fmtDate(d.date)}</td>
+        <td><strong>${d.venue || 'TBD'}</strong> <span class="tag">${d.tourName}</span></td>
+        <td>${d.city || ''}, ${d.state || ''}</td>
+        <td>${d.package || 'Jason + Phil'}</td>
+        <td>Tour Date</td>
+        <td class="money">${fmt(d.guarantee)}</td>
+        <td class="${d.paid ? 'paid' : 'unpaid'}">${d.paid ? '✓ Paid' : 'Pending'}</td>
+      </tr>`).join('') : '';
+
+    html = `
+      <div class="header">
+        <div class="logo">StageBoss</div>
+        <div>
+          <h1>Profit & Loss Statement</h1>
+          <div class="subtitle">Jason Schuster / Phil Medina · ${year} · Generated ${now}</div>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-label">Total Gross</div>
+          <div class="summary-value green">${fmt(grandTotal)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Collected</div>
+          <div class="summary-value">${fmt(totalPaid)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Outstanding</div>
+          <div class="summary-value orange">${fmt(totalUnpaid)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Total Shows</div>
+          <div class="summary-value">${confirmed.length + tourShows.length}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Year Goal</div>
+          <div class="summary-value">$100,000</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Goal %</div>
+          <div class="summary-value ${grandTotal >= 100000 ? 'green' : ''}">${Math.round((grandTotal / 100000) * 100)}%</div>
+        </div>
+      </div>
+
+      ${confirmed.length > 0 ? `
+      <h2>Confirmed Shows</h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Venue</th><th>Location</th><th>Package</th><th>Deal</th><th>Guarantee</th><th>Status</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr><td colspan="5"><strong>Subtotal</strong></td><td class="money"><strong>${fmt(totalConfirmed)}</strong></td><td></td></tr>
+        </tfoot>
+      </table>` : '<p class="empty">No confirmed shows yet.</p>'}
+
+      ${tourShows.length > 0 ? `
+      <h2>Tour Dates</h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Venue</th><th>Location</th><th>Package</th><th>Type</th><th>Guarantee</th><th>Status</th></tr>
+        </thead>
+        <tbody>${tourRows}</tbody>
+        <tfoot>
+          <tr><td colspan="5"><strong>Tour Subtotal</strong></td><td class="money"><strong>${fmt(totalTour)}</strong></td><td></td></tr>
+        </tfoot>
+      </table>` : ''}
+
+      <div class="grand-total">
+        <span>Grand Total</span>
+        <span class="green">${fmt(grandTotal)}</span>
+      </div>`;
+
+  } else if (type === 'tour') {
+    // ── TOUR SCHEDULE ──────────────────────────────────────────
+    const tour = data.tour;
+    title = `${tour.name} — Tour Schedule`;
+    const sortedDates = (tour.dates || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    const totalGross = sortedDates.reduce((a, d) => a + Number(d.guarantee || 0), 0);
+    const confirmed = sortedDates.filter(d => d.status === 'Confirmed').length;
+
+    const rows = sortedDates.map((d, idx) => `
+      <tr class="${d.status === 'Confirmed' ? 'confirmed' : d.status === 'Hold' ? 'hold' : ''}">
+        <td class="num">${idx + 1}</td>
+        <td>${fmtDate(d.date)}</td>
+        <td><strong>${d.venue || 'TBD'}</strong></td>
+        <td>${d.city || ''}${d.state ? ', ' + d.state : ''}</td>
+        <td><span class="status-badge ${(d.status||'').toLowerCase()}">${d.status || 'Lead'}</span></td>
+        <td class="money">${d.guarantee > 0 ? fmt(d.guarantee) : '—'}</td>
+        <td>${d.dealType || '—'}</td>
+        <td>${d.notes || ''}</td>
+      </tr>`).join('');
+
+    html = `
+      <div class="header">
+        <div class="logo">StageBoss</div>
+        <div>
+          <h1>${tour.name}</h1>
+          <div class="subtitle">Tour Schedule · ${tour.startDate || ''} – ${tour.endDate || ''} · Generated ${now}</div>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-card"><div class="summary-label">Total Dates</div><div class="summary-value">${sortedDates.length}</div></div>
+        <div class="summary-card"><div class="summary-label">Confirmed</div><div class="summary-value green">${confirmed}</div></div>
+        <div class="summary-card"><div class="summary-label">Projected Gross</div><div class="summary-value green">${fmt(totalGross)}</div></div>
+        <div class="summary-card"><div class="summary-label">Avg Per Show</div><div class="summary-value">${sortedDates.length ? fmt(Math.round(totalGross / sortedDates.length)) : '—'}</div></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>#</th><th>Date</th><th>Venue</th><th>Location</th><th>Status</th><th>Guarantee</th><th>Deal</th><th>Notes</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5"><strong>Total</strong></td>
+            <td class="money"><strong>${fmt(totalGross)}</strong></td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>`;
+
+  } else if (type === 'forecast') {
+    // ── TOUR FORECAST ──────────────────────────────────────────
+    const tour = data.tour;
+    title = `${tour.name} — Forecast`;
+    const sortedDates = (tour.dates || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    const byStatus = (s) => sortedDates.filter(d => d.status === s);
+    const sumG = (arr) => arr.reduce((a, d) => a + Number(d.guarantee || 0), 0);
+
+    const confirmedShows = byStatus('Confirmed');
+    const holdShows = byStatus('Hold');
+    const leadShows = [...byStatus('Lead'), ...byStatus('Negotiating'), ...byStatus('Contacted')];
+
+    html = `
+      <div class="header">
+        <div class="logo">StageBoss</div>
+        <div>
+          <h1>${tour.name} — Revenue Forecast</h1>
+          <div class="subtitle">${tour.startDate || ''} – ${tour.endDate || ''} · Generated ${now}</div>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-card"><div class="summary-label">Confirmed Revenue</div><div class="summary-value green">${fmt(sumG(confirmedShows))}</div></div>
+        <div class="summary-card"><div class="summary-label">On Hold</div><div class="summary-value orange">${fmt(sumG(holdShows))}</div></div>
+        <div class="summary-card"><div class="summary-label">In Pipeline</div><div class="summary-value">${fmt(sumG(leadShows))}</div></div>
+        <div class="summary-card"><div class="summary-label">Best Case Total</div><div class="summary-value">${fmt(sumG(sortedDates))}</div></div>
+      </div>
+
+      <h2>Confirmed — ${fmt(sumG(confirmedShows))}</h2>
+      ${confirmedShows.length ? `<table>
+        <thead><tr><th>Date</th><th>Venue</th><th>Location</th><th>Guarantee</th></tr></thead>
+        <tbody>${confirmedShows.map(d=>`<tr class="confirmed"><td>${fmtDate(d.date)}</td><td>${d.venue||'TBD'}</td><td>${d.city||''}, ${d.state||''}</td><td class="money">${fmt(d.guarantee)}</td></tr>`).join('')}</tbody>
+      </table>` : '<p class="empty">No confirmed shows yet.</p>'}
+
+      <h2>On Hold — ${fmt(sumG(holdShows))}</h2>
+      ${holdShows.length ? `<table>
+        <thead><tr><th>Date</th><th>Venue</th><th>Location</th><th>Potential</th></tr></thead>
+        <tbody>${holdShows.map(d=>`<tr class="hold"><td>${fmtDate(d.date)}</td><td>${d.venue||'TBD'}</td><td>${d.city||''}, ${d.state||''}</td><td class="money">${fmt(d.guarantee)}</td></tr>`).join('')}</tbody>
+      </table>` : '<p class="empty">No holds.</p>'}
+
+      <h2>Pipeline — ${fmt(sumG(leadShows))}</h2>
+      ${leadShows.length ? `<table>
+        <thead><tr><th>Date</th><th>Venue</th><th>Location</th><th>Status</th><th>Potential</th></tr></thead>
+        <tbody>${leadShows.map(d=>`<tr><td>${fmtDate(d.date)}</td><td>${d.venue||'TBD'}</td><td>${d.city||''}, ${d.state||''}</td><td>${d.status||'Lead'}</td><td class="money">${fmt(d.guarantee)}</td></tr>`).join('')}</tbody>
+      </table>` : '<p class="empty">No pipeline dates.</p>'}`;
+  }
+
+  // ── PRINT WINDOW ──────────────────────────────────────────────
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>${title}</title>
+  <meta charset="utf-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', Arial, sans-serif; font-size: 12px; color: #1a1a2e; background: #fff; padding: 32px; }
+    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #7c3aed; }
+    .logo { background: linear-gradient(135deg, #7c3aed, #ec4899); color: #fff; font-weight: 900; font-size: 18px; padding: 8px 14px; border-radius: 10px; letter-spacing: -0.5px; flex-shrink: 0; }
+    h1 { font-size: 22px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.5px; }
+    h2 { font-size: 14px; font-weight: 700; color: #7c3aed; margin: 24px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .subtitle { font-size: 11px; color: #6b6b90; margin-top: 4px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px; }
+    .summary-card { background: #f8f7ff; border: 1px solid #e8e3ff; border-radius: 10px; padding: 14px; }
+    .summary-label { font-size: 10px; color: #6b6b90; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 4px; }
+    .summary-value { font-size: 20px; font-weight: 800; color: #1a1a2e; }
+    .summary-value.green { color: #00b894; }
+    .summary-value.orange { color: #e17055; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+    th { background: #f0edff; color: #4a4a8a; font-weight: 700; text-align: left; padding: 8px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 8px 10px; border-bottom: 1px solid #f0eeff; vertical-align: top; }
+    tr:hover td { background: #faf9ff; }
+    td.money { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+    td.paid { color: #00b894; font-weight: 600; }
+    td.unpaid { color: #e17055; }
+    td.num { color: #9090b0; width: 30px; }
+    tfoot td { border-top: 2px solid #7c3aed; border-bottom: none; padding-top: 10px; font-weight: 700; }
+    .grand-total { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #7c3aed, #ec4899); color: #fff; padding: 16px 20px; border-radius: 12px; margin-top: 20px; font-size: 18px; font-weight: 800; }
+    .grand-total .green { color: #fff; }
+    .tag { background: #e8e3ff; color: #7c3aed; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: 6px; }
+    .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+    .status-badge.confirmed { background: #d4f5ea; color: #00b894; }
+    .status-badge.hold { background: #fff3e0; color: #f39c12; }
+    .status-badge.lead { background: #f0edff; color: #7c3aed; }
+    tr.confirmed td { background: #f7fffe; }
+    tr.hold td { background: #fffdf5; }
+    tr.tour-row td { background: #faf7ff; }
+    .empty { color: #9090b0; font-style: italic; margin: 8px 0 20px; }
+    .green { color: #00b894; }
+    .orange { color: #e17055; }
+    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e8e3ff; font-size: 10px; color: #9090b0; display: flex; justify-content: space-between; }
+    @media print {
+      body { padding: 20px; }
+      .no-print { display: none !important; }
+      @page { margin: 0.5in; }
+    }
+  </style>
+</head>
+<body>
+  ${html}
+  <div class="footer">
+    <span>StageBoss · jschucomedy@gmail.com</span>
+    <span>Generated ${now}</span>
+  </div>
+  <div class="no-print" style="margin-top:32px;text-align:center;">
+    <button onclick="window.print()" style="background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff;border:none;padding:12px 32px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">
+      🖨️ Save as PDF / Print
+    </button>
+    <button onclick="window.close()" style="background:#f0edff;color:#7c3aed;border:none;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-left:12px;font-family:inherit;">
+      Close
+    </button>
+    <p style="margin-top:12px;font-size:11px;color:#9090b0;">On desktop: File → Save as PDF &nbsp;|&nbsp; On iPhone: tap Share → Save to Files</p>
+  </div>
+</body>
+</html>`);
+  win.document.close();
+  win.focus();
+}
+
 // ── GMAIL OPENER ─────────────────────────────────────────────
 // On iOS: uses googlegmail:// scheme to open Gmail app directly.
 // On desktop: uses https://mail.google.com compose URL.
@@ -1797,7 +2089,13 @@ function StageBoss({user,onLogout,accessToken}){
 
           {/* INCOME GOAL BANNER */}
           {(()=>{
-            const confirmed=venues.filter(v=>v.status==='Confirmed'||v.status==='Advancing'||v.status==='Completed');
+            const thisYear=new Date().getFullYear().toString();
+            const confirmed=venues.filter(v=>{
+              if(!['Confirmed','Advancing','Completed'].includes(v.status)) return false;
+              // Filter to current year using confirmedViaEmailDate, showDate, or include if no date set
+              const d=v.confirmedViaEmailDate||v.showDate||'';
+              return !d||d.startsWith(thisYear);
+            });
             const projectedGross=confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
             const yearGoal=100000;
             const pct=Math.min(100,Math.round((projectedGross/yearGoal)*100));
@@ -1813,6 +2111,10 @@ function StageBoss({user,onLogout,accessToken}){
               <div style={{background:C.bord,borderRadius:99,height:6,overflow:'hidden'}}>
                 <div style={{background:`linear-gradient(90deg,${C.acc},${C.green})`,height:'100%',width:pct+'%',borderRadius:99,transition:'width 0.5s ease'}}/>
               </div>
+              <button onClick={()=>printExport('pnl',{tours,venues,year:new Date().getFullYear()})}
+                style={{marginTop:12,background:'linear-gradient(135deg,#7c3aed,#ec4899)',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',width:'100%'}}>
+                📊 Export P&amp;L Statement
+              </button>
             </div>;
           })()}
 
@@ -2155,6 +2457,16 @@ function StageBoss({user,onLogout,accessToken}){
                   </div>
                 ))}
                 {sortedDates.filter(d=>d.city).length>1&&<a href={'https://www.google.com/maps/dir/'+sortedDates.filter(d=>d.city).map(d=>encodeURIComponent(d.city+(d.state?','+d.state:''))).join('/')} target="_blank" rel="noopener noreferrer" style={{display:'block',marginTop:12,padding:'8px 12px',borderRadius:8,background:'rgba(108,92,231,0.1)',border:'1px solid rgba(108,92,231,0.3)',color:C.acc2,textDecoration:'none',textAlign:'center',fontSize:11,fontFamily:font.head,fontWeight:700}}>View Full Route on Google Maps</a>}
+              <div style={{display:'flex',gap:8,marginTop:14}}>
+                <button onClick={e=>{e.stopPropagation();printExport('tour',{tour,tours,venues,year:new Date().getFullYear()});}}
+                  style={{flex:1,background:'rgba(0,184,148,0.12)',color:'#00b894',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'8px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                  📋 Tour Schedule
+                </button>
+                <button onClick={e=>{e.stopPropagation();printExport('forecast',{tour,tours,venues,year:new Date().getFullYear()});}}
+                  style={{flex:1,background:'rgba(108,92,231,0.1)',color:'#7c3aed',border:'1px solid rgba(108,92,231,0.3)',borderRadius:8,padding:'8px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                  📈 Revenue Forecast
+                </button>
+              </div>
               </div>}
             </div>;
           })}
