@@ -399,6 +399,7 @@ function migrateVenue(v) {
     showReport: v.showReport||null,
     rebookDate: v.rebookDate||'',
     package: v.package||'Jason + Phil',
+    address: v.address||'',
   };
 }
 function migrateData(raw) {
@@ -1480,7 +1481,7 @@ function StageBoss({user,onLogout,accessToken}){
   const[dbSearch,setDbSearch]=useState('');
   const[dbStateFilter,setDbStateFilter]=useState('All');
   const[dbTypeFilter,setDbTypeFilter]=useState('All');
-  const[nv,setNv]=useState({venue:'',booker:'',bookerLast:'',city:'',state:'',email:'',instagram:'',phone:'',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:'',doorSplit:'',capacity:'',notes:'',referralSource:'',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20});
+  const[nv,setNv]=useState({venue:'',booker:'',bookerLast:'',city:'',state:'',address:'',email:'',instagram:'',phone:'',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:'',doorSplit:'',capacity:'',notes:'',referralSource:'',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20});
   const fileRef=useRef(null);
   const importRef=useRef(null);
   const[aiOpen,setAiOpen]=useState(false);
@@ -1846,7 +1847,7 @@ function StageBoss({user,onLogout,accessToken}){
     if(!nv.venue.trim()){toast2('Venue name required');return;}
     const v={...nv,id:Date.now(),status:'Lead',notes:nv.notes||'',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',capacity:parseInt(nv.capacity)||0,guarantee:parseFloat(nv.guarantee)||0,doorSplit:parseFloat(nv.doorSplit)||0,agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'};
     setVenues(vs=>[v,...vs]);
-    setNv({venue:'',booker:'',bookerLast:'',city:'',state:'',email:'',instagram:'',phone:'',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:'',doorSplit:'',capacity:'',notes:'',referralSource:'',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20});
+    setNv({venue:'',booker:'',bookerLast:'',city:'',state:'',address:'',email:'',instagram:'',phone:'',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:'',doorSplit:'',capacity:'',notes:'',referralSource:'',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20});
     setAddOpen(false);toast2(`[OK] ${v.venue} added`);
   }
 
@@ -1871,7 +1872,78 @@ function StageBoss({user,onLogout,accessToken}){
 
   function saveTemplate(tpl){if(tpl.id&&templates.find(t=>t.id===tpl.id)){setTemplates(ts=>ts.map(t=>t.id===tpl.id?tpl:t));}else{setTemplates(ts=>[...ts,{...tpl,id:Date.now().toString()}]);}setEditTemplateId(null);toast2('Template saved OK');}
   function deleteTemplate(id){setTemplates(ts=>ts.filter(t=>t.id!==id));toast2('Template deleted');}
-  function saveTour(tour){if(tour.id&&tours.find(t=>t.id===tour.id)){setTours(ts=>ts.map(t=>t.id===tour.id?tour:t));}else{setTours(ts=>[...ts,{...tour,id:Date.now().toString()}]);}setEditTourId(null);toast2('Tour saved OK');}
+  function saveTour(tour){
+    // Save the tour
+    if(tour.id&&tours.find(t=>t.id===tour.id)){
+      setTours(ts=>ts.map(t=>t.id===tour.id?tour:t));
+    } else {
+      setTours(ts=>[...ts,{...tour,id:Date.now().toString()}]);
+    }
+    // Auto-add new venues from tour dates to venue list as Leads
+    const newVenues = [];
+    (tour.dates||[]).forEach(d => {
+      if(!d.venue||!d.venue.trim()) return; // skip blank
+      const alreadyExists = venues.some(v =>
+        v.venue.toLowerCase().trim() === d.venue.toLowerCase().trim() &&
+        (v.city||'').toLowerCase().trim() === (d.city||'').toLowerCase().trim()
+      );
+      if(!alreadyExists){
+        newVenues.push({
+          id: 'td_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+          venue: d.venue.trim(),
+          city: d.city||'',
+          state: d.state||'',
+          address: d.address||'',
+          email: '',
+          phone: '',
+          instagram: '',
+          booker: '',
+          bookerLast: '',
+          preferredContact: 'Email',
+          venueType: 'Comedy Club',
+          relationship: 'new',
+          warmth: 'Cold',
+          status: d.status||'Lead',
+          guarantee: Number(d.guarantee)||0,
+          dealType: d.dealType||'Flat Guarantee',
+          targetDates: d.date||'',
+          notes: 'Added from tour: ' + tour.name,
+          contactLog: [],
+          contractStatus: 'None',
+          depositPaid: false,
+          package: 'Jason + Phil',
+          agreementType: 'Email Agreement',
+          confirmedViaEmailDate: '',
+          emailThreadURL: '',
+          emailThreadText: '',
+          emailAgreementNotes: '',
+          termsLocked: false,
+          checklist: null,
+          expectedPaymentTiming: 'Night of show',
+          paid: false,
+          paidDate: '',
+          settlement: null,
+          showReport: null,
+          rebookDate: '',
+          history: '',
+          referralSource: 'Tour Date',
+          nextFollowUp: '',
+          agentCommission: 10,
+          managerCommission: 15,
+          lodging: 'Hotel',
+          merchAllowed: true,
+          isTourDate: true,
+        });
+      }
+    });
+    if(newVenues.length > 0){
+      setVenues(vs => [...vs, ...newVenues]);
+      toast2(`[OK] Tour saved · ${newVenues.length} new venue${newVenues.length>1?'s':''} added to your list`);
+    } else {
+      toast2('Tour saved OK');
+    }
+    setEditTourId(null);
+  }
 
   const currentTemplate=cv?(templates.find(t=>t.id===co.templateId)||templates[0]):null;
   const filledSubject=cv&&currentTemplate?fillTemplate(currentTemplate.subject,cv,co.customDates):'';
@@ -2450,7 +2522,7 @@ function StageBoss({user,onLogout,accessToken}){
                         <div style={{fontSize:10,color:C.muted}}>{d.city}{d.state?', '+d.state:''} &middot; {d.date||'TBD'} &middot; {formatCurrency(d.guarantee)}</div>
                         <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
                           <span style={{fontSize:9,padding:'2px 7px',borderRadius:6,background:d.status==='Confirmed'?`${C.green}18`:C.surf,color:d.status==='Confirmed'?C.green:C.muted,border:`1px solid ${d.status==='Confirmed'?C.green:C.bord}`}}>{d.status||'Hold'}</span>
-                          {d.city&&sortedDates[i+1]&&sortedDates[i+1].city&&<a href={'https://www.google.com/maps/dir/'+encodeURIComponent(d.city+(d.state?','+d.state:''))+'/'+encodeURIComponent(sortedDates[i+1].city+(sortedDates[i+1].state?','+sortedDates[i+1].state:''))} target="_blank" rel="noopener noreferrer" style={{fontSize:9,padding:'2px 7px',borderRadius:6,background:'rgba(108,92,231,0.1)',color:C.acc2,border:'1px solid rgba(108,92,231,0.3)',textDecoration:'none',cursor:'pointer'}}>Map to next stop</a>}
+                          {d.city&&sortedDates[i+1]&&sortedDates[i+1].city&&<a href={'https://www.google.com/maps/dir/'+encodeURIComponent(d.address?d.address+', '+d.city+', '+d.state:d.city+(d.state?','+d.state:''))+'/'+encodeURIComponent(sortedDates[i+1].address?sortedDates[i+1].address+', '+sortedDates[i+1].city+', '+sortedDates[i+1].state:sortedDates[i+1].city+(sortedDates[i+1].state?','+sortedDates[i+1].state:''))} target="_blank" rel="noopener noreferrer" style={{fontSize:9,padding:'2px 7px',borderRadius:6,background:'rgba(108,92,231,0.1)',color:C.acc2,border:'1px solid rgba(108,92,231,0.3)',textDecoration:'none',cursor:'pointer'}}>Map to next stop</a>}
                         </div>
                       </div>
                     </div>
@@ -2605,7 +2677,8 @@ function StageBoss({user,onLogout,accessToken}){
             <div style={s.field()}><label style={s.label}>Last Name</label><input style={s.input(12)} defaultValue={dv.bookerLast||''} onChange={e=>upd(dv.id,{bookerLast:e.target.value})} placeholder="Smith"/></div>
           </div>
           <div style={s.sectionTitle}>[phone] Contact</div>
-          <div style={{marginBottom:16}}>{[['Email',dv.email],['Instagram',dv.instagram],['Phone',dv.phone]].map(([l,val])=>val?<div key={l} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 0',borderBottom:`1px solid ${C.bord}`}}><span style={{fontSize:10,color:C.muted,width:72,flexShrink:0,letterSpacing:1,textTransform:'uppercase'}}>{l}</span><span style={{fontSize:13,flex:1,wordBreak:'break-all'}}>{val}</span><button onClick={()=>copyText(val,l,toast2)} style={{padding:'3px 10px',borderRadius:6,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer'}}>copy</button></div>:null)}</div>
+          <div style={{marginBottom:16}}>{[['Email',dv.email],['Instagram',dv.instagram],['Phone',dv.phone],['Address',dv.address]].map(([l,val])=>val?<div key={l} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 0',borderBottom:`1px solid ${C.bord}`}}><span style={{fontSize:10,color:C.muted,width:72,flexShrink:0,letterSpacing:1,textTransform:'uppercase'}}>{l}</span><span style={{fontSize:13,flex:1,wordBreak:'break-all'}}>{val}</span><button onClick={()=>copyText(val,l,toast2)} style={{padding:'3px 10px',borderRadius:6,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer'}}>copy</button></div>:null)}</div>
+          <div style={s.field()}><label style={s.label}>Address</label><input style={s.input(12)} defaultValue={dv.address||''} placeholder="123 Main St" onBlur={e=>upd(dv.id,{address:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>Target Dates</label><input style={s.input(12)} defaultValue={dv.targetDates||''} onChange={e=>upd(dv.id,{targetDates:e.target.value})} placeholder="June 21-24"/></div>
           <div style={s.field()}><label style={s.label}>Next Follow-Up</label><input type="date" style={s.input(12)} value={dv.nextFollowUp||''} onChange={e=>upd(dv.id,{nextFollowUp:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>History / Previous Shows</label><input style={s.input(12)} defaultValue={dv.history||''} onChange={e=>upd(dv.id,{history:e.target.value})} placeholder="Sold out March 2024..."/></div>
@@ -2851,6 +2924,7 @@ function StageBoss({user,onLogout,accessToken}){
           <div style={s.field()}><label style={s.label}>City</label><input style={s.input()} placeholder="Los Angeles" value={nv.city} onChange={e=>setNv(n=>({...n,city:e.target.value}))}/></div>
           <div style={s.field()}><label style={s.label}>State</label><input style={s.input()} placeholder="CA" maxLength={2} value={nv.state} onChange={e=>setNv(n=>({...n,state:e.target.value.toUpperCase()}))}/></div>
         </div>
+        <div style={s.field()}><label style={s.label}>Address</label><input style={s.input()} placeholder="123 Main St" value={nv.address} onChange={e=>setNv(p=>({...p,address:e.target.value}))}/></div>
         <div style={s.field()}><label style={s.label}>Email</label><input type="email" style={s.input()} placeholder="booking@venue.com" value={nv.email} onChange={e=>setNv(n=>({...n,email:e.target.value}))}/></div>
         <div style={s.grid2}>
           <div style={s.field()}><label style={s.label}>Instagram</label><input style={s.input()} placeholder="@venue" value={nv.instagram} onChange={e=>setNv(n=>({...n,instagram:e.target.value}))}/></div>
@@ -3150,7 +3224,7 @@ function TourEditor({tour,onSave,onCancel}){
   const[miscBudget,setMiscBudget]=useState(tour?.miscBudget||'');
   const[dates,setDates]=useState(tour?.dates||[]);
   const[notes,setNotes]=useState(tour?.notes||'');
-  function addDate(){setDates(d=>[...d,{id:Date.now(),venue:'',city:'',state:'',date:'',showCount:1,guarantee:0,dealType:'Flat Guarantee',status:'Hold',notes:''}]);}
+  function addDate(){setDates(d=>[...d,{id:Date.now(),venue:'',city:'',state:'',address:'',date:'',showCount:1,guarantee:0,dealType:'Flat Guarantee',status:'Hold',notes:''}]);}
   function updDate(id,fields){setDates(d=>d.map(x=>x.id===id?{...x,...fields}:x));}
   function removeDate(id){setDates(d=>d.filter(x=>x.id!==id));}
   const totalGuarantee=dates.reduce((a,d)=>a+(Number(d.guarantee)||0),0);
@@ -3177,6 +3251,7 @@ function TourEditor({tour,onSave,onCancel}){
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><span style={{fontSize:12,fontFamily:font.head,fontWeight:700}}>{d.venue||'New Show'}</span><button onClick={()=>removeDate(d.id)} style={{background:'none',border:'none',color:C.red,cursor:'pointer',fontSize:14}}>x</button></div>
       <div style={s.grid2}>
         <div style={{marginBottom:8}}><label style={s.label}>Venue</label><input style={s.input(11)} value={d.venue} onChange={e=>updDate(d.id,{venue:e.target.value})} placeholder="Comedy Store"/></div>
+        <div style={{marginBottom:8}}><label style={s.label}>Address</label><input style={s.input(11)} value={d.address||''} onChange={e=>updDate(d.id,{address:e.target.value})} placeholder="123 Main St"/></div>
         <div style={{marginBottom:8}}><label style={s.label}>Date</label><input type="date" style={s.input(11)} value={d.date} onChange={e=>updDate(d.id,{date:e.target.value})}/></div>
       </div>
       <div style={s.grid2}>
