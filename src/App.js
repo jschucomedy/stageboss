@@ -2702,7 +2702,7 @@ function StageBoss({user,onLogout,accessToken}){
         </>}
 
         {/* == CALENDAR TAB == */}
-        {tab==='calendar'&&<CalendarTab venues={venues} tours={tours} onVenueClick={id=>setDetailId(id)} onChecklist={id=>setChecklistId(id)} toast2={toast2} comedians={comedians}/>/>}
+        {tab==='calendar'&&<CalendarTab venues={venues} tours={tours} onVenueClick={id=>setDetailId(id)} onChecklist={id=>setChecklistId(id)} toast2={toast2} comedians={comedians}/>}
 
         {/* == OUTREACH TAB == */}
         {tab==='outreach'&&<div style={{padding:'20px 20px 60px'}}>
