@@ -331,11 +331,11 @@ async function cloudFetch(email) {
   } catch(e) { return { error: e.message }; }
 }
 
-async function cloudPush(email, venues, templates, tours) {
+async function cloudPush(email, venues, templates, tours, comedians) {
   if (!email || typeof email !== 'string' || !email.includes('@')) {
     throw new Error('Bad email: ' + JSON.stringify(email));
   }
-  const appState = { venues, templates, tours };
+  const appState = { venues, templates, tours, comedians };
   const updated_at = new Date().toISOString();
   const writeBody = { email, data: appState, updated_at };
   const body = JSON.stringify(writeBody);
@@ -1910,6 +1910,7 @@ function StageBoss({user,onLogout,accessToken}){
     }
     if (hasTemplates) setTemplates(data.templates); else setTemplates(DEFAULT_TEMPLATES);
     setTours(data.tours || []);
+    if (data.comedians && data.comedians.length > 0) setComedians(data.comedians);
     setCloudVersion(cloudVer);
     cloudInitialized.current = true;
     return true;
@@ -1975,7 +1976,7 @@ function StageBoss({user,onLogout,accessToken}){
       dirtyRef.current = false;
       setSyncing(true);
       try {
-        const returnedAt = await cloudPush(user, venues, templates, tours);
+        const returnedAt = await cloudPush(user, venues, templates, tours, comedians);
         localVersionRef.current = returnedAt || version;
         setLastSync(new Date());
         setLastPushStatus('ok @ '+new Date().toLocaleTimeString()+' ('+venues.length+' venues)');
@@ -1991,7 +1992,7 @@ function StageBoss({user,onLogout,accessToken}){
       setSyncing(false);
     }, 1000);
     return()=>clearTimeout(syncTimeout.current);
-  },[venues,templates,tours]);;
+  },[venues,templates,tours,comedians]);;
 
   // -- AI OUTREACH WRITER (secure - calls server-side Netlify Function) ------
   async function generateAIOutreach(venueId, templateId, dates){
@@ -2553,7 +2554,7 @@ function StageBoss({user,onLogout,accessToken}){
           <button onClick={async()=>{
             setSyncing(true);
             try{
-              const returnedAt=await cloudPush(user,venues,templates,tours);
+              const returnedAt=await cloudPush(user,venues,templates,tours,comedians);
               localVersionRef.current=returnedAt||new Date().toISOString();
               setLastSync(new Date());
               setSyncError(null);
@@ -2601,7 +2602,7 @@ function StageBoss({user,onLogout,accessToken}){
             <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>Comedy Booking Command Center</div>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={async()=>{setSyncing(true);try{const r=await cloudPush(user,venues,templates,tours);localVersionRef.current=r||new Date().toISOString();setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed: '+e.message);}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
+            <button onClick={async()=>{setSyncing(true);try{const r=await cloudPush(user,venues,templates,tours,comedians);localVersionRef.current=r||new Date().toISOString();setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed: '+e.message);}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
             <button onClick={onLogout} style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer',fontFamily:font.body}}>OUT</button>
             <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:'50%',background:C.acc,border:'none',color:'#fff',fontSize:22,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>+</button>
           </div>
