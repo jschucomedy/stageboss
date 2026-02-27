@@ -1737,6 +1737,169 @@ function AnalyticsTab({venues, tours}){
       <div style={{fontSize:11,color:C.muted}}>Merch represents {totalRevenue>0?Math.round((totalMerch/(totalRevenue+totalMerch))*100):0}% of total revenue</div>
     </div>}
 
+
+    {/* ── REVENUE PROJECTIONS ── */}
+    {(()=>{
+      const now = new Date();
+      const WEIGHTS = {'Negotiating':0.80,'Responded':0.45,'Follow-Up':0.25,'Contacted':0.12,'Lead':0.05,'Hold':0.60,'Advancing':0.90,'Confirmed':1.0,'Completed':1.0};
+      const HORIZON_MONTHS = {'3mo':3,'6mo':6,'12mo':12};
+
+      // Build month buckets for each horizon
+      function buildProjection(horizonKey) {
+        const months = HORIZON_MONTHS[horizonKey];
+        const buckets = Array(months).fill(0).map((_,i)=>{
+          const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+          return {
+            label: d.toLocaleString('default',{month:'short'}) + (d.getFullYear()!==now.getFullYear()?` '${String(d.getFullYear()).slice(2)}`:''),
+            year: d.getFullYear(), month: d.getMonth(),
+            confirmed: 0, pipeline: 0, tours: 0
+          };
+        });
+
+        // Confirmed standalone venues (actual show date)
+        venues.filter(v=>['Confirmed','Advancing'].includes(v.status)&&v.showDate).forEach(v=>{
+          const d = new Date(v.showDate);
+          const bi = buckets.findIndex(b=>b.year===d.getFullYear()&&b.month===d.getMonth());
+          if(bi>=0) buckets[bi].confirmed += parseFloat(v.guarantee)||0;
+        });
+
+        // Pipeline venues weighted by close probability (use targetDates or nextFollowUp for timing)
+        venues.filter(v=>!['Confirmed','Advancing','Completed','Lost'].includes(v.status)&&(v.guarantee||v.avgDeal||avgDeal)).forEach(v=>{
+          const weight = WEIGHTS[v.status]||0.05;
+          const dealSize = parseFloat(v.guarantee)||avgDeal||0;
+          const projected = dealSize * weight;
+          if(projected < 1) return;
+          // Try to place in the right month from targetDates
+          let placed = false;
+          if(v.targetDates){
+            const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+            buckets.forEach((b,bi)=>{
+              const label = b.label.toLowerCase();
+              const mname = monthNames[b.month];
+              if(v.targetDates.toLowerCase().includes(mname)||v.targetDates.toLowerCase().includes(b.label.toLowerCase().slice(0,3))){
+                buckets[bi].pipeline += projected;
+                placed = true;
+              }
+            });
+          }
+          if(!placed&&v.nextFollowUp){
+            const d = new Date(v.nextFollowUp);
+            const bi = buckets.findIndex(b=>b.year===d.getFullYear()&&b.month===d.getMonth());
+            if(bi>=0){ buckets[bi].pipeline += projected; placed = true; }
+          }
+          if(!placed&&buckets.length>0){
+            // spread across middle of horizon if no date info
+            const mid = Math.floor(buckets.length/2);
+            buckets[mid].pipeline += projected/2;
+            if(mid+1<buckets.length) buckets[mid+1].pipeline += projected/2;
+          }
+        });
+
+        // Tour dates
+        tours.forEach(t=>{
+          (t.dates||[]).forEach(d=>{
+            if(!d.date) return;
+            const dt = new Date(d.date);
+            const bi = buckets.findIndex(b=>b.year===dt.getFullYear()&&b.month===dt.getMonth());
+            if(bi>=0){
+              const guarantee = parseFloat(d.guarantee)||0;
+              const weight = WEIGHTS[d.status]||0.6;
+              if(d.status==='Confirmed'||d.status==='Completed') buckets[bi].confirmed += guarantee;
+              else buckets[bi].tours += guarantee * weight;
+            }
+          });
+        });
+
+        return buckets;
+      }
+
+      const horizons = ['3mo','6mo','12mo'];
+      const labels = {'3mo':'3 Months','6mo':'6 Months','12mo':'12 Months'};
+
+      // Use a simple inline toggle — track with a data attr trick using useState via ref
+      // We'll render all three and show/hide with CSS — simpler approach
+      const [projHorizon, setProjHorizon] = React.useState('6mo');
+      const buckets = buildProjection(projHorizon);
+      const totalConfirmed = buckets.reduce((a,b)=>a+b.confirmed,0);
+      const totalPipeline = buckets.reduce((a,b)=>a+b.pipeline,0);
+      const totalTours = buckets.reduce((a,b)=>a+b.tours,0);
+      const grandTotal = totalConfirmed + totalPipeline + totalTours;
+      const maxBar = Math.max(...buckets.map(b=>b.confirmed+b.pipeline+b.tours), 1);
+
+      return <div style={card(`${C.acc}30`)}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+          <div style={sectionTitle}>📈 REVENUE PROJECTIONS</div>
+          <div style={{display:'flex',gap:4}}>
+            {horizons.map(h=>(
+              <button key={h} onClick={()=>setProjHorizon(h)} style={{background:projHorizon===h?C.acc:'transparent',color:projHorizon===h?'#fff':C.muted,border:`1px solid ${projHorizon===h?C.acc:C.bord}`,borderRadius:6,padding:'4px 10px',fontSize:10,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {labels[h]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Summary totals */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))',gap:8,marginBottom:16}}>
+          {[
+            ['Confirmed','#00b894',totalConfirmed,'Hard bookings + confirmed tour dates'],
+            ['Pipeline','#a78bfa',totalPipeline,'Weighted by close probability'],
+            ['Tour Holds','#f9ca24',totalTours,'Unconfirmed tour dates weighted'],
+            ['Total Projected','#ec4899',grandTotal,'Best estimate for the period'],
+          ].map(([lbl,col,val,tip])=>(
+            <div key={lbl} style={{background:`${col}10`,border:`1px solid ${col}25`,borderRadius:10,padding:'10px 12px',textAlign:'center'}}>
+              <div style={{fontSize:18,fontWeight:900,color:col,fontFamily:"'Syne',sans-serif"}}>{fmtK(val)}</div>
+              <div style={{fontSize:8,color:C.muted,marginTop:2,textTransform:'uppercase',letterSpacing:'0.08em'}}>{lbl}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Month-by-month stacked bars */}
+        <div className="sb-analytics-chart">
+          <div style={{display:'flex',gap:3,alignItems:'flex-end',height:90,minWidth:Math.max(280,buckets.length*44)}}>
+            {buckets.map((b,i)=>{
+              const total = b.confirmed+b.pipeline+b.tours;
+              const pct = total>0?Math.max(4,(total/maxBar)*100):2;
+              const cPct = total>0?(b.confirmed/total)*pct:0;
+              const tPct = total>0?(b.tours/total)*pct:0;
+              const pPct = pct - cPct - tPct;
+              return <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                <div style={{fontSize:7,color:total>0?C.green:C.muted,fontWeight:700}}>{total>0?fmtK(total):''}</div>
+                <div style={{width:'100%',display:'flex',flexDirection:'column',justifyContent:'flex-end',height:72}}>
+                  {b.pipeline>0&&<div style={{width:'100%',height:pPct+'%',background:`${C.acc2}99`,minHeight:b.pipeline>0?2:0,borderRadius:cPct>0||tPct>0?'0':'3px 3px 0 0'}}/>}
+                  {b.tours>0&&<div style={{width:'100%',height:tPct+'%',background:`${C.yellow}99`,minHeight:b.tours>0?2:0}}/>}
+                  {b.confirmed>0&&<div style={{width:'100%',height:cPct+'%',background:C.green,minHeight:b.confirmed>0?2:0,borderRadius:'0 0 0 0'}}/>}
+                  {total===0&&<div style={{width:'100%',height:4,background:C.bord,borderRadius:2}}/>}
+                </div>
+                <div style={{fontSize:7,color:C.muted,fontWeight:500,textAlign:'center'}}>{b.label}</div>
+              </div>;
+            })}
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div style={{display:'flex',gap:12,marginTop:10,flexWrap:'wrap'}}>
+          {[['Confirmed',C.green],['Tour Holds',C.yellow],['Pipeline',C.acc2]].map(([lbl,col])=>(
+            <div key={lbl} style={{display:'flex',alignItems:'center',gap:4}}>
+              <div style={{width:8,height:8,borderRadius:2,background:col}}/>
+              <span style={{fontSize:9,color:C.muted}}>{lbl}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Probability key */}
+        <div style={{marginTop:12,padding:'10px 12px',background:C.surf2,borderRadius:8}}>
+          <div style={{fontSize:9,color:C.muted2,fontWeight:700,letterSpacing:'0.08em',marginBottom:6}}>PIPELINE CLOSE PROBABILITIES USED</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {[['Negotiating','80%',C.green],['Hold','60%',C.yellow],['Responded','45%',C.blue],['Follow-Up','25%',C.acc2],['Contacted','12%',C.muted],['Lead','5%',C.muted]].map(([s,p,col])=>(
+              <div key={s} style={{fontSize:8,color:col}}>
+                <span style={{fontWeight:700}}>{s}</span> {p}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>;
+    })()}
+
     {(confirmed.length===0&&tours.length===0)&&<div style={{textAlign:'center',padding:'40px 20px',color:C.muted}}>
       <div style={{fontSize:32,marginBottom:12}}>📊</div>
       <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>Analytics will populate as you use StageBoss</div>
