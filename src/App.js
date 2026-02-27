@@ -1819,6 +1819,7 @@ function StageBoss({user,onLogout,accessToken}){
   const[photos]=useState(DEFAULT_PHOTOS);
   const[tours,setTours]=useState([]);
   const[comedians,setComedians]=useState(()=>{
+    try{const c=localStorage.getItem('sb_cache');if(c){const p=JSON.parse(c);if(p.comedians?.length) return p.comedians;}}catch{}
     try{const s=localStorage.getItem('sb_comedians');if(s) return JSON.parse(s);}catch(e){}
     return [
       {id:'c_jason',name:'Jason Schuster',role:'Headliner',defaultFee:0,active:true,bookouts:[],notes:''},
@@ -1889,8 +1890,8 @@ function StageBoss({user,onLogout,accessToken}){
   // ── CLOUD SYNC ──────────────────────────────────────────────────
   // Safe merge: never replace local with empty/invalid cloud data
   // Local cache for instant load
-  const saveLocal = (venues, templates, tours) => {
-    try { localStorage.setItem('sb_cache', JSON.stringify({venues,templates,tours,ts:Date.now()})); } catch{}
+  const saveLocal = (venues, templates, tours, comedians) => {
+    try { localStorage.setItem('sb_cache', JSON.stringify({venues,templates,tours,comedians,ts:Date.now()})); } catch{}
   };
   const loadLocal = () => {
     try { const c=localStorage.getItem('sb_cache'); return c?JSON.parse(c):null; } catch{ return null; }
@@ -1910,7 +1911,7 @@ function StageBoss({user,onLogout,accessToken}){
     }
     if (hasTemplates) setTemplates(data.templates); else setTemplates(DEFAULT_TEMPLATES);
     setTours(data.tours || []);
-    if (data.comedians && data.comedians.length > 0) setComedians(data.comedians);
+    if (data.comedians?.length) setComedians(data.comedians);
     setCloudVersion(cloudVer);
     cloudInitialized.current = true;
     return true;
@@ -1961,7 +1962,7 @@ function StageBoss({user,onLogout,accessToken}){
   },[user]);
 
   // Cache locally for instant reload
-  useEffect(()=>{ if(venues.length>0) saveLocal(venues,templates,tours); },[venues,templates,tours]);
+  useEffect(()=>{ if(venues.length>0) saveLocal(venues,templates,tours,comedians); },[venues,templates,tours,comedians]);
 
   // Auto-save: fires 1s after user changes data
   useEffect(()=>{
