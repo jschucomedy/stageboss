@@ -1848,6 +1848,7 @@ function StageBoss({user,onLogout,accessToken}){
   const[editTemplateId,setEditTemplateId]=useState(null);
   const[tourOpen,setTourOpen]=useState(false);
   const[editTourId,setEditTourId]=useState(null);
+  const[editTourDateId,setEditTourDateId]=useState(null); // {tourId, dateId}
   const[expandTourId,setExpandTourId]=useState(null);
   const[tourBreakdownId,setTourBreakdownId]=useState(null);
   const[importOpen,setImportOpen]=useState(false);
@@ -2280,7 +2281,7 @@ function StageBoss({user,onLogout,accessToken}){
           relationship: 'new',
           warmth: 'Cold',
           status: d.status||'Lead',
-          guarantee: Number(d.guarantee)||0,
+          guarantee: 0,
           dealType: d.dealType||'Flat Guarantee',
           targetDates: d.date||'',
           notes: 'Added from tour: ' + tour.name,
@@ -2780,7 +2781,7 @@ function StageBoss({user,onLogout,accessToken}){
                       <span style={s.badge(pcolor)}>{v.status}</span>
                       {v.warmth&&<span style={s.badge(warmthColor)}>{v.warmth}</span>}
                       {v.capacity>0&&<span style={{fontSize:10,color:C.muted2,fontWeight:500}}>Cap: {v.capacity.toLocaleString()}</span>}
-                      {v.guarantee>0&&<span style={{fontSize:10,color:C.green,fontWeight:600}}>${v.guarantee.toLocaleString()}</span>}
+                      {v.guarantee>0&&['Confirmed','Advancing','Completed'].includes(v.status)&&<span style={{fontSize:10,color:C.green,fontWeight:600}}>${v.guarantee.toLocaleString()}</span>}
                       {touchCount>0&&<span style={{fontSize:10,color:C.muted2}}>💬 {touchCount} touch{touchCount!==1?'es':''}</span>}
                     </div>
                   </div>
@@ -2998,6 +2999,7 @@ function StageBoss({user,onLogout,accessToken}){
                           {d.city&&sortedDates[i+1]&&sortedDates[i+1].city&&<a href={'https://www.google.com/maps/dir/'+encodeURIComponent(d.address?d.address+(d.zip?' '+d.zip:'')+', '+d.city+', '+d.state:d.city+(d.state?','+d.state:''))+'/'+encodeURIComponent(sortedDates[i+1].address?sortedDates[i+1].address+', '+sortedDates[i+1].city+', '+sortedDates[i+1].state:sortedDates[i+1].city+(sortedDates[i+1].state?','+sortedDates[i+1].state:''))} target="_blank" rel="noopener noreferrer" style={{fontSize:9,padding:'2px 7px',borderRadius:6,background:'rgba(108,92,231,0.1)',color:C.acc2,border:'1px solid rgba(108,92,231,0.3)',textDecoration:'none',cursor:'pointer'}}>Map to next stop</a>}
                         </div>
                       </div>
+                      <button onClick={e=>{e.stopPropagation();setEditTourDateId({tourId:tour.id,dateId:d.id});}} style={{...s.btn(C.surf2,C.acc2,C.bord),fontSize:10,padding:'5px 10px',flexShrink:0,minHeight:36}}>✏️</button>
                     </div>
                   </div>
                 ))}
@@ -3017,6 +3019,93 @@ function StageBoss({user,onLogout,accessToken}){
           })}
         </div>}
 
+
+
+      {/* == TOUR DATE EDIT PANEL == */}
+      {editTourDateId&&(()=>{
+        const td_tour=tours.find(t=>t.id===editTourDateId.tourId);
+        if(!td_tour) return null;
+        const td_date=td_tour.dates?.find(d=>d.id===editTourDateId.dateId);
+        if(!td_date) return null;
+        function updTourDate(fields){
+          const newDates=td_tour.dates.map(d=>d.id===editTourDateId.dateId?{...d,...fields}:d);
+          saveTour({...td_tour,dates:newDates});
+        }
+        const d=td_date;
+        return <Panel open={!!editTourDateId} onClose={()=>setEditTourDateId(null)} title={d.venue||'Edit Show Date'}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:16}}>{td_tour.name} · tap a field to edit · saves instantly</div>
+
+          <div style={s.field()}><label style={s.label}>Venue</label><input style={s.input()} value={d.venue||''} onChange={e=>updTourDate({venue:e.target.value})} placeholder="Venue name"/></div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>City</label><input style={s.input()} value={d.city||''} onChange={e=>updTourDate({city:e.target.value})}/></div>
+            <div style={s.field()}><label style={s.label}>State</label><input style={s.input()} value={d.state||''} onChange={e=>updTourDate({state:e.target.value})}/></div>
+          </div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>Address</label><input style={s.input()} value={d.address||''} onChange={e=>updTourDate({address:e.target.value})}/></div>
+            <div style={s.field()}><label style={s.label}>Zip</label><input style={s.input()} value={d.zip||''} onChange={e=>updTourDate({zip:e.target.value})}/></div>
+          </div>
+          <div style={s.field()}><label style={s.label}>📅 Show Date</label><input type="date" style={s.input()} value={d.date||''} onChange={e=>updTourDate({date:e.target.value})}/></div>
+
+          <div style={{height:1,background:C.bord,margin:'4px 0 14px'}}/>
+
+          <div style={s.field()}><label style={s.label}>Deal Type</label>
+            <select style={s.select} value={d.dealType||'Flat Guarantee'} onChange={e=>updTourDate({dealType:e.target.value})}>
+              <option>Flat Guarantee</option><option>Versus Deal</option><option>Door Deal</option><option>Guarantee + Bonus</option><option>Free Show</option>
+            </select>
+          </div>
+          {(d.dealType==='Flat Guarantee'||d.dealType==='Guarantee + Bonus'||d.dealType==='Versus Deal'||!d.dealType)&&
+            <div style={s.field()}><label style={s.label}>Guarantee ($)</label><input type="number" style={s.input()} value={d.guarantee||''} placeholder="0" onChange={e=>updTourDate({guarantee:Number(e.target.value)||0})}/></div>}
+          {d.dealType==='Versus Deal'&&<div style={s.field()}><label style={s.label}>Venue Minimum ($)</label><input type="number" style={s.input()} value={d.venueMin||''} onChange={e=>updTourDate({venueMin:Number(e.target.value)||0})}/></div>}
+          {d.dealType==='Door Deal'&&<div style={s.field()}><label style={s.label}>Door Split (e.g. 70/30)</label><input style={s.input()} value={d.doorSplit||''} onChange={e=>updTourDate({doorSplit:e.target.value})}/></div>}
+          {d.dealType==='Guarantee + Bonus'&&<div style={s.field()}><label style={s.label}>Bonus Threshold / Notes</label><input style={s.input()} value={d.bonusNotes||''} onChange={e=>updTourDate({bonusNotes:e.target.value})}/></div>}
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>Ticket Price ($)</label><input type="number" style={s.input()} value={d.ticketPrice||''} onChange={e=>updTourDate({ticketPrice:Number(e.target.value)||0})}/></div>
+            <div style={s.field()}><label style={s.label}>Shows</label><input type="number" style={s.input()} value={d.showCount||1} onChange={e=>updTourDate({showCount:Number(e.target.value)||1})}/></div>
+          </div>
+          <div style={s.field()}><label style={s.label}>Status</label>
+            <select style={s.select} value={d.status||'Hold'} onChange={e=>updTourDate({status:e.target.value})}>
+              <option>Hold</option><option>Confirmed</option><option>Advancing</option><option>Completed</option><option>Cancelled</option>
+            </select>
+          </div>
+          <div style={s.field()}><label style={s.label}>Deal Notes</label><input style={s.input()} value={d.notes||''} placeholder="Full terms, notes..." onChange={e=>updTourDate({notes:e.target.value})}/></div>
+
+          <div style={{height:1,background:C.bord,margin:'4px 0 14px'}}/>
+
+          {/* COMEDIAN PAYOUTS */}
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:10}}>🎭 COMEDIAN PAYOUTS</div>
+          {comedians.filter(c=>c.active).map(co=>{
+            const payout=(d.comedianPayouts||[]).find(p=>p.comedianId===co.id)||{comedianId:co.id,name:co.name,role:co.role,projected:co.defaultFee||0,actual:0,onThisDate:co.role==='Headliner'};
+            return <div key={co.id} style={{marginBottom:10,padding:10,background:C.surf2,borderRadius:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:payout.onThisDate?8:0}}>
+                <input type="checkbox" checked={!!payout.onThisDate} onChange={e=>{
+                  const payouts=(d.comedianPayouts||[]).filter(p=>p.comedianId!==co.id);
+                  updTourDate({comedianPayouts:[...payouts,{...payout,onThisDate:e.target.checked}]});
+                }}/>
+                <span style={{fontWeight:700,fontSize:12}}>{co.name}</span>
+                <span style={{fontSize:10,color:C.muted}}>{co.role}</span>
+              </div>
+              {payout.onThisDate&&<div style={s.grid2}>
+                <div style={s.field()}><label style={s.label}>Projected ($)</label><input type="number" style={s.input()} value={payout.projected||''} placeholder="0" onChange={e=>{
+                  const payouts=(d.comedianPayouts||[]).filter(p=>p.comedianId!==co.id);
+                  updTourDate({comedianPayouts:[...payouts,{...payout,projected:Number(e.target.value)||0}]});
+                }}/></div>
+                <div style={s.field()}><label style={s.label}>Actual Paid ($)</label><input type="number" style={s.input()} value={payout.actual||''} placeholder="0" onChange={e=>{
+                  const payouts=(d.comedianPayouts||[]).filter(p=>p.comedianId!==co.id);
+                  updTourDate({comedianPayouts:[...payouts,{...payout,actual:Number(e.target.value)||0}]});
+                }}/></div>
+              </div>}
+              {co.bookouts?.some(b=>d.date&&d.date>=b.start&&d.date<=b.end)&&
+                <div style={{background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:6,padding:'4px 8px',fontSize:10,color:C.red,marginTop:4}}>
+                  🚫 {co.name} is blacked out on this date
+                </div>}
+            </div>;
+          })}
+
+          <button onClick={()=>setEditTourDateId(null)} style={{...s.btn('linear-gradient(135deg,#7c3aed,#ec4899)','#fff',null),width:'100%',marginTop:8}}>
+            ✓ Done
+          </button>
+        </Panel>;
+      })()}
 
       {/* TOUR BREAKDOWN PANEL */}
       {tourBreakdownId&&(()=>{
