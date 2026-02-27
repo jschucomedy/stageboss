@@ -3481,7 +3481,7 @@ function StageBoss({user,onLogout,accessToken}){
               {/* BOOKOUTS */}
               <div style={{fontSize:10,color:C.red,fontWeight:700,letterSpacing:'0.1em',margin:'10px 0 8px'}}>🚫 BLACKOUT DATES</div>
               {(co.bookouts||[]).map((b,bi)=><div key={bi} style={{display:'flex',gap:6,alignItems:'center',marginBottom:6}}>
-                <input type="date" style={{...s.input(11),flex:1}} value={b.start} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.map((bk,i)=>i===bi?{...bk,start:e.target.value}:bk)}:c))}/>
+                <input type="date" style={{...s.input(11),flex:1}} value={b.start} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.map((bk,i)=>i===bi?{...bk,start:e.target.value}:bk).sort((a,b)=>a.start&&b.start?a.start.localeCompare(b.start):a.start?-1:1)}:c))}/>
                 <span style={{color:C.muted,fontSize:11}}>to</span>
                 <input type="date" style={{...s.input(11),flex:1}} value={b.end} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.map((bk,i)=>i===bi?{...bk,end:e.target.value}:bk)}:c))}/>
                 <select style={{...s.select,fontSize:10,flex:1}} value={b.reason||'Other gig'} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.map((bk,i)=>i===bi?{...bk,reason:e.target.value}:bk)}:c))}><option>Other gig</option><option>Vacation</option><option>Personal</option><option>Filming</option><option>Unavailable</option></select>
