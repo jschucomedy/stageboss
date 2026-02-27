@@ -2690,6 +2690,7 @@ function StageBoss({user,onLogout,accessToken}){
           ['outreach','✉️','Outreach','Email & Contact'],
           ['tours','🚌','Tours','Routing & P&L'],
           ['calendar','📅','Calendar','Schedule'],
+          ['analytics','📊','Analytics','Revenue & Stats'],
         ].map(([t,icon,label,sub])=>(
           <div key={t} onClick={()=>setTab(t)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:11,marginBottom:3,cursor:'pointer',background:tab===t?'rgba(124,58,237,0.12)':'transparent',border:`1px solid ${tab===t?'rgba(124,58,237,0.35)':'transparent'}`,color:tab===t?C.acc3:C.muted,transition:'all 0.15s ease',position:'relative'}}>
             <span style={{fontSize:16,width:20,textAlign:'center',flexShrink:0}}>{icon}</span>
