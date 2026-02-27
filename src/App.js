@@ -401,6 +401,10 @@ function migrateVenue(v) {
     package: v.package||'Jason + Phil',
     address: v.address||'',
     zip: v.zip||'',
+    showDate: v.showDate||'',
+    lastResponse: v.lastResponse||'',
+    lastResponseDate: v.lastResponseDate||'',
+    merchSales: v.merchSales||[],
   };
 }
 function migrateData(raw) {
@@ -961,6 +965,7 @@ function printExport(type, data) {
 
     const totalConfirmed = confirmed.reduce((a, v) => a + Number(v.guarantee || 0), 0);
     const totalPaid = confirmed.filter(v => v.paid).reduce((a, v) => a + Number(v.guarantee || 0), 0);
+        const totalMerch = confirmed.reduce((a, v) => a + Number(v.settlement?.merchNet || 0), 0);
     const totalUnpaid = totalConfirmed - totalPaid;
     const totalTour = tourShows.reduce((a, d) => a + Number(d.guarantee || 0), 0);
     const grandTotal = totalConfirmed + totalTour;
@@ -973,6 +978,7 @@ function printExport(type, data) {
         <td>${v.package || 'Jason + Phil'}</td>
         <td>${v.dealType || v.agreementType || '—'}</td>
         <td class="money">${fmt(v.guarantee)}</td>
+        <td class="money" style="color:#00b894">${v.settlement?.merchNet > 0 ? '$'+Number(v.settlement.merchNet).toLocaleString() : '—'}</td>
         <td class="${v.paid ? 'paid' : 'unpaid'}">${v.paid ? '✓ Paid' : 'Pending'}</td>
       </tr>`).join('');
 
@@ -1014,12 +1020,12 @@ function printExport(type, data) {
           <div class="summary-value">${confirmed.length + tourShows.length}</div>
         </div>
         <div class="summary-card">
-          <div class="summary-label">Year Goal</div>
-          <div class="summary-value">$100,000</div>
+          <div class="summary-label">Merch Revenue</div>
+          <div class="summary-value green">${fmt(totalMerch)}</div>
         </div>
         <div class="summary-card">
-          <div class="summary-label">Goal %</div>
-          <div class="summary-value ${grandTotal >= 100000 ? 'green' : ''}">${Math.round((grandTotal / 100000) * 100)}%</div>
+          <div class="summary-label">Total w/ Merch</div>
+          <div class="summary-value green">${fmt(grandTotal + totalMerch)}</div>
         </div>
       </div>
 
@@ -1027,11 +1033,11 @@ function printExport(type, data) {
       <h2>Confirmed Shows</h2>
       <table>
         <thead>
-          <tr><th>Date</th><th>Venue</th><th>Location</th><th>Package</th><th>Deal</th><th>Guarantee</th><th>Status</th></tr>
+          <tr><th>Date</th><th>Venue</th><th>Location</th><th>Package</th><th>Deal</th><th>Guarantee</th><th>Merch</th><th>Status</th></tr>
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
-          <tr><td colspan="5"><strong>Subtotal</strong></td><td class="money"><strong>${fmt(totalConfirmed)}</strong></td><td></td></tr>
+          <tr><td colspan="5"><strong>Subtotal</strong></td><td class="money"><strong>${fmt(totalConfirmed)}</strong></td><td class="money" style="color:#00b894"><strong>${totalMerch > 0 ? '$'+totalMerch.toLocaleString() : '—'}</strong></td><td></td></tr>
         </tfoot>
       </table>` : '<p class="empty">No confirmed shows yet.</p>'}
 
@@ -1292,20 +1298,63 @@ function getSequenceSuggestion(v){
   if(touch>=3)return touch>=4?'Consider Breakup Email':'Use Follow-Up template';
   return'';
 }
-function buildGoogleCalendarUrl(venue){
-  const title=encodeURIComponent(`${venue.venue}  -  Phil Medina`);
-  const location=encodeURIComponent(`${venue.city}, ${venue.state}`);
-  const details=encodeURIComponent(`Venue: ${venue.venue}\nBooker: ${venue.booker||''}${venue.bookerLast?' '+venue.bookerLast:''}\nEmail: ${venue.email||''}\nDeal: ${venue.dealType||''} ${venue.guarantee?' -  $'+venue.guarantee:''}\nContract: ${venue.contractStatus||''}\nLodging: ${venue.lodging||''}`);
-  const raw=venue.targetDates||'';
-  const monthMatch=MONTHS.find(m=>raw.includes(m));
-  if(!monthMatch)return null;
+function buildGoogleCalendarUrl(venue, dateStr=null){
+  const showD = dateStr || venue.showDate || '';
+  const title = encodeURIComponent(`${venue.venue} — ${venue.package||'Jason & Phil'}`);
+  const loc   = encodeURIComponent(`${venue.address?venue.address+', ':''}${venue.city||''}, ${venue.state||''} ${venue.zip||''}`.trim());
+  const details = encodeURIComponent(
+    `Venue: ${venue.venue}\nBooker: ${(venue.booker||'')+' '+(venue.bookerLast||'')}\nGuarantee: $${venue.guarantee||0}\nDeal: ${venue.dealType||''}\nEmail: ${venue.email||''}\nPhone: ${venue.phone||''}`
+  );
+  if(!showD) return null;
   try{
-    const d=new Date(`${monthMatch} 1, 2025`);
-    const start=d.toISOString().replace(/-/g,'').split('T')[0];
-    const end=new Date(d);end.setDate(end.getDate()+3);
-    const endStr=end.toISOString().replace(/-/g,'').split('T')[0];
-    return`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${endStr}&details=${details}&location=${location}`;
+    const d = new Date(showD+'T12:00:00');
+    if(isNaN(d)) return null;
+    const fmt = (dt) => dt.toISOString().replace(/-/g,'').replace(/:/g,'').split('.')[0]+'Z';
+    const start = fmt(d);
+    const endD = new Date(d); endD.setHours(d.getHours()+2);
+    const end = fmt(endD);
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${loc}`;
   }catch{return null;}
+}
+
+function buildOutlookCalendarUrl(venue, dateStr=null){
+  const showD = dateStr || venue.showDate || '';
+  if(!showD) return null;
+  try{
+    const d = new Date(showD+'T12:00:00');
+    if(isNaN(d)) return null;
+    const endD = new Date(d); endD.setHours(d.getHours()+2);
+    const fmt = (dt) => dt.toISOString().replace(/\.\d{3}Z$/,'');
+    const title = encodeURIComponent(`${venue.venue} — ${venue.package||'Jason & Phil'}`);
+    const loc = encodeURIComponent(`${venue.city||''}, ${venue.state||''}`);
+    const body = encodeURIComponent(`Guarantee: $${venue.guarantee||0} | Booker: ${venue.booker||''} | ${venue.email||''}`);
+    return `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${fmt(d)}&enddt=${fmt(endD)}&location=${loc}&body=${body}&path=/calendar/action/compose&rru=addevent`;
+  }catch{return null;}
+}
+
+function downloadICS(events){
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','CALSCALE:GREGORIAN','PRODID:-//StageBoss//EN'];
+  events.forEach(ev=>{
+    if(!ev.date) return;
+    try{
+      const d = new Date(ev.date+'T12:00:00');
+      if(isNaN(d)) return;
+      const fmt=(dt)=>dt.toISOString().replace(/-/g,'').replace(/:/g,'').split('.')[0]+'Z';
+      const endD=new Date(d);endD.setHours(d.getHours()+2);
+      lines.push('BEGIN:VEVENT');
+      lines.push('DTSTART:'+fmt(d));
+      lines.push('DTEND:'+fmt(endD));
+      lines.push('SUMMARY:'+ev.venue+(ev.tourName?' ['+ev.tourName+']':''));
+      lines.push('LOCATION:'+(ev.city||'')+', '+(ev.state||''));
+      lines.push('DESCRIPTION:Guarantee: $'+(ev.guarantee||0)+' | '+(ev.dealType||''));
+      lines.push('END:VEVENT');
+    }catch{}
+  });
+  lines.push('END:VCALENDAR');
+  const blob=new Blob([lines.join('\r\n')],{type:'text/calendar'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='StageBoss-Shows.ics';a.click();
+  URL.revokeObjectURL(url);
 }
 
 // -- SUB-COMPONENTS -------------------------------------------
@@ -1381,6 +1430,321 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+// ════════════════════════════════════════════════════════════
+// ANALYTICS TAB COMPONENT
+// ════════════════════════════════════════════════════════════
+function AnalyticsTab({venues, tours}){
+  const C = {
+    bg:'#07070f', surf:'#10101e', surf2:'#16162e', bord:'#2a2a50',
+    acc:'#7c3aed', acc2:'#a78bfa', green:'#00b894', pink:'#ec4899',
+    yellow:'#f9ca24', muted:'#7070a0', txt:'#e8e8ff', red:'#e17055',
+    blue:'#0ea5e9', orange:'#fd9644',
+  };
+
+  // ── DATA CRUNCHING ──────────────────────────────────────
+  const confirmed = venues.filter(v=>['Confirmed','Advancing','Completed'].includes(v.status));
+  const allVenues = venues;
+  const thisYear = new Date().getFullYear().toString();
+
+  // Revenue by month — uses SHOW DATE (when money happens), not confirmation date
+  const revenueByMonth = Array(12).fill(0).map((_,i)=>({month:i,guarantee:0,merch:0,label:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i]}));
+  confirmed.forEach(v=>{
+    // Prefer showDate (actual performance date) over confirmedViaEmailDate
+    const d=v.showDate||v.confirmedViaEmailDate||'';
+    if(d.startsWith(thisYear)){
+      const m=parseInt(d.split('-')[1])-1;
+      if(m>=0&&m<12){
+        revenueByMonth[m].guarantee+=parseFloat(v.guarantee)||0;
+        revenueByMonth[m].merch+=parseFloat(v.settlement?.merchNet)||0;
+      }
+    }
+  });
+  // Also pull in tour dates by their actual show date
+  tours.forEach(t=>{
+    (t.dates||[]).forEach(d=>{
+      if(!d.date||!d.date.startsWith(thisYear)) return;
+      if(!['Confirmed','Advancing','Completed'].includes(d.status)) return;
+      const m=parseInt(d.date.split('-')[1])-1;
+      if(m>=0&&m<12){
+        revenueByMonth[m].guarantee+=parseFloat(d.guarantee)||0;
+        revenueByMonth[m].merch+=parseFloat(d.settlement?.merchNet)||0;
+      }
+    });
+  });
+
+  // Revenue by state
+  const byState={};
+  confirmed.forEach(v=>{
+    if(!v.state) return;
+    if(!byState[v.state]) byState[v.state]={state:v.state,total:0,shows:0};
+    byState[v.state].total+=parseFloat(v.guarantee)||0;
+    byState[v.state].shows++;
+  });
+  const topStates=Object.values(byState).sort((a,b)=>b.total-a.total).slice(0,8);
+
+  // Revenue by venue type
+  const byType={};
+  confirmed.forEach(v=>{
+    const t=v.venueType||'Club';
+    if(!byType[t]) byType[t]={type:t,total:0,shows:0};
+    byType[t].total+=parseFloat(v.guarantee)||0;
+    byType[t].shows++;
+  });
+  const topTypes=Object.values(byType).sort((a,b)=>b.total-a.total);
+
+  // Outreach conversion rate
+  const leads=allVenues.filter(v=>v.status!=='Lost').length;
+  const converted=confirmed.length;
+  const convRate=leads>0?Math.round((converted/leads)*100):0;
+
+  // Average deal size
+  const avgDeal=converted>0?Math.round(confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0)/converted):0;
+
+  // Template response rate
+  const templateHits={};
+  allVenues.forEach(v=>{
+    (v.contactLog||[]).forEach(log=>{
+      const tmpl=log.template||log.subject||'Unknown';
+      if(!templateHits[tmpl]) templateHits[tmpl]={name:tmpl,sent:0,responded:0};
+      templateHits[tmpl].sent++;
+    });
+  });
+  // Count responded venues per template
+  allVenues.filter(v=>['Responded','Negotiating','Hold','Confirmed','Advancing','Completed'].includes(v.status)).forEach(v=>{
+    const firstLog=(v.contactLog||[])[0];
+    if(firstLog){
+      const tmpl=firstLog.template||firstLog.subject||'Unknown';
+      if(templateHits[tmpl]) templateHits[tmpl].responded++;
+    }
+  });
+  const topTemplates=Object.values(templateHits).filter(t=>t.sent>0).sort((a,b)=>b.sent-a.sent).slice(0,6);
+
+  // Tour profitability
+  const tourProfit=tours.map(t=>{
+    const gross=(t.dates||[]).reduce((a,d)=>a+(parseFloat(d.guarantee)||0),0);
+    const expenses=(parseFloat(t.budget?.travel)||0)+(parseFloat(t.budget?.lodging)||0)+(parseFloat(t.budget?.misc)||0);
+    return {name:t.name,gross,expenses,net:gross-expenses,dates:(t.dates||[]).length};
+  }).filter(t=>t.gross>0);
+
+  // Booking velocity — avg days from first contact to confirmed
+  const velocities=confirmed.filter(v=>(v.contactLog||[]).length>0&&v.confirmedViaEmailDate).map(v=>{
+    const firstContact=new Date((v.contactLog||[])[0]?.date||v.confirmedViaEmailDate);
+    const confirmed2=new Date(v.confirmedViaEmailDate);
+    return Math.round((confirmed2-firstContact)/(1000*60*60*24));
+  }).filter(d=>d>=0&&d<365);
+  const avgVelocity=velocities.length>0?Math.round(velocities.reduce((a,b)=>a+b,0)/velocities.length):null;
+
+  // Totals
+  const totalRevenue=confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
+  const totalMerch=confirmed.reduce((a,v)=>a+(parseFloat(v.settlement?.merchNet)||0),0);
+  const maxMonth=Math.max(...revenueByMonth.map(m=>m.guarantee+m.merch),1);
+  const maxState=topStates.length>0?topStates[0].total:1;
+
+  // ── STYLES ──────────────────────────────────────────────
+  const card=(border=C.bord)=>({background:C.surf,border:`1px solid ${border}`,borderRadius:14,padding:'16px',marginBottom:16});
+  const sectionTitle={fontSize:10,fontWeight:700,letterSpacing:'0.15em',color:C.acc2,marginBottom:12,textTransform:'uppercase'};
+  const statBox=(col)=>({background:C.surf2,border:`1px solid ${col}30`,borderRadius:10,padding:'12px',textAlign:'center',flex:1});
+
+  const fmtK=(n)=>n>=1000?`$${(n/1000).toFixed(1)}k`:`$${n.toLocaleString()}`;
+
+  return <div>
+    {/* HEADER */}
+    <div style={{marginBottom:20}}>
+      <div style={{fontFamily:'Bebas Neue,Impact,sans-serif',fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:4}}>Analytics</div>
+      <div style={{fontSize:12,color:C.muted}}>Business intelligence for your touring career · {thisYear}</div>
+    </div>
+
+    {/* TOP STATS ROW */}
+    <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+      {[
+        ['Total Revenue',fmtK(totalRevenue),C.green],
+        ['Merch Revenue',fmtK(totalMerch),C.acc2],
+        ['Confirmed Shows',confirmed.length,C.pink],
+        ['Avg Deal Size',fmtK(avgDeal),C.yellow],
+        ['Conversion Rate',convRate+'%',C.blue],
+        ['Avg Days to Book',avgVelocity!=null?avgVelocity+'d':'—',C.orange],
+      ].map(([lbl,val,col])=><div key={lbl} style={statBox(col)}>
+        <div style={{fontFamily:'Bebas Neue,Impact,sans-serif',fontSize:22,color:col,fontWeight:900,lineHeight:1}}>{val}</div>
+        <div style={{fontSize:9,color:C.muted,marginTop:4,fontWeight:600,letterSpacing:'0.05em'}}>{lbl}</div>
+      </div>)}
+    </div>
+
+    {/* REVENUE BY MONTH */}
+    <div style={card()}>
+      <div style={sectionTitle}>📅 Revenue by Month — {thisYear}</div>
+      <div style={{display:'flex',gap:4,alignItems:'flex-end',height:100}}>
+        {revenueByMonth.map((m,i)=>{
+          const total=m.guarantee+m.merch;
+          const pct=total>0?Math.max(4,(total/maxMonth)*100):4;
+          const isThisMonth=i===new Date().getMonth();
+          return <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+            <div style={{fontSize:8,color:total>0?C.green:C.muted,fontWeight:700}}>{total>0?fmtK(total):''}</div>
+            <div style={{width:'100%',height:pct+'%',borderRadius:'4px 4px 0 0',
+              background:isThisMonth?`linear-gradient(0deg,${C.acc},${C.pink})`:`linear-gradient(0deg,${C.green}88,${C.green}44)`,
+              border:isThisMonth?`1px solid ${C.acc2}`:'none',
+              minHeight:4,position:'relative'}}/>
+            <div style={{fontSize:8,color:isThisMonth?C.acc2:C.muted,fontWeight:isThisMonth?700:400}}>{m.label}</div>
+          </div>;
+        })}
+      </div>
+      {totalRevenue===0&&<div style={{textAlign:'center',color:C.muted,fontSize:11,marginTop:8}}>No confirmed shows yet — data will appear as you confirm bookings</div>}
+    </div>
+
+    {/* REVENUE BY STATE */}
+    {topStates.length>0&&<div style={card()}>
+      <div style={sectionTitle}>📍 Top Markets by Revenue</div>
+      {topStates.map((s2,i)=>{
+        const pct=Math.round((s2.total/maxState)*100);
+        const colors=[C.green,C.acc2,C.pink,C.yellow,C.blue,C.orange,C.green,C.acc2];
+        const col=colors[i%colors.length];
+        return <div key={s2.state} style={{marginBottom:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+            <span style={{fontSize:12,fontWeight:700}}>{s2.state} <span style={{fontSize:10,color:C.muted,fontWeight:400}}>· {s2.shows} show{s2.shows!==1?'s':''}</span></span>
+            <span style={{fontSize:12,fontWeight:700,color:col}}>{fmtK(s2.total)}</span>
+          </div>
+          <div style={{background:C.bord,borderRadius:99,height:6,overflow:'hidden'}}>
+            <div style={{width:pct+'%',height:'100%',borderRadius:99,background:`linear-gradient(90deg,${col},${col}88)`,transition:'width 0.6s ease'}}/>
+          </div>
+        </div>;
+      })}
+    </div>}
+
+    {/* VENUE TYPE BREAKDOWN */}
+    {topTypes.length>0&&<div style={card()}>
+      <div style={sectionTitle}>🏛 Revenue by Venue Type</div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {topTypes.map((t,i)=>{
+          const colors=[C.green,C.acc2,C.pink,C.yellow,C.blue,C.orange];
+          const col=colors[i%colors.length];
+          return <div key={t.type} style={{background:`${col}12`,border:`1px solid ${col}30`,borderRadius:10,padding:'10px 14px',flex:1,minWidth:100}}>
+            <div style={{fontSize:16,fontFamily:'Bebas Neue,Impact,sans-serif',color:col,fontWeight:900}}>{fmtK(t.total)}</div>
+            <div style={{fontSize:10,color:C.txt,fontWeight:700,marginTop:2}}>{t.type}</div>
+            <div style={{fontSize:9,color:C.muted}}>{t.shows} show{t.shows!==1?'s':''} · avg {fmtK(Math.round(t.total/t.shows))}</div>
+          </div>;
+        })}
+      </div>
+    </div>}
+
+    {/* OUTREACH CONVERSION FUNNEL */}
+    <div style={card()}>
+      <div style={sectionTitle}>🎯 Outreach Conversion Funnel</div>
+      {[
+        ['Total Venues',allVenues.length,C.muted,100],
+        ['Contacted',allVenues.filter(v=>v.status!=='Lead').length,C.acc2,Math.round((allVenues.filter(v=>v.status!=='Lead').length/Math.max(allVenues.length,1))*100)],
+        ['Responded',allVenues.filter(v=>['Responded','Negotiating','Hold','Confirmed','Advancing','Completed'].includes(v.status)).length,C.yellow,Math.round((allVenues.filter(v=>['Responded','Negotiating','Hold','Confirmed','Advancing','Completed'].includes(v.status)).length/Math.max(allVenues.length,1))*100)],
+        ['Confirmed',confirmed.length,C.green,convRate],
+      ].map(([label,count,col,pct])=><div key={label} style={{marginBottom:10}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+          <span style={{fontSize:12,fontWeight:700}}>{label}</span>
+          <span style={{fontSize:12,color:col,fontWeight:700}}>{count} venues <span style={{fontSize:10,color:C.muted}}>({pct}%)</span></span>
+        </div>
+        <div style={{background:C.bord,borderRadius:99,height:8,overflow:'hidden'}}>
+          <div style={{width:pct+'%',height:'100%',borderRadius:99,background:`linear-gradient(90deg,${col},${col}88)`,transition:'width 0.6s ease'}}/>
+        </div>
+      </div>)}
+    </div>
+
+    {/* TEMPLATE RESPONSE RATES */}
+    {topTemplates.length>0&&<div style={card()}>
+      <div style={sectionTitle}>✉️ Outreach by Template</div>
+      {topTemplates.map((t,i)=>{
+        const rate=t.sent>0?Math.round((t.responded/t.sent)*100):0;
+        const col=rate>=30?C.green:rate>=15?C.yellow:C.muted;
+        const name=t.name.length>35?t.name.slice(0,35)+'…':t.name;
+        return <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:`1px solid ${C.bord}`}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,fontWeight:700}}>{name}</div>
+            <div style={{fontSize:10,color:C.muted}}>{t.sent} sent · {t.responded} responded</div>
+          </div>
+          <div style={{background:`${col}18`,border:`1px solid ${col}40`,borderRadius:20,padding:'3px 10px',fontSize:11,fontWeight:700,color:col,minWidth:44,textAlign:'center'}}>{rate}%</div>
+        </div>;
+      })}
+      {topTemplates.length===0&&<div style={{color:C.muted,fontSize:11}}>Send outreach emails to start tracking response rates</div>}
+    </div>}
+
+    {/* TOUR PROFITABILITY */}
+    {tourProfit.length>0&&<div style={card()}>
+      <div style={sectionTitle}>🗺 Tour Profitability</div>
+      {tourProfit.map((t,i)=>{
+        const margin=t.gross>0?Math.round((t.net/t.gross)*100):0;
+        const col=margin>=60?C.green:margin>=30?C.yellow:C.red;
+        return <div key={i} style={{background:C.surf2,borderRadius:10,padding:'12px',marginBottom:8}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700}}>{t.name}</div>
+              <div style={{fontSize:10,color:C.muted}}>{t.dates} date{t.dates!==1?'s':''}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:15,fontWeight:800,color:C.green}}>{fmtK(t.gross)}</div>
+              <div style={{fontSize:9,color:C.muted}}>gross</div>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            {[['Gross',t.gross,C.green],['Expenses',t.expenses,C.red],['Net',t.net,col]].map(([lbl,val,c])=><div key={lbl} style={{flex:1,background:`${c}10`,border:`1px solid ${c}25`,borderRadius:8,padding:'6px 8px',textAlign:'center'}}>
+              <div style={{fontSize:12,fontWeight:700,color:c}}>{fmtK(val)}</div>
+              <div style={{fontSize:9,color:C.muted}}>{lbl}</div>
+            </div>)}
+            <div style={{flex:1,background:`${col}10`,border:`1px solid ${col}25`,borderRadius:8,padding:'6px 8px',textAlign:'center'}}>
+              <div style={{fontSize:12,fontWeight:700,color:col}}>{margin}%</div>
+              <div style={{fontSize:9,color:C.muted}}>Margin</div>
+            </div>
+          </div>
+        </div>;
+      })}
+    </div>}
+
+    {/* BOOKING VELOCITY */}
+    <div style={card()}>
+      <div style={sectionTitle}>⚡ Booking Velocity</div>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+        <div style={statBox(C.blue)}>
+          <div style={{fontSize:24,fontWeight:900,color:C.blue,fontFamily:'Bebas Neue,Impact,sans-serif'}}>{avgVelocity!=null?avgVelocity+'d':'—'}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:4}}>AVG DAYS TO BOOK</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:2}}>First contact → confirmed</div>
+        </div>
+        <div style={statBox(C.acc2)}>
+          <div style={{fontSize:24,fontWeight:900,color:C.acc2,fontFamily:'Bebas Neue,Impact,sans-serif'}}>{allVenues.filter(v=>v.status==='Lead').length}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:4}}>COLD LEADS</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:2}}>Not yet contacted</div>
+        </div>
+        <div style={statBox(C.orange)}>
+          <div style={{fontSize:24,fontWeight:900,color:C.orange,fontFamily:'Bebas Neue,Impact,sans-serif'}}>{allVenues.filter(v=>['Contacted','Follow-Up','Responded','Negotiating'].includes(v.status)).length}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:4}}>IN PIPELINE</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:2}}>Active conversations</div>
+        </div>
+        <div style={statBox(C.yellow)}>
+          <div style={{fontSize:24,fontWeight:900,color:C.yellow,fontFamily:'Bebas Neue,Impact,sans-serif'}}>{allVenues.filter(v=>v.status==='Hold').length}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:4}}>ON HOLD</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:2}}>Waiting on confirmation</div>
+        </div>
+      </div>
+    </div>
+
+    {/* MERCH ANALYTICS */}
+    {totalMerch>0&&<div style={card(`${C.acc2}30`)}>
+      <div style={sectionTitle}>👕 Merch Analytics</div>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:12}}>
+        {[
+          ['Total Merch Revenue',fmtK(totalMerch),C.acc2],
+          ['Avg Per Show',fmtK(Math.round(totalMerch/Math.max(confirmed.filter(v=>v.settlement?.merchNet>0).length,1))),C.pink],
+          ['Shows w/ Merch',confirmed.filter(v=>v.settlement?.merchNet>0).length,C.green],
+        ].map(([lbl,val,col])=><div key={lbl} style={statBox(col)}>
+          <div style={{fontSize:20,fontWeight:900,color:col,fontFamily:'Bebas Neue,Impact,sans-serif'}}>{val}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:4}}>{lbl}</div>
+        </div>)}
+      </div>
+      <div style={{fontSize:11,color:C.muted}}>Merch represents {totalRevenue>0?Math.round((totalMerch/(totalRevenue+totalMerch))*100):0}% of total revenue</div>
+    </div>}
+
+    {(confirmed.length===0&&tours.length===0)&&<div style={{textAlign:'center',padding:'40px 20px',color:C.muted}}>
+      <div style={{fontSize:32,marginBottom:12}}>📊</div>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>Analytics will populate as you use StageBoss</div>
+      <div style={{fontSize:12}}>Confirm shows, build tours, and log outreach to start seeing your data here.</div>
+    </div>}
+  </div>;
+}
+
+
 function App(){
   // session: { email, access_token } — email used for sync, access_token for JWT-gated functions
   const[session,setSession]=useState(()=>{
@@ -1453,6 +1817,15 @@ function StageBoss({user,onLogout,accessToken}){
   const[templates,setTemplates]=useState([]);
   const[photos]=useState(DEFAULT_PHOTOS);
   const[tours,setTours]=useState([]);
+  const[comedians,setComedians]=useState(()=>{
+    try{const s=localStorage.getItem('sb_comedians');if(s) return JSON.parse(s);}catch(e){}
+    return [
+      {id:'c_jason',name:'Jason Schuster',role:'Headliner',defaultFee:0,active:true,bookouts:[],notes:''},
+      {id:'c_phil',name:'Phil Medina',role:'Headliner',defaultFee:0,active:true,bookouts:[],notes:''},
+    ];
+  });
+  const[rosterOpen,setRosterOpen]=useState(false);
+  const[editComedianId,setEditComedianId]=useState(null);
   const[tab,setTab]=useState('today');
   const[search,setSearch]=useState('');
   const[statusFilter,setStatusFilter]=useState('All');
@@ -2171,20 +2544,25 @@ function StageBoss({user,onLogout,accessToken}){
               return !d||d.startsWith(thisYear);
             });
             const projectedGross=confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
-            const yearGoal=100000;
-            const pct=Math.min(100,Math.round((projectedGross/yearGoal)*100));
+            const merchTotal=confirmed.reduce((a,v)=>a+(parseFloat(v.settlement?.merchNet)||0),0);
+            const totalRevenue=projectedGross+merchTotal;
+            const pct=totalRevenue>0?Math.min(100,Math.round((totalRevenue/Math.max(totalRevenue*1.25,10000))*100)):0;
             return <div style={{background:'linear-gradient(135deg,rgba(124,58,237,0.12),rgba(236,72,153,0.06))',border:`1px solid ${C.acc}30`,borderRadius:14,padding:16,marginBottom:16}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:8}}>
                 <div>
-                  <div style={{fontSize:10,color:C.acc2,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700}}>Year Progress</div>
+                  <div style={{fontSize:10,color:C.acc2,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700}}>Revenue Tracker — {new Date().getFullYear()}</div>
                   <div style={{fontFamily:font.head,fontWeight:900,fontSize:24,color:C.green}}>${projectedGross.toLocaleString()}</div>
-                  <div style={{fontSize:11,color:C.muted3}}>of $100,000 goal · {confirmed.length} confirmed shows</div>
+                  <div style={{fontSize:11,color:C.muted3}}>{confirmed.length} confirmed shows{merchTotal>0?` · $${merchTotal.toLocaleString()} merch`:''}</div>
                 </div>
-                <div style={{fontSize:24,fontWeight:900,fontFamily:font.head,color:pct>=100?C.green:C.acc2}}>{pct}%</div>
+                <div style={{fontSize:24,fontWeight:900,fontFamily:font.head,color:pct>=100?C.green:C.acc2}}>{pct>0?pct+'%':'—'}</div>
               </div>
               <div style={{background:C.bord,borderRadius:99,height:6,overflow:'hidden'}}>
                 <div style={{background:`linear-gradient(90deg,${C.acc},${C.green})`,height:'100%',width:pct+'%',borderRadius:99,transition:'width 0.5s ease'}}/>
               </div>
+              <button onClick={()=>setRosterOpen(true)}
+                style={{marginTop:8,background:'linear-gradient(135deg,#10101e,#16162e)',color:'#a78bfa',border:'1px solid #2a2a50',borderRadius:8,padding:'10px 16px',fontSize:12,fontWeight:700,cursor:'pointer',width:'100%'}}>
+                🎭 Comedian Roster &amp; Bookouts
+              </button>
               <button onClick={()=>printExport('pnl',{tours,venues,year:new Date().getFullYear()})}
                 style={{marginTop:12,background:'linear-gradient(135deg,#7c3aed,#ec4899)',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',width:'100%'}}>
                 📊 Export P&amp;L Statement
@@ -2324,7 +2702,7 @@ function StageBoss({user,onLogout,accessToken}){
         </>}
 
         {/* == CALENDAR TAB == */}
-        {tab==='calendar'&&<CalendarTab venues={venues} tours={tours} onVenueClick={id=>setDetailId(id)} onChecklist={id=>setChecklistId(id)} toast2={toast2}/>}
+        {tab==='calendar'&&<CalendarTab venues={venues} tours={tours} onVenueClick={id=>setDetailId(id)} onChecklist={id=>setChecklistId(id)} toast2={toast2} comedians={comedians}/>/>}
 
         {/* == OUTREACH TAB == */}
         {tab==='outreach'&&<div style={{padding:'20px 20px 60px'}}>
@@ -2635,6 +3013,12 @@ function StageBoss({user,onLogout,accessToken}){
           </div>
         </div>;
       })()}
+
+        {/* == ANALYTICS TAB == */}
+        {tab==='analytics'&&<div style={{padding:'20px 20px 80px',overflowY:'auto'}}>
+          <AnalyticsTab venues={venues} tours={tours} />
+        </div>}
+
       </div>{/* end content */}
 
       </div>{/* end sb-main */}
@@ -2642,7 +3026,7 @@ function StageBoss({user,onLogout,accessToken}){
 
       {/* NAV - mobile only */}
       <nav className="sb-mobile-nav" style={s.nav}>
-        {[['today','🏠','Today'],['venues','🏛️','Venues'],['outreach','✉️','Outreach'],['tours','🗺️','Tours'],['calendar','📅','Cal']].map(([t,icon,label])=>(
+        {[['today','🏠','Today'],['venues','🏛️','Venues'],['outreach','✉️','Outreach'],['tours','🗺️','Tours'],['calendar','📅','Cal'],['analytics','📊','Stats']].map(([t,icon,label])=>(
           <button key={t} onClick={()=>setTab(t)} style={{background:'none',border:'none',color:tab===t?C.acc2:C.muted,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'6px 12px',fontFamily:'inherit',minWidth:56}}>
             <span style={{fontSize:20}}>{icon}</span>
             <span style={{fontSize:10,fontWeight:tab===t?700:400,letterSpacing:'0.02em'}}>{label}</span>
@@ -2683,9 +3067,24 @@ function StageBoss({user,onLogout,accessToken}){
           <div style={s.field()}><label style={s.label}>Address</label><input style={s.input(12)} defaultValue={dv.address||''} placeholder="123 Main St" onBlur={e=>upd(dv.id,{address:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>Zip Code</label><input style={s.input(12)} defaultValue={dv.zip||''} placeholder="90028" onBlur={e=>upd(dv.id,{zip:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>Target Dates</label><input style={s.input(12)} defaultValue={dv.targetDates||''} onChange={e=>upd(dv.id,{targetDates:e.target.value})} placeholder="June 21-24"/></div>
-          <div style={s.field()}><label style={s.label}>Next Follow-Up</label><input type="date" style={s.input(12)} value={dv.nextFollowUp||''} onChange={e=>upd(dv.id,{nextFollowUp:e.target.value})}/></div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>📅 Show Date</label><input type="date" style={s.input(12)} value={dv.showDate||''} onChange={e=>upd(dv.id,{showDate:e.target.value})}/></div>
+            <div style={s.field()}><label style={s.label}>Next Follow-Up</label><input type="date" style={s.input(12)} value={dv.nextFollowUp||''} onChange={e=>upd(dv.id,{nextFollowUp:e.target.value})}/></div>
+          </div>
           <div style={s.field()}><label style={s.label}>History / Previous Shows</label><input style={s.input(12)} defaultValue={dv.history||''} onChange={e=>upd(dv.id,{history:e.target.value})} placeholder="Sold out March 2024..."/></div>
           <div style={s.field()}><label style={s.label}>Referral Source</label><input style={s.input(12)} defaultValue={dv.referralSource||''} onChange={e=>upd(dv.id,{referralSource:e.target.value})} placeholder="Who introduced you?"/></div>
+
+          {/* EMAIL THREAD TRACKING */}
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',margin:'10px 0 8px'}}>🧵 EMAIL THREAD</div>
+          <div style={{display:'flex',gap:8,alignItems:'flex-end',marginBottom:8}}>
+            <div style={{flex:1,...s.field(),marginBottom:0}}><label style={s.label}>Gmail Thread URL</label><input style={s.input(12)} defaultValue={dv.emailThreadURL||''} placeholder="Paste Gmail thread link here..." onBlur={e=>upd(dv.id,{emailThreadURL:e.target.value})}/></div>
+            {dv.emailThreadURL&&<button onClick={()=>window.open(dv.emailThreadURL,'_blank')} style={{...s.btn(C.surf2,C.acc2,C.bord),whiteSpace:'nowrap',flexShrink:0,marginBottom:1}}>📧 Open Thread</button>}
+          </div>
+          {dv.emailThreadURL&&<div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)',borderRadius:8,padding:'8px 12px',marginBottom:8}}>
+            <div style={{fontSize:10,color:C.acc2,fontWeight:700,marginBottom:4}}>LAST RESPONSE</div>
+            <input style={{...s.input(11),marginBottom:6}} placeholder="What did they say? (e.g. Interested, send avails)" defaultValue={dv.lastResponse||''} onBlur={e=>upd(dv.id,{lastResponse:e.target.value,lastResponseDate:new Date().toISOString().split('T')[0]})}/>
+            {dv.lastResponseDate&&<div style={{fontSize:10,color:C.muted}}>Last updated: {dv.lastResponseDate}</div>}
+          </div>}
           <div style={{gap:8,display:'flex',flexWrap:'wrap',marginBottom:12}}>
             <button onClick={()=>{setDetailId(null);setTimeout(()=>setComposeId(dv.id),200);}} style={{...s.btn('linear-gradient(135deg,#7c3aed,#6d28d9)',C.txt,'transparent'),fontWeight:700}}>✉️ Compose Email</button>
             <button onClick={()=>{setDealVenue({...dv});setShowDealBuilder(true);setDetailId(null);}} style={{...s.btn('linear-gradient(135deg,#059669,#047857)',C.txt,'transparent'),fontWeight:700}}>💰 Deal Builder</button>
@@ -2732,6 +3131,29 @@ function StageBoss({user,onLogout,accessToken}){
           <div style={{fontSize:10,color:C.muted3,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700,marginBottom:6}}>Template</div>
           <select style={{...s.select,marginBottom:14}} value={co.templateId} onChange={e=>setCo(cv.id,{templateId:e.target.value})}>{templates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
           <div style={s.field()}><label style={s.label}>Target Dates</label><input style={s.input(12)} value={co.customDates||''} onChange={e=>setCo(cv.id,{customDates:e.target.value})} placeholder="e.g. June 21-24"/></div>
+          {(()=>{
+            if(!co.customDates) return null;
+            const warnings=comedians.filter(c=>c.active&&(c.bookouts||[]).some(b=>{
+              // Simple text match — flag if any bookout month/year appears in target dates string
+              const bStart=new Date(b.start);
+              const bEnd=new Date(b.end);
+              const txt=co.customDates.toLowerCase();
+              const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+              const bMonths=[];
+              for(let d=new Date(bStart);d<=bEnd;d.setDate(d.getDate()+1)){
+                bMonths.push(months[d.getMonth()]);
+              }
+              return bMonths.some(m=>txt.includes(m))||b.start.slice(0,7)===new Date().toISOString().slice(0,7);
+            }));
+            if(!warnings.length) return null;
+            return <div style={{background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:8,padding:'8px 12px',marginBottom:8}}>
+              <div style={{fontSize:10,color:C.red,fontWeight:700,marginBottom:4}}>🚫 BOOKOUT CONFLICTS</div>
+              {warnings.map(c=>{
+                const bo=(c.bookouts||[]).find(b=>b.start);
+                return <div key={c.id} style={{fontSize:11,color:C.red}}>{c.name} — {bo?.reason||'Unavailable'} ({bo?.start} to {bo?.end})</div>;
+              })}
+            </div>;
+          })()}
           <div style={s.field()}><label style={s.label}>Personal Note</label><textarea style={{...s.input(12),resize:'none',minHeight:56}} value={co.customNote||''} onChange={e=>setCo(cv.id,{customNote:e.target.value})} placeholder="A personal note, compliment, mutual contact..."/></div>
           <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:14,padding:14,marginBottom:12}}>
             <div style={s.sectionTitle}>[email] Generated Email</div>
@@ -2835,7 +3257,15 @@ function StageBoss({user,onLogout,accessToken}){
           </div>
           <div style={s.field()}><label style={s.label}>Actual Net Paid ($)</label><input type="number" style={s.input()} defaultValue={stlV.settlement?.actualNetPaid||''} onChange={e=>upd(stlV.id,{settlement:{...(stlV.settlement||{}),actualNetPaid:parseFloat(e.target.value)||0}})} placeholder="What you actually walked out with"/></div>
           <div style={s.field()}><label style={s.label}>Actual Gross / Door ($)</label><input type="number" style={s.input()} defaultValue={stlV.settlement?.actualGross||''} onChange={e=>upd(stlV.id,{settlement:{...(stlV.settlement||{}),actualGross:parseFloat(e.target.value)||0}})} placeholder="Total door revenue"/></div>
-          <div style={s.field()}><label style={s.label}>Merch Net ($)</label><input type="number" style={s.input()} defaultValue={stlV.settlement?.actualMerchNet||''} onChange={e=>upd(stlV.id,{settlement:{...(stlV.settlement||{}),actualMerchNet:parseFloat(e.target.value)||0}})} placeholder="Your merch take"/></div>
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:6,marginTop:4}}>👕 MERCH</div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>Item Type</label><select style={s.select} defaultValue={stlV.settlement?.merchType||'Shirts'} onChange={e=>upd(stlV.id,{settlement:{...stlV.settlement,merchType:e.target.value}})}><option>Shirts</option><option>Hats</option><option>Bundles</option><option>Specials</option><option>Other</option></select></div>
+            <div style={s.field()}><label style={s.label}>Units Sold</label><input type="number" style={s.input()} defaultValue={stlV.settlement?.merchUnits||''} placeholder="0" onBlur={e=>{const units=Number(e.target.value)||0;const price=Number(stlV.settlement?.merchPrice)||0;upd(stlV.id,{settlement:{...stlV.settlement,merchUnits:units,merchNet:units*price}});}} /></div>
+          </div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>Price Per Unit ($)</label><input type="number" style={s.input()} defaultValue={stlV.settlement?.merchPrice||''} placeholder="0" onBlur={e=>{const price=Number(e.target.value)||0;const units=Number(stlV.settlement?.merchUnits)||0;upd(stlV.id,{settlement:{...stlV.settlement,merchPrice:price,merchNet:units*price}});}} /></div>
+            <div style={s.field()}><label style={s.label}>Merch Total ($)</label><div style={{...s.input(),display:'flex',alignItems:'center',color:C.green,fontWeight:700}}>${((stlV.settlement?.merchUnits||0)*(stlV.settlement?.merchPrice||0)).toLocaleString()}</div></div>
+          </div>
           <div style={s.field()}><label style={s.label}>Settlement Notes</label><textarea style={{...s.input(12),resize:'none',minHeight:70}} defaultValue={stlV.settlement?.notes||''} onChange={e=>upd(stlV.id,{settlement:{...(stlV.settlement||{}),notes:e.target.value}})} placeholder="How did it go?"/></div>
           {stlV.settlement?.actualNetPaid>0&&<div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 14px',marginBottom:14}}>
             <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,marginBottom:6}}>Variance vs Projected</div>
@@ -2846,18 +3276,117 @@ function StageBoss({user,onLogout,accessToken}){
       </Panel>
 
       {/* == SHOW REPORT PANEL == */}
-      <Panel open={!!srV} onClose={()=>setShowReportId(null)} title="mic Show Report">
+      <Panel open={!!srV} onClose={()=>setShowReportId(null)} title="🎤 Show Report">
         {srV&&<>
-          <div style={{fontSize:11,color:C.muted,marginBottom:14}}>30-second post-show rating</div>
+          <div style={{background:`linear-gradient(135deg,rgba(124,58,237,0.1),rgba(0,184,148,0.06))`,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 14px',marginBottom:14}}>
+            <div style={{fontWeight:700,fontSize:14}}>{srV.venue}</div>
+            <div style={{fontSize:11,color:C.muted}}>{srV.city}, {srV.state}{srV.showDate?` · ${srV.showDate}`:''}</div>
+          </div>
+
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:8}}>📊 SHOW STATS</div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>Attendance</label><input type="number" style={s.input()} placeholder="150" defaultValue={srV.showReport?.attendance||''} onBlur={e=>upd(srV.id,{showReport:{...(srV.showReport||{}),attendance:Number(e.target.value)||0}})}/></div>
+            <div style={s.field()}><label style={s.label}>Set Length (min)</label><input type="number" style={s.input()} placeholder="45" defaultValue={srV.showReport?.setLength||''} onBlur={e=>upd(srV.id,{showReport:{...(srV.showReport||{}),setLength:Number(e.target.value)||0}})}/></div>
+          </div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>👕 Merch Units Sold</label><input type="number" style={s.input()} placeholder="0" defaultValue={srV.showReport?.merchUnits||''} onBlur={e=>{const units=Number(e.target.value)||0;const price=Number(srV.showReport?.merchPrice)||20;upd(srV.id,{showReport:{...(srV.showReport||{}),merchUnits:units,merchRevenue:units*price}});}} /></div>
+            <div style={s.field()}><label style={s.label}>Price Per Item ($)</label><input type="number" style={s.input()} placeholder="20" defaultValue={srV.showReport?.merchPrice||20} onBlur={e=>{const price=Number(e.target.value)||0;const units=Number(srV.showReport?.merchUnits)||0;upd(srV.id,{showReport:{...(srV.showReport||{}),merchPrice:price,merchRevenue:units*price}});}} /></div>
+          </div>
+          {(srV.showReport?.merchUnits>0)&&<div style={{background:'rgba(0,184,148,0.08)',border:'1px solid rgba(0,184,148,0.2)',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:C.green,fontWeight:700}}>
+            👕 Merch Total: ${((srV.showReport?.merchUnits||0)*(srV.showReport?.merchPrice||20)).toLocaleString()}
+          </div>}
+
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:8,marginTop:4}}>⭐ RATINGS</div>
           {[['attendanceRating','Crowd Size'],['crowdQuality','Crowd Energy'],['bookerProfessionalism','Booker Professionalism']].map(([field,label])=><div key={field} style={s.field()}>
             <label style={s.label}>{label}</label>
-            <div style={{display:'flex',gap:8}}>{[1,2,3,4,5].map(n=><div key={n} onClick={()=>upd(srV.id,{showReport:{...(srV.showReport||{}),[field]:n}})} style={{flex:1,padding:'10px 4px',borderRadius:8,border:'1px solid',borderColor:(srV.showReport?.[field]||0)>=n?C.yellow:C.bord,background:(srV.showReport?.[field]||0)>=n?'rgba(253,203,110,0.1)':'none',textAlign:'center',cursor:'pointer',fontSize:16}}>[star]</div>)}</div>
+            <div style={{display:'flex',gap:8}}>{[1,2,3,4,5].map(n=><div key={n} onClick={()=>upd(srV.id,{showReport:{...(srV.showReport||{}),[field]:n}})} style={{flex:1,padding:'10px 4px',borderRadius:8,border:'1px solid',borderColor:(srV.showReport?.[field]||0)>=n?C.yellow:C.bord,background:(srV.showReport?.[field]||0)>=n?'rgba(253,203,110,0.1)':'none',textAlign:'center',cursor:'pointer',fontSize:16}}>⭐</div>)}</div>
           </div>)}
-          <div style={s.field()}><label style={s.label}>Payment Speed</label><ToggleGroup options={['Night-of','Within week','Late']} value={srV.showReport?.paySpeed||'Night-of'} onChange={v=>upd(srV.id,{showReport:{...(srV.showReport||{}),paySpeed:v}})}/></div>
-          <div style={s.field()}><label style={s.label}>Want to Return?</label><ToggleGroup options={['Yes','Renegotiate','No']} value={srV.showReport?.wantToReturn||'Yes'} onChange={v=>upd(srV.id,{showReport:{...(srV.showReport||{}),wantToReturn:v}})}/></div>
+
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:8,marginTop:4}}>📝 NOTES</div>
+          <div style={s.field()}><label style={s.label}>Show Notes / Highlights</label><textarea style={{...s.input(),resize:'none',minHeight:70}} placeholder="Best bit that killed, crowd energy, anything notable..." defaultValue={srV.showReport?.showNotes||''} onBlur={e=>upd(srV.id,{showReport:{...(srV.showReport||{}),showNotes:e.target.value}})}/></div>
+          <div style={s.field()}><label style={s.label}>Rebook Notes</label><input style={s.input()} placeholder="Ask for weekend headliner spot next time..." defaultValue={srV.showReport?.rebookNotes||''} onBlur={e=>upd(srV.id,{showReport:{...(srV.showReport||{}),rebookNotes:e.target.value}})}/></div>
+
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:8,marginTop:4}}>🔄 REBOOK</div>
+          <div style={s.grid2}>
+            <div style={s.field()}><label style={s.label}>Payment Speed</label><ToggleGroup options={['Night-of','Within week','Late']} value={srV.showReport?.paySpeed||'Night-of'} onChange={v=>upd(srV.id,{showReport:{...(srV.showReport||{}),paySpeed:v}})}/></div>
+            <div style={s.field()}><label style={s.label}>Want to Return?</label><ToggleGroup options={['Yes','Renegotiate','No']} value={srV.showReport?.wantToReturn||'Yes'} onChange={v=>upd(srV.id,{showReport:{...(srV.showReport||{}),wantToReturn:v}})}/></div>
+          </div>
           <div style={s.field()}><label style={s.label}>Ideal Rebook Window</label><select style={s.select} value={srV.showReport?.rebookWindow||'6 months'} onChange={e=>upd(srV.id,{showReport:{...(srV.showReport||{}),rebookWindow:e.target.value}})}>{['3 months','6 months','12 months','Never'].map(w=><option key={w}>{w}</option>)}</select></div>
-          <button onClick={()=>{const months=parseInt(srV.showReport?.rebookWindow)||6;const rd=new Date();rd.setMonth(rd.getMonth()+months);upd(srV.id,{rebookDate:rd.toISOString().split('T')[0],status:'Completed'});setShowReportId(null);toast2('[OK] Report saved  -  rebook reminder set!');}} style={{...s.btn(C.acc,'#fff',null),width:'100%'}}>Save Report + Set Rebook Reminder</button>
+          <button onClick={()=>{const months=parseInt(srV.showReport?.rebookWindow)||6;const rd=new Date();rd.setMonth(rd.getMonth()+months);upd(srV.id,{rebookDate:rd.toISOString().split('T')[0],status:'Completed'});setShowReportId(null);toast2('[OK] Report saved · rebook reminder set!');}} style={{...s.btn(C.acc,'#fff',null),width:'100%'}}>Save Report + Set Rebook Reminder</button>
         </>}
+      </Panel>
+
+
+      {/* == COMEDIAN ROSTER PANEL == */}
+      <Panel open={rosterOpen} onClose={()=>{setRosterOpen(false);setEditComedianId(null);}} title="🎭 Comedian Roster & Bookouts">
+        <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Manage your touring comedians, fees, and availability blackouts.</div>
+
+        {/* ADD NEW COMEDIAN */}
+        <button onClick={()=>{
+          const nc={id:'c_'+Date.now(),name:'',role:'Feature',defaultFee:0,active:true,bookouts:[],notes:''};
+          setComedians(cs=>[...cs,nc]);
+          setEditComedianId(nc.id);
+        }} style={{...s.btn('linear-gradient(135deg,#7c3aed,#ec4899)','#fff',null),width:'100%',marginBottom:16}}>+ Add Comedian</button>
+
+        {comedians.map(co=>{
+          const isEditing=editComedianId===co.id;
+          const totalPaid=venues.reduce((a,v)=>{
+            const p=(v.settlement?.comedianPayouts||[]).find(p2=>p2.comedianId===co.id);
+            return a+(p?Number(p.actual)||0:0);
+          },0)+tours.reduce((a,t)=>{
+            return a+(t.dates||[]).reduce((a2,d)=>{
+              const p=(d.comedianPayouts||[]).find(p2=>p2.comedianId===co.id);
+              return a2+(p?Number(p.actual)||0:0);
+            },0);
+          },0);
+
+          // Check upcoming bookouts
+          const today=new Date().toISOString().split('T')[0];
+          const upcomingBookouts=(co.bookouts||[]).filter(b=>b.end>=today);
+
+          return <div key={co.id} style={{background:C.surf2,border:`1px solid ${isEditing?C.acc:C.bord}`,borderRadius:12,padding:14,marginBottom:12}}>
+            {/* Header row */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:isEditing?12:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{width:32,height:32,borderRadius:'50%',background:`linear-gradient(135deg,${C.acc},${C.pink})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#fff',flexShrink:0}}>
+                  {(co.name||'?')[0].toUpperCase()}
+                </div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13}}>{co.name||'New Comedian'}</div>
+                  <div style={{fontSize:10,color:C.muted}}>{co.role}{totalPaid>0?` · $${totalPaid.toLocaleString()} paid out`:''}</div>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                {upcomingBookouts.length>0&&<span style={{background:'rgba(225,112,85,0.15)',color:C.red,border:'1px solid rgba(225,112,85,0.3)',borderRadius:10,padding:'2px 8px',fontSize:9,fontWeight:700}}>{upcomingBookouts.length} BOOKOUT{upcomingBookouts.length>1?'S':''}</span>}
+                <button onClick={()=>setEditComedianId(isEditing?null:co.id)} style={{...s.btn(C.surf,C.acc2,C.bord),fontSize:11,padding:'4px 10px'}}>{isEditing?'Done':'Edit'}</button>
+                {co.id!=='c_jason'&&co.id!=='c_phil'&&<button onClick={()=>{if(window.confirm('Remove '+co.name+'?'))setComedians(cs=>cs.filter(c=>c.id!==co.id));}} style={{...s.btn('rgba(225,112,85,0.1)',C.red,'rgba(225,112,85,0.3)'),fontSize:11,padding:'4px 10px'}}>✕</button>}
+              </div>
+            </div>
+
+            {isEditing&&<>
+              <div style={s.grid2}>
+                <div style={s.field()}><label style={s.label}>Name</label><input style={s.input(12)} value={co.name} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,name:e.target.value}:c))}/></div>
+                <div style={s.field()}><label style={s.label}>Role</label><select style={s.select} value={co.role} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,role:e.target.value}:c))}><option>Headliner</option><option>Feature</option><option>Opener</option><option>Guest</option><option>Host/MC</option></select></div>
+              </div>
+              <div style={s.grid2}>
+                <div style={s.field()}><label style={s.label}>Default Fee ($)</label><input type="number" style={s.input(12)} value={co.defaultFee||''} placeholder="0" onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,defaultFee:Number(e.target.value)||0}:c))}/></div>
+                <div style={s.field()}><label style={s.label}>Active</label><ToggleGroup options={['Yes','No']} value={co.active?'Yes':'No'} onChange={v=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,active:v==='Yes'}:c))}/></div>
+              </div>
+              <div style={s.field()}><label style={s.label}>Notes</label><input style={s.input(12)} value={co.notes||''} placeholder="Any notes about this comedian..." onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,notes:e.target.value}:c))}/></div>
+
+              {/* BOOKOUTS */}
+              <div style={{fontSize:10,color:C.red,fontWeight:700,letterSpacing:'0.1em',margin:'10px 0 8px'}}>🚫 BLACKOUT DATES</div>
+              {(co.bookouts||[]).map((b,bi)=><div key={bi} style={{display:'flex',gap:6,alignItems:'center',marginBottom:6}}>
+                <input type="date" style={{...s.input(11),flex:1}} value={b.start} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.map((bk,i)=>i===bi?{...bk,start:e.target.value}:bk)}:c))}/>
+                <span style={{color:C.muted,fontSize:11}}>to</span>
+                <input type="date" style={{...s.input(11),flex:1}} value={b.end} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.map((bk,i)=>i===bi?{...bk,end:e.target.value}:bk)}:c))}/>
+                <select style={{...s.select,fontSize:10,flex:1}} value={b.reason||'Other gig'} onChange={e=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.map((bk,i)=>i===bi?{...bk,reason:e.target.value}:bk)}:c))}><option>Other gig</option><option>Vacation</option><option>Personal</option><option>Filming</option><option>Unavailable</option></select>
+                <button onClick={()=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:c.bookouts.filter((_,i)=>i!==bi)}:c))} style={{...s.btn('rgba(225,112,85,0.1)',C.red,'rgba(225,112,85,0.3)'),padding:'4px 8px',fontSize:12}}>✕</button>
+              </div>)}
+              <button onClick={()=>setComedians(cs=>cs.map(c=>c.id===co.id?{...c,bookouts:[...(c.bookouts||[]),{start:'',end:'',reason:'Other gig'}]}:c))} style={{...s.btn(C.surf,C.muted,C.bord),fontSize:11,width:'100%'}}>+ Add Blackout Date Range</button>
+            </>}
+          </div>;
+        })}
       </Panel>
 
       {/* == MONEY TIMELINE PANEL == */}
@@ -2901,7 +3430,7 @@ function StageBoss({user,onLogout,accessToken}){
 
       {/* == TOUR PANEL == */}
       <Panel open={tourOpen} onClose={()=>{setTourOpen(false);setEditTourId(null);}} title={editTour?editTour.name:'[bus] New Tour'}>
-        <TourEditor tour={editTour} onSave={saveTour} onCancel={()=>{setTourOpen(false);setEditTourId(null);}} venues={venues}/>
+        <TourEditor tour={editTour} onSave={saveTour} onCancel={()=>{setTourOpen(false);setEditTourId(null);}} venues={venues} comedians={comedians}/>
       </Panel>
 
       {/* == IMPORT PANEL == */}
@@ -3109,58 +3638,250 @@ function MoneyTimeline({venues,onMarkPaid}){
 }
 
 // -- CALENDAR TAB ---------------------------------------------
-function CalendarTab({venues,tours=[],onVenueClick,onChecklist,toast2}){
-  const calEvents=venues.filter(v=>v.targetDates&&['Hold','Confirmed','Advancing','Completed'].includes(v.status));
-  // Add confirmed tour show dates to calendar
-  const tourEvents=[];
-  tours.forEach(t=>{(t.dates||[]).filter(d=>['Confirmed','Hold'].includes(d.status)).forEach(d=>{const dateObj=d.date?new Date(d.date+('T12:00:00')):null;
-        const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const monthStr=dateObj?monthNames[dateObj.getMonth()]+' '+dateObj.getFullYear():d.date||'';
-        tourEvents.push({id:t.id+'_'+d.id,venue:d.venue||'TBD',city:d.city||'',state:d.state||'',status:d.status,guarantee:d.guarantee,targetDates:monthStr,isTourDate:true,tourName:t.name,exactDate:d.date});});});
-  const allEvents=[...calEvents,...tourEvents];
-  const grouped={};
-  allEvents.forEach(v=>{const monthMatch=MONTHS.find(m=>(v.targetDates||'').includes(m));const key=monthMatch||'Undated';if(!grouped[key])grouped[key]=[];grouped[key].push(v);});
-  const sortedMonths=Object.keys(grouped).sort((a,b)=>{const ai=MONTHS.indexOf(a);const bi=MONTHS.indexOf(b);if(ai===-1)return 1;if(bi===-1)return -1;return ai-bi;});
-  const allConfirmed=venues.filter(v=>['Confirmed','Advancing'].includes(v.status));
+function CalendarTab({venues,tours=[],onVenueClick,onChecklist,toast2,comedians=[]}){
+  const [calView,setCalView] = React.useState('list'); // 'list' | 'month'
+  const [calMonth,setCalMonth] = React.useState(new Date().getMonth());
+  const [calYear,setCalYear]   = React.useState(new Date().getFullYear());
+
+  // ── BUILD EVENT LIST ──────────────────────────────────
+  // Standalone confirmed venues with a showDate
+  const venueEvents = venues
+    .filter(v=>['Hold','Confirmed','Advancing','Completed'].includes(v.status)&&(v.showDate||v.targetDates))
+    .map(v=>({
+      id:v.id, type:'venue', venue:v.venue, city:v.city, state:v.state,
+      date:v.showDate||'', targetDates:v.targetDates||'',
+      status:v.status, guarantee:v.guarantee, dealType:v.dealType,
+      booker:v.booker, bookerLast:v.bookerLast, email:v.email, phone:v.phone,
+      address:v.address, zip:v.zip, package:v.package,
+      lodging:v.lodging, contractStatus:v.contractStatus, checklist:v.checklist,
+      depositAmount:v.depositAmount, depositPaid:v.depositPaid, depositDue:v.depositDue,
+      showCount:v.showCount, agreementType:v.agreementType, isTourDate:false,
+    }));
+
+  // Tour dates
+  const tourEvents = [];
+  tours.forEach(t=>{
+    (t.dates||[]).filter(d=>['Confirmed','Hold','Advancing','Completed'].includes(d.status||'Hold')).forEach(d=>{
+      tourEvents.push({
+        id:t.id+'_'+d.id, type:'tour', venue:d.venue||'TBD',
+        city:d.city||'', state:d.state||'', date:d.date||'',
+        status:d.status||'Hold', guarantee:d.guarantee||0,
+        dealType:d.dealType||'', address:d.address||'', zip:d.zip||'',
+        package:t.name, tourName:t.name, tourId:t.id, isTourDate:true,
+        comedianPayouts: d.comedianPayouts||[],
+      });
+    });
+  });
+
+  const allEvents = [...venueEvents,...tourEvents]
+    .sort((a,b)=>(a.date||'zzz').localeCompare(b.date||'zzz'));
+
+  // Group by month-year for list view
+  const grouped = {};
+  allEvents.forEach(ev=>{
+    let key = 'Undated';
+    if(ev.date){
+      try{
+        const d=new Date(ev.date+'T12:00:00');
+        key=d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+      }catch{}
+    } else if(ev.targetDates){
+      const m=MONTHS.find(m2=>ev.targetDates.includes(m2));
+      if(m) key=m+' '+new Date().getFullYear();
+    }
+    if(!grouped[key]) grouped[key]=[];
+    grouped[key].push(ev);
+  });
+  const sortedMonths=Object.keys(grouped).sort((a,b)=>{
+    if(a==='Undated') return 1; if(b==='Undated') return -1;
+    return new Date(a)-new Date(b);
+  });
+
+  // Month grid data
+  const daysInMonth=(m,y)=>new Date(y,m+1,0).getDate();
+  const firstDayOfMonth=(m,y)=>new Date(y,m,1).getDay();
+  const eventsByDate={};
+  allEvents.forEach(ev=>{
+    if(ev.date) eventsByDate[ev.date]=(eventsByDate[ev.date]||[]).concat(ev);
+  });
+
+  const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const allConfirmed=venues.filter(v=>['Confirmed','Advancing','Completed'].includes(v.status));
   const totalGuarantee=allConfirmed.reduce((a,v)=>a+(Number(v.guarantee)||0),0);
-  return(<div style={{padding:16}}>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
-      {[[allEvents.length,'[cal]','On Calendar'],[allConfirmed.length,'[OK]','Confirmed'],['$'+Number(totalGuarantee).toLocaleString(),'[money]','Locked In']].map(([val,icon,label])=><div key={label} style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 8px',textAlign:'center'}}><div style={{fontSize:18,marginBottom:2}}>{icon}</div><div style={{fontFamily:font.head,fontWeight:800,fontSize:16,color:C.txt}}>{val}</div><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginTop:2}}>{label}</div></div>)}
+
+  // Tour ICS bulk download
+  function downloadTourICS(tour){
+    const evs=(tour.dates||[]).filter(d=>d.date).map(d=>({
+      date:d.date, venue:d.venue||'TBD', city:d.city||'', state:d.state||'',
+      guarantee:d.guarantee||0, dealType:d.dealType||'', tourName:tour.name,
+    }));
+    downloadICS(evs);
+    toast2&&toast2('📅 Tour exported to calendar!');
+  }
+
+  function downloadAllICS(){
+    const evs=allEvents.filter(ev=>ev.date).map(ev=>({
+      date:ev.date, venue:ev.venue, city:ev.city, state:ev.state,
+      guarantee:ev.guarantee||0, dealType:ev.dealType||'', tourName:ev.tourName||'',
+    }));
+    downloadICS(evs);
+    toast2&&toast2('📅 All shows exported to calendar!');
+  }
+
+  return <div style={{padding:16,paddingBottom:80}}>
+
+    {/* HEADER */}
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+      <div>
+        <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:2}}>Calendar</div>
+        <div style={{fontSize:12,color:C.muted3}}>{allEvents.length} show{allEvents.length!==1?'s':''} scheduled</div>
+      </div>
+      <div style={{display:'flex',gap:6}}>
+        <button onClick={()=>setCalView('list')} style={{...s.btn(calView==='list'?C.acc:C.surf2,calView==='list'?'#fff':C.muted,C.bord),padding:'6px 12px',fontSize:11}}>≡ List</button>
+        <button onClick={()=>setCalView('month')} style={{...s.btn(calView==='month'?C.acc:C.surf2,calView==='month'?'#fff':C.muted,C.bord),padding:'6px 12px',fontSize:11}}>⬛ Month</button>
+      </div>
     </div>
-    {allEvents.length===0&&<div style={{textAlign:'center',padding:'40px 20px',color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>[cal]</div><div>No dates on calendar yet.</div><div style={{fontSize:12,marginTop:8}}>Mark venues as Hold, Confirmed, or Advancing.</div></div>}
-    {sortedMonths.map(month=><div key={month} style={{marginBottom:24}}>
-      <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.acc2,letterSpacing:1.5,textTransform:'uppercase',marginBottom:10,display:'flex',alignItems:'center',gap:8}}><div style={{width:3,height:16,background:C.acc,borderRadius:2}}/>{month}</div>
-      {grouped[month].map(v=>{
-        const pcolor=PIPE_COLORS[v.status]||C.muted;
-        const gcalUrl=buildGoogleCalendarUrl(v);
-        return<div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:14,padding:'14px 16px',marginBottom:10}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-            <div style={{flex:1,cursor:'pointer'}} onClick={()=>onVenueClick(v.id)}>
-              <div style={{fontFamily:font.head,fontWeight:700,fontSize:15,marginBottom:3}}>{v.venue}{v.isTourDate&&<span style={{fontSize:9,marginLeft:6,padding:'2px 6px',borderRadius:10,background:'rgba(108,92,231,0.15)',color:'#a29bfe',border:'1px solid rgba(108,92,231,0.3)'}}>{v.tourName}</span>}</div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{v.city}{v.state?', '+v.state:''}{!v.isTourDate&&v.booker?` . ${v.booker}${v.bookerLast?' '+v.bookerLast:''}`:''}</div>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-                <span style={{fontSize:10,padding:'3px 9px',borderRadius:20,background:`${pcolor}18`,color:pcolor,border:`1px solid ${pcolor}40`}}>{v.status}</span>
-                {v.showCount>0&&<span style={{fontSize:10,color:C.muted}}>{v.showCount} shows</span>}
-                {v.guarantee>0&&<span style={{fontSize:11,color:C.green,fontFamily:font.head,fontWeight:700}}>{formatCurrency(v.guarantee)}</span>}
-                {v.agreementType&&<span style={{fontSize:9,padding:'2px 7px',borderRadius:20,background:'rgba(253,203,110,0.08)',color:C.yellow,border:'1px solid rgba(253,203,110,0.2)'}}>{v.agreementType==='Contract'?'[doc] Contract':'[email] Email Agmt'}</span>}
-              </div>
-            </div>
-            {gcalUrl&&<a href={gcalUrl} target="_blank" rel="noreferrer" style={{flexShrink:0,marginLeft:10}}><button style={{padding:'8px 10px',borderRadius:10,background:'rgba(66,133,244,0.15)',border:'1px solid rgba(66,133,244,0.3)',color:'#4285f4',fontSize:10,cursor:'pointer',fontFamily:font.body,display:'flex',flexDirection:'column',alignItems:'center',gap:2,lineHeight:1}}><span style={{fontSize:16}}>[cal]</span><span>+GCal</span></button></a>}
+
+    {/* STATS ROW */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
+      {[[allEvents.length,'📅','Scheduled'],[allConfirmed.length,'✅','Confirmed'],['$'+Number(totalGuarantee).toLocaleString(),'💰','Guaranteed']].map(([v,icon,l])=>(
+        <div key={l} style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
+          <div style={{fontSize:18}}>{icon}</div>
+          <div style={{fontFamily:font.head,fontWeight:800,fontSize:14,color:C.acc2}}>{v}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:2}}>{l}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* EXPORT ALL BUTTON */}
+    {allEvents.filter(e=>e.date).length>0&&<div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+      <button onClick={downloadAllICS} style={{...s.btn('linear-gradient(135deg,#0ea5e9,#0284c7)','#fff',null),flex:1,fontSize:11}}>
+        📥 Export All Shows (.ics — works with Apple/Google/Outlook)
+      </button>
+    </div>}
+
+    {/* TOUR QUICK-ADD SECTION */}
+    {tours.filter(t=>(t.dates||[]).some(d=>d.date)).length>0&&<div style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:12,padding:14,marginBottom:14}}>
+      <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:10}}>🗺 ADD TOUR TO CALENDAR</div>
+      {tours.filter(t=>(t.dates||[]).some(d=>d.date)).map(t=>{
+        const dated=(t.dates||[]).filter(d=>d.date);
+        const firstDate=dated.length?dated[0].date:'';
+        const lastDate=dated.length?dated[dated.length-1].date:'';
+        const gross=dated.reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+        return <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:`1px solid ${C.bord}`}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:13}}>{t.name}</div>
+            <div style={{fontSize:10,color:C.muted}}>{dated.length} dates{firstDate?` · ${firstDate} → ${lastDate}`:''} · ${Number(gross).toLocaleString()}</div>
           </div>
-          <div style={{background:C.surf2,borderRadius:8,padding:'8px 10px',marginBottom:8}}><div style={{fontSize:11,color:C.txt}}>[date] {v.targetDates}</div></div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:v.checklist?8:0}}>
-            {[['Deal',v.dealType||' - '],['Lodging',v.lodging||' - '],['Contract',v.contractStatus||' - ']].map(([l,val])=><div key={l} style={{background:C.surf2,borderRadius:8,padding:'6px 8px'}}><div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:2}}>{l}</div><div style={{fontSize:11,color:C.txt}}>{val}</div></div>)}
-          </div>
-          {v.checklist&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:C.surf2,borderRadius:8,cursor:'pointer'}} onClick={()=>onChecklist&&onChecklist(v.id)}>
-            <span style={{fontSize:11,color:C.muted}}>[list] Checklist</span>
-            <span style={{fontSize:11,fontFamily:font.head,fontWeight:700,color:checklistPct(v.checklist)===100?C.green:C.yellow}}>{checklistPct(v.checklist)}%</span>
-          </div>}
-          {v.depositAmount>0&&!v.depositPaid&&v.depositDue&&<div style={{marginTop:8,padding:'6px 10px',background:'rgba(225,112,85,0.08)',border:'1px solid rgba(225,112,85,0.2)',borderRadius:8,fontSize:11,color:C.red}}>[warn] Deposit {formatCurrency(v.depositAmount)} due {v.depositDue}</div>}
+          <button onClick={()=>downloadTourICS(t)} style={{...s.btn(C.surf2,C.acc2,C.bord),fontSize:11,padding:'6px 12px',flexShrink:0}}>
+            📥 .ics
+          </button>
         </div>;
       })}
-    </div>)}
-  </div>);
+    </div>}
+
+    {/* MONTH GRID VIEW */}
+    {calView==='month'&&<div style={{marginBottom:16}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <button onClick={()=>{let m=calMonth-1,y=calYear;if(m<0){m=11;y--;}setCalMonth(m);setCalYear(y);}} style={{...s.btn(C.surf2,C.txt,C.bord),padding:'4px 12px'}}>‹</button>
+        <div style={{fontFamily:font.head,fontWeight:800,fontSize:16}}>{MONTH_NAMES[calMonth]} {calYear}</div>
+        <button onClick={()=>{let m=calMonth+1,y=calYear;if(m>11){m=0;y++;}setCalMonth(m);setCalYear(y);}} style={{...s.btn(C.surf2,C.txt,C.bord),padding:'4px 12px'}}>›</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=><div key={d} style={{textAlign:'center',fontSize:9,color:C.muted,fontWeight:700,padding:'4px 0'}}>{d}</div>)}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
+        {Array(firstDayOfMonth(calMonth,calYear)).fill(null).map((_,i)=><div key={'e'+i}/>)}
+        {Array(daysInMonth(calMonth,calYear)).fill(null).map((_,i)=>{
+          const day=i+1;
+          const dateStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          const dayEvents=eventsByDate[dateStr]||[];
+          const isToday=dateStr===new Date().toISOString().split('T')[0];
+          return <div key={day} onClick={()=>{if(dayEvents.length)dayEvents.forEach(ev=>ev.id&&onVenueClick&&onVenueClick(ev.type==='venue'?ev.id:null));}}
+            style={{minHeight:44,borderRadius:6,border:`1px solid ${dayEvents.length?C.acc:C.bord}`,background:dayEvents.length?'rgba(124,58,237,0.08)':isToday?C.surf2:C.surf,padding:'4px',cursor:dayEvents.length?'pointer':'default',position:'relative'}}>
+            <div style={{fontSize:10,color:isToday?C.acc2:dayEvents.length?C.txt:C.muted,fontWeight:isToday||dayEvents.length?700:400}}>{day}</div>
+            {dayEvents.slice(0,2).map((ev,ei)=><div key={ei} style={{fontSize:8,background:PIPE_COLORS[ev.status]||C.acc,color:'#fff',borderRadius:3,padding:'1px 3px',marginTop:1,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{ev.venue}</div>)}
+            {dayEvents.length>2&&<div style={{fontSize:8,color:C.acc2,fontWeight:700}}>+{dayEvents.length-2}</div>}
+          </div>;
+        })}
+      </div>
+    </div>}
+
+    {/* LIST VIEW */}
+    {calView==='list'&&<div>
+      {allEvents.length===0&&<div style={{textAlign:'center',padding:'40px 20px',color:C.muted}}>
+        <div style={{fontSize:36,marginBottom:12}}>📅</div>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>No shows scheduled yet</div>
+        <div style={{fontSize:12}}>Set a Show Date on any confirmed venue or add tour dates to see them here.</div>
+      </div>}
+      {sortedMonths.map(month=><div key={month} style={{marginBottom:24}}>
+        <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.acc2,letterSpacing:1.5,textTransform:'uppercase',marginBottom:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span>{month}</span>
+          <span style={{fontSize:10,color:C.muted,fontWeight:400}}>{grouped[month].length} show{grouped[month].length!==1?'s':''}</span>
+        </div>
+        {grouped[month].map(v=>{
+          const pcolor=PIPE_COLORS[v.status]||C.muted;
+          const gcalUrl=buildGoogleCalendarUrl(v, v.date||null);
+          const outlookUrl=buildOutlookCalendarUrl(v, v.date||null);
+          return <div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:12,padding:'12px 14px',marginBottom:10}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+              <div style={{flex:1,cursor:'pointer'}} onClick={()=>v.type==='venue'&&onVenueClick&&onVenueClick(v.id)}>
+                <div style={{fontFamily:font.head,fontWeight:700,fontSize:15,marginBottom:3}}>
+                  {v.venue}{v.isTourDate&&<span style={{fontSize:10,background:'rgba(124,58,237,0.15)',color:C.acc2,borderRadius:10,padding:'2px 7px',marginLeft:6}}>{v.tourName}</span>}
+                </div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:4}}>
+                  {v.city}{v.state?', '+v.state:''}
+                  {v.date&&<span style={{marginLeft:8,color:C.acc2,fontWeight:600}}>📅 {new Date(v.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>}
+                  {!v.date&&v.targetDates&&<span style={{marginLeft:8,color:C.muted}}>~ {v.targetDates}</span>}
+                </div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+                  <span style={{fontSize:10,padding:'3px 9px',borderRadius:20,background:`${pcolor}18`,color:pcolor,border:`1px solid ${pcolor}30`}}>{v.status}</span>
+                  {v.guarantee>0&&<span style={{fontSize:11,color:C.green,fontFamily:font.head,fontWeight:700}}>{formatCurrency(v.guarantee)}</span>}
+                  {v.isTourDate&&v.comedianPayouts?.length>0&&<span style={{fontSize:10,color:C.pink}}>
+                    -{formatCurrency(v.comedianPayouts.filter(p=>p.onThisDate).reduce((a,p)=>a+(Number(p.actual)||Number(p.projected)||0),0))} payouts
+                  </span>}
+                  {v.agreementType&&<span style={{fontSize:9,padding:'2px 7px',borderRadius:20,background:'rgba(253,203,110,0.1)',color:C.yellow,border:'1px solid rgba(253,203,110,0.3)'}}>{v.agreementType}</span>}
+                </div>
+              </div>
+            </div>
+
+            {/* CALENDAR ADD BUTTONS */}
+            {v.date&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+              {gcalUrl&&<a href={gcalUrl} target="_blank" rel="noreferrer" style={{textDecoration:'none'}}>
+                <button style={{...s.btn('rgba(66,133,244,0.1)','#4285f4','rgba(66,133,244,0.3)'),fontSize:10,padding:'5px 10px'}}>📅 Google Cal</button>
+              </a>}
+              {outlookUrl&&<a href={outlookUrl} target="_blank" rel="noreferrer" style={{textDecoration:'none'}}>
+                <button style={{...s.btn('rgba(0,114,239,0.1)','#0072ef','rgba(0,114,239,0.3)'),fontSize:10,padding:'5px 10px'}}>📅 Outlook</button>
+              </a>}
+              <button onClick={()=>{downloadICS([{date:v.date,venue:v.venue,city:v.city,state:v.state,guarantee:v.guarantee||0,dealType:v.dealType||'',tourName:v.tourName||''}]);toast2&&toast2('📅 Event downloaded!');}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.3)'),fontSize:10,padding:'5px 10px'}}>📥 Apple / .ics</button>
+            </div>}
+
+            <div style={{background:C.surf2,borderRadius:8,padding:'8px 10px',marginBottom:8}}>
+              <div style={{fontSize:11,color:C.muted}}>
+                {v.booker&&<span style={{marginRight:10}}>👤 {v.booker} {v.bookerLast||''}</span>}
+                {v.dealType&&<span>{v.dealType}</span>}
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+              {[['Deal',v.dealType||'—'],['Lodging',v.lodging||'—'],['Contract',v.contractStatus||'—']].map(([l,val])=>(
+                <div key={l} style={{background:C.bg,borderRadius:6,padding:'5px 8px'}}>
+                  <div style={{fontSize:8,color:C.muted,textTransform:'uppercase',letterSpacing:1}}>{l}</div>
+                  <div style={{fontSize:10,fontWeight:600}}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {v.checklist&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:C.surf2,borderRadius:8,marginTop:8,cursor:'pointer'}} onClick={()=>onChecklist&&onChecklist(v.id)}>
+              <span style={{fontSize:11,color:C.muted}}>📋 Checklist</span>
+              <span style={{fontSize:11,fontFamily:font.head,fontWeight:700,color:checklistPct(v.checklist)===100?C.green:C.yellow}}>{checklistPct(v.checklist)}%</span>
+            </div>}
+            {v.depositAmount>0&&!v.depositPaid&&v.depositDue&&<div style={{marginTop:8,padding:'6px 10px',background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.2)',borderRadius:8,fontSize:11,color:C.red}}>⚠️ Deposit {formatCurrency(v.depositAmount)} due {v.depositDue}</div>}
+          </div>;
+        })}
+      </div>)}
+    </div>}
+  </div>;
 }
+
 
 // -- TEMPLATE EDITOR ------------------------------------------
 function TemplateEditor({template,onSave,onCancel}){
@@ -3219,7 +3940,7 @@ function TemplateEditor({template,onSave,onCancel}){
 }
 
 // -- TOUR EDITOR ----------------------------------------------
-function TourEditor({tour,onSave,onCancel}){
+function TourEditor({tour,onSave,onCancel,comedians=[]}){
   const[name,setName]=useState(tour?.name||'');
   const[startDate,setStartDate]=useState(tour?.startDate||'');
   const[endDate,setEndDate]=useState(tour?.endDate||'');
@@ -3233,7 +3954,9 @@ function TourEditor({tour,onSave,onCancel}){
   function removeDate(id){setDates(d=>d.filter(x=>x.id!==id));}
   const totalGuarantee=dates.reduce((a,d)=>a+(Number(d.guarantee)||0),0);
   const totalExpenses=(Number(travelBudget)||0)+(Number(lodgingBudget)||0)+(Number(miscBudget)||0);
-  const netEst=totalGuarantee*0.75-totalExpenses;
+  const totalProjectedPayouts=dates.reduce((a,d)=>a+(d.comedianPayouts||[]).filter(p=>p.onThisDate).reduce((a2,p)=>a2+(Number(p.projected)||0),0),0);
+  const totalActualPayouts=dates.reduce((a,d)=>a+(d.comedianPayouts||[]).filter(p=>p.onThisDate).reduce((a2,p)=>a2+(Number(p.actual)||0),0),0);
+  const netEst=totalGuarantee-totalExpenses-totalProjectedPayouts;
   return<>
     <div style={s.field()}><label style={s.label}>Tour Name</label><input style={s.input()} value={name} onChange={e=>setName(e.target.value)} placeholder="Summer 2025  -  Phil Medina Tour"/></div>
     <div style={s.grid2}>
@@ -3248,7 +3971,8 @@ function TourEditor({tour,onSave,onCancel}){
     <div style={s.field()}><label style={s.label}>Misc ($)</label><input type="number" style={s.input()} value={miscBudget} onChange={e=>setMiscBudget(e.target.value)} placeholder="300"/></div>
     <div style={{background:'rgba(0,184,148,0.08)',border:'1px solid rgba(0,184,148,0.2)',borderRadius:12,padding:'12px 14px',marginBottom:16}}>
       <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,marginBottom:8}}>[chart] Tour P&L</div>
-      <div style={s.grid2}>{[['Gross',formatCurrency(totalGuarantee),C.green],['Expenses',formatCurrency(totalExpenses),C.red],['Net Est.',formatCurrency(netEst),netEst>=0?C.green:C.red],['Shows',dates.length,C.yellow]].map(([l,v,color])=><div key={l}><div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontFamily:font.head,fontWeight:800,color}}>{v}</div></div>)}</div>
+      <div style={s.grid2}>{[['Gross',formatCurrency(totalGuarantee),C.green],['Expenses',formatCurrency(totalExpenses),C.red],['Payouts',formatCurrency(totalProjectedPayouts),C.pink],['Your Net',formatCurrency(netEst),netEst>=0?C.green:C.red]].map(([l,v,color])=><div key={l}><div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontFamily:font.head,fontWeight:800,color}}>{v}</div></div>)}</div>
+      {totalActualPayouts>0&&<div style={{marginTop:8,fontSize:11,color:C.muted}}>Actual paid out: <span style={{color:C.pink,fontWeight:700}}>{formatCurrency(totalActualPayouts)}</span> · Actual net: <span style={{color:C.green,fontWeight:700}}>{formatCurrency(totalGuarantee-totalExpenses-totalActualPayouts)}</span></div>}
     </div>
     <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,marginBottom:10}}>[date] Show Dates</div>
     {dates.map(d=><div key={d.id} style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:12,marginBottom:10}}>
@@ -3281,6 +4005,38 @@ function TourEditor({tour,onSave,onCancel}){
       <div style={s.grid2}>
         <div style={{marginBottom:0}}><label style={s.label}>Shows</label><input type="number" style={s.input(11)} value={d.showCount||''} onChange={e=>updDate(d.id,{showCount:parseInt(e.target.value)||1})} placeholder="4"/></div>
         <div style={{marginBottom:0}}><label style={s.label}>Status</label><select style={s.select} value={d.status||'Hold'} onChange={e=>updDate(d.id,{status:e.target.value})}>{['Hold','Confirmed','Cancelled'].map(x=><option key={x}>{x}</option>)}</select></div>
+      </div>
+
+      {/* COMEDIAN PAYOUTS FOR THIS DATE */}
+      <div style={{marginTop:8}}>
+        <div style={{fontSize:9,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:6}}>🎭 COMEDIAN PAYOUTS</div>
+        {comedians.filter(c=>c.active).map(co=>{
+          const payout=(d.comedianPayouts||[]).find(p=>p.comedianId===co.id)||{comedianId:co.id,name:co.name,role:co.role,projected:co.defaultFee||0,actual:0,onThisDate:co.role==='Headliner'};
+          return <div key={co.id} style={{display:'flex',gap:6,alignItems:'center',marginBottom:4}}>
+            <label style={{...s.label,marginBottom:0,minWidth:100,flexShrink:0}}>{co.name}</label>
+            <input type="checkbox" checked={!!payout.onThisDate} onChange={e=>{
+              const payouts=(d.comedianPayouts||[]).filter(p=>p.comedianId!==co.id);
+              updDate(d.id,{comedianPayouts:[...payouts,{...payout,onThisDate:e.target.checked}]});
+            }} style={{flexShrink:0}}/>
+            <span style={{fontSize:9,color:C.muted,flexShrink:0}}>{co.role}</span>
+            {payout.onThisDate&&<>
+              <input type="number" style={{...s.input(10),flex:1}} placeholder="Projected $" value={payout.projected||''} onChange={e=>{
+                const payouts=(d.comedianPayouts||[]).filter(p=>p.comedianId!==co.id);
+                updDate(d.id,{comedianPayouts:[...payouts,{...payout,projected:Number(e.target.value)||0}]});
+              }}/>
+              <input type="number" style={{...s.input(10),flex:1}} placeholder="Actual $" value={payout.actual||''} onChange={e=>{
+                const payouts=(d.comedianPayouts||[]).filter(p=>p.comedianId!==co.id);
+                updDate(d.id,{comedianPayouts:[...payouts,{...payout,actual:Number(e.target.value)||0}]});
+              }}/>
+            </>}
+          </div>;
+        })}
+        {/* Bookout warnings */}
+        {comedians.filter(c=>c.active&&d.date&&(c.bookouts||[]).some(b=>d.date>=b.start&&d.date<=b.end)).map(co=>(
+          <div key={co.id} style={{background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:6,padding:'4px 8px',fontSize:10,color:C.red,marginTop:4}}>
+            🚫 {co.name} is blacked out on {d.date} — {(co.bookouts||[]).find(b=>d.date>=b.start&&d.date<=b.end)?.reason||'Unavailable'}
+          </div>
+        ))}
       </div>
     </div>)}
     <button onClick={addDate} style={{...s.btn(C.surf2,C.txt,C.bord),width:'100%',marginBottom:16}}>+ Add Show Date</button>
