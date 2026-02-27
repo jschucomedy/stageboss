@@ -886,8 +886,8 @@ const s = {
   app:{fontFamily:font.body,background:C.bg,minHeight:'100vh',color:C.txt,width:'100%',position:'relative'},
   header:{background:'rgba(5,5,8,0.85)',backdropFilter:'blur(20px)',borderBottom:`1px solid ${C.bord}`,padding:'14px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:40},
   card:(active)=>({background:active?`rgba(124,58,237,0.08)`:C.card,border:`1px solid ${active?'rgba(124,58,237,0.3)':C.bord}`,borderRadius:14,padding:'14px 16px',marginBottom:10,cursor:'pointer',transition:'all 0.18s ease',backdropFilter:'blur(4px)'}),
-  input:()=>({background:C.surf2,border:`1px solid ${C.bord2}`,borderRadius:10,padding:'10px 14px',color:C.txt,fontSize:13,width:'100%',outline:'none',fontFamily:'inherit',transition:'border-color 0.15s'}),
-  btn:(bg,color,border)=>({background:bg||C.surf2,color:color||C.txt,border:`1px solid ${border||C.bord2}`,borderRadius:9,padding:'8px 16px',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:font.head,display:'flex',alignItems:'center',justifyContent:'center',gap:6,transition:'all 0.15s ease',whiteSpace:'nowrap',letterSpacing:'0.01em'}),
+  input:()=>({background:C.surf2,border:`1px solid ${C.bord2}`,borderRadius:10,padding:'13px 14px',color:C.txt,fontSize:16,width:'100%',outline:'none',fontFamily:'inherit',transition:'border-color 0.15s',WebkitAppearance:'none',appearance:'none'}),
+  btn:(bg,color,border)=>({background:bg||C.surf2,color:color||C.txt,border:`1px solid ${border||C.bord2}`,borderRadius:10,padding:'11px 16px',cursor:'pointer',minHeight:46,WebkitTapHighlightColor:'transparent',fontSize:12,fontWeight:600,fontFamily:font.head,display:'flex',alignItems:'center',justifyContent:'center',gap:6,transition:'all 0.15s ease',whiteSpace:'nowrap',letterSpacing:'0.01em',userSelect:'none'}),
   pill:(active,color)=>({background:active?`${color||C.acc}22`:'transparent',color:active?(color||C.acc2):C.muted,border:`1px solid ${active?(color||C.acc)+'44':'transparent'}`,borderRadius:99,padding:'5px 14px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',transition:'all 0.15s',letterSpacing:'0.04em',textTransform:'uppercase'}),
   label:{fontSize:10,color:C.muted2,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:700,marginBottom:6,display:'block'},
   section:{marginBottom:28},
@@ -896,8 +896,9 @@ const s = {
   stat:(color)=>({background:`${color||C.acc}08`,border:`1px solid ${color||C.acc}20`,borderRadius:12,padding:'14px 16px',flex:1}),
   row:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'},
   field:(mb)=>({marginBottom:mb||12}),
+  grid2:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10},
   overlay:(open)=>({position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:100,opacity:open?1:0,pointerEvents:open?'auto':'none',transition:'opacity 0.2s'}),
-  panel:(open)=>({position:'fixed',top:0,right:0,height:'100vh',width:'min(480px,100vw)',background:C.surf,borderLeft:`1px solid ${C.bord2}`,zIndex:101,overflowY:'auto',padding:24,transform:open?'translateX(0)':'translateX(100%)',transition:'transform 0.25s ease'}),
+  panel:(open)=>({position:'fixed',top:0,right:0,height:'100%',width:'min(480px,100vw)',maxWidth:'100vw',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',background:C.surf,borderLeft:`1px solid ${C.bord2}`,zIndex:101,overflowY:'auto',padding:'20px 16px 100px',transform:open?'translateX(0)':'translateX(100%)',transition:'transform 0.28s cubic-bezier(0.4,0,0.2,1)'}),
   handle:{width:4,height:32,background:C.bord2,borderRadius:2,margin:'0 auto 16px'},
   header:{background:C.surf,borderBottom:`1px solid ${C.bord}`,padding:'12px 16px',position:'sticky',top:0,zIndex:40},
   content:{flex:1,overflowY:'auto'},
@@ -905,8 +906,8 @@ const s = {
   modalBox:{background:C.surf,border:`1px solid ${C.bord2}`,borderRadius:18,padding:28,width:'100%',maxWidth:560,maxHeight:'90vh',overflowY:'auto'},
   divider:{height:1,background:C.bord,margin:'16px 0'},
   sectionTitle:{fontSize:10,color:C.muted2,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:700,marginBottom:8,marginTop:16},
-  select:{background:C.surf2,border:`1px solid ${C.bord2}`,borderRadius:10,padding:'10px 14px',color:C.txt,fontSize:13,width:'100%',outline:'none',fontFamily:'inherit'},
-  nav:{display:'flex',justifyContent:'space-around',alignItems:'center',background:C.surf,borderTop:`1px solid ${C.bord}`,padding:'8px 0',position:'fixed',bottom:0,left:0,right:0,zIndex:50},
+  select:{background:C.surf2,border:`1px solid ${C.bord2}`,borderRadius:10,padding:'12px 14px',color:C.txt,fontSize:16,width:'100%',outline:'none',fontFamily:'inherit'},
+  nav:{display:'flex',justifyContent:'space-around',overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',alignItems:'center',background:C.surf,borderTop:`1px solid ${C.bord}`,padding:'8px 0',paddingBottom:'max(8px,env(safe-area-inset-bottom))',position:'fixed',bottom:0,left:0,right:0,zIndex:50},
   navBtn:(active)=>({background:'none',border:'none',color:active?C.acc2:C.muted,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'4px 12px',fontFamily:'inherit'}),
 };
 
@@ -1359,7 +1360,7 @@ function downloadICS(events){
 
 // -- SUB-COMPONENTS -------------------------------------------
 function Toast({msg}){if(!msg)return null;return<div style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',background:C.surf3,border:`1px solid ${C.acc}`,borderRadius:10,padding:'10px 18px',fontSize:12,color:C.txt,zIndex:999,whiteSpace:'nowrap',pointerEvents:'none',fontFamily:font.body}}>{msg}</div>;}
-function Panel({open,onClose,title,badge,children}){return<><div onClick={onClose} style={s.overlay(open)}/><div style={s.panel(open)}><div style={s.handle}/><div style={{padding:'16px 20px 0',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{fontFamily:font.head,fontWeight:800,fontSize:20,lineHeight:1.2}}>{title}</div>{badge&&<div style={{marginTop:6}}>{badge}</div>}</div><button onClick={onClose} style={{width:30,height:30,borderRadius:'50%',background:C.surf2,border:'none',color:C.muted2,fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>x</button></div><div style={{padding:'14px 20px'}}>{children}</div></div></>;} 
+function Panel({open,onClose,title,badge,children}){return<><div onClick={onClose} style={s.overlay(open)}/><div style={s.panel(open)}><div style={{padding:'12px 16px 0',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,background:C.surf,zIndex:10,borderBottom:`1px solid ${C.bord}`,marginBottom:2}}><div style={{flex:1,minWidth:0}}><div style={{fontFamily:font.head,fontWeight:800,fontSize:18,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{title}</div>{badge&&<div style={{marginTop:4}}>{badge}</div>}</div><button onClick={onClose} style={{width:44,height:44,minHeight:44,borderRadius:'50%',background:C.surf2,border:'none',color:C.muted2,fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,WebkitTapHighlightColor:'transparent',marginLeft:8}}>✕</button></div><div style={{padding:'16px 16px',paddingBottom:'calc(env(safe-area-inset-bottom,0px) + 80px)'}}>{children}</div></div></>;}
 function StatusPill({status,small}){const color=PIPE_COLORS[status]||C.muted;return<span style={{...s.pill(`${color}18`,color,`${color}40`),fontSize:small?9:10}}>{status}</span>;}
 function WarmthDot({warmth}){const color=WARMTH_COLORS[warmth]||C.muted;return<span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,color,fontFamily:font.body}}><span style={{width:6,height:6,borderRadius:'50%',background:color,display:'inline-block'}}/>{warmth}</span>;}
 function ToggleGroup({options,value,onChange,color=C.acc}){return<div style={{display:'flex',background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,overflow:'hidden',marginBottom:14}}>{options.map(opt=><button key={opt.id||opt} onClick={()=>onChange(opt.id||opt)} style={{flex:1,padding:'9px 6px',textAlign:'center',fontSize:11,fontFamily:font.head,fontWeight:700,cursor:'pointer',color:value===(opt.id||opt)?color:C.muted,background:value===(opt.id||opt)?`${color}18`:'transparent',border:'none',transition:'all 0.15s'}}>{opt.label||opt}</button>)}</div>;}
@@ -1572,7 +1573,7 @@ function AnalyticsTab({venues, tours}){
     {/* REVENUE BY MONTH */}
     <div style={card()}>
       <div style={sectionTitle}>📅 Revenue by Month — {thisYear}</div>
-      <div style={{display:'flex',gap:4,alignItems:'flex-end',height:100}}>
+      <div className="sb-analytics-chart"><div style={{display:'flex',gap:4,alignItems:'flex-end',height:100,minWidth:280}}>
         {revenueByMonth.map((m,i)=>{
           const total=m.guarantee+m.merch;
           const pct=total>0?Math.max(4,(total/maxMonth)*100):4;
@@ -1587,6 +1588,7 @@ function AnalyticsTab({venues, tours}){
           </div>;
         })}
       </div>
+      </div></div>
       {totalRevenue===0&&<div style={{textAlign:'center',color:C.muted,fontSize:11,marginTop:8}}>No confirmed shows yet — data will appear as you confirm bookings</div>}
     </div>
 
@@ -2355,31 +2357,123 @@ function StageBoss({user,onLogout,accessToken}){
       `}</style>
       <Toast msg={toast}/>
       <style>{`
-        .sb-desktop-wrap { display:flex; min-height:100vh; }
-        .sb-sidebar { display:none; }
-        .sb-main { flex:1; min-width:0; }
+        /* ── MOBILE FIRST ── */
+        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+        .sb-desktop-wrap{display:flex;min-height:100vh;}
+        .sb-sidebar{display:none;}
+        .sb-main{flex:1;min-width:0;}
+
+        /* iOS input zoom prevention — font-size must be 16px+ */
+        input,select,textarea{font-size:16px!important;-webkit-appearance:none;}
+
+        /* iOS momentum scroll */
+        .sb-main,.sb-panel-inner,
+        [style*="overflow-y:auto"],[style*="overflowY:'auto'"]{
+          -webkit-overflow-scrolling:touch;
+        }
+
+        /* hide scrollbars on nav */
+        .sb-mobile-nav::-webkit-scrollbar{display:none;}
+        .sb-mobile-nav{-ms-overflow-style:none;scrollbar-width:none;}
+
+        /* ── BOTTOM NAV ── */
+        .sb-mobile-nav{
+          display:flex;
+          position:fixed;
+          bottom:0;left:0;right:0;
+          background:rgba(7,7,15,0.97);
+          border-top:1px solid rgba(124,58,237,0.2);
+          padding:4px 0 env(safe-area-inset-bottom,8px);
+          z-index:90;
+          gap:0;
+          justify-content:space-around;
+          backdrop-filter:blur(20px);
+          -webkit-backdrop-filter:blur(20px);
+        }
+        .sb-nav-btn{
+          flex:1;
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          gap:2px;
+          padding:6px 2px;
+          background:none;
+          border:none;
+          cursor:pointer;
+          min-height:52px;
+          position:relative;
+        }
+        .sb-nav-btn.active::after{
+          content:'';
+          position:absolute;
+          bottom:0;left:50%;
+          transform:translateX(-50%);
+          width:20px;height:2px;
+          background:linear-gradient(90deg,#7c3aed,#ec4899);
+          border-radius:1px 1px 0 0;
+        }
+
+        /* ── TAP TARGETS ── */
+        button{min-height:44px;display:inline-flex;align-items:center;justify-content:center;}
+        a{display:inline-flex;align-items:center;justify-content:center;}
+
+        /* ── CARD TOUCH FEEDBACK ── */
+        .sb-card{transition:transform 0.12s,opacity 0.12s;}
+        .sb-card:active{transform:scale(0.97);opacity:0.85;}
+
+        /* ── GRID FIXES: never go below 1 col on mobile ── */
+        .sb-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+        @media(max-width:380px){
+          .sb-grid2{grid-template-columns:1fr;}
+        }
+
+        /* ── PANELS: full screen on mobile ── */
+        .sb-panel{
+          position:fixed;top:0;right:0;
+          height:100%;
+          width:100vw!important;
+          max-width:100vw!important;
+          overflow-y:auto;
+          -webkit-overflow-scrolling:touch;
+          overscroll-behavior:contain;
+        }
+        .sb-panel-content{
+          padding:16px 16px 120px;
+        }
+
+        /* ── ANALYTICS CHARTS: prevent overflow ── */
+        .sb-analytics-chart{
+          overflow-x:auto;
+          -webkit-overflow-scrolling:touch;
+        }
+
+        /* ── CONTENT PADDING (account for fixed nav) ── */
+        .sb-content-pad{padding:12px 12px 100px;}
+
+        /* ── SAFE AREA SUPPORT ── */
+        @supports(padding-bottom:env(safe-area-inset-bottom)){
+          .sb-mobile-nav{padding-bottom:calc(env(safe-area-inset-bottom) + 4px);}
+          .sb-content-pad{padding-bottom:calc(env(safe-area-inset-bottom) + 90px);}
+        }
+
         @media(min-width:768px){
-          .sb-sidebar {
-            display:flex;
-            flex-direction:column;
-            width:228px;
-            min-width:228px;
+          .sb-sidebar{
+            display:flex;flex-direction:column;
+            width:228px;min-width:228px;
             background:linear-gradient(180deg,#0a0a14 0%,#080810 100%);
             border-right:1px solid rgba(124,58,237,0.12);
-            position:fixed;
-            top:0;
-            left:0;
-            height:100vh;
-            padding:20px 16px 24px 16px;
-            overflow-y:auto;
-            z-index:50;
-            box-sizing:border-box;
-            box-shadow:4px 0 32px rgba(0,0,0,0.4);
+            position:fixed;top:0;left:0;height:100vh;
+            padding:20px 16px 24px;overflow-y:auto;
+            z-index:50;box-shadow:4px 0 32px rgba(0,0,0,0.4);
           }
-          .sb-main { margin-left:228px; padding-bottom:20px; }
-          .sb-mobile-header { display:none !important; }
-          .sb-mobile-nav { display:none !important; }
-          .sb-content { padding-bottom:20px !important; }
+          .sb-main{margin-left:228px;padding-bottom:20px;}
+          .sb-mobile-header{display:none!important;}
+          .sb-mobile-nav{display:none!important;}
+          .sb-panel{width:min(480px,100vw)!important;max-width:480px!important;}
+          .sb-content{padding-bottom:20px!important;}
+          button,a{min-height:unset;}
+          .sb-grid2{grid-template-columns:1fr 1fr;}
         }
       `}</style>
 
@@ -2525,7 +2619,7 @@ function StageBoss({user,onLogout,accessToken}){
       <div className="sb-content" style={s.content}>
 
         {/* == TODAY TAB == */}
-        {tab==='today'&&<div style={{padding:'16px 16px 80px',overflowY:'auto'}}>
+        {tab==='today'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
           {/* HEADER */}
           <div style={{marginBottom:20}}>
             <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:2}}>
@@ -2609,7 +2703,7 @@ function StageBoss({user,onLogout,accessToken}){
           })()}
 
           {/* STAT CARDS */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+          <div style={{...s.grid2,marginBottom:16}}>
             {[
               {label:'Total Venues',value:venues.length,color:C.acc2,icon:'🏛️'},
               {label:'In Pipeline',value:venues.filter(v=>!['Lead','Lost','Completed'].includes(v.status)).length,color:C.green,icon:'📈'},
@@ -2625,7 +2719,7 @@ function StageBoss({user,onLogout,accessToken}){
           </div>
 
           {/* QUICK ACTIONS */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div style={{...s.grid2}}>
             {[
               {label:'Add Venue',icon:'➕',color:C.acc,action:()=>setAddOpen(true)},
               {label:'Browse 150+',icon:'🏛️',color:C.blue,action:()=>setDbOpen(true)},
@@ -2677,7 +2771,7 @@ function StageBoss({user,onLogout,accessToken}){
               const overdue=v.nextFollowUp&&isOverdue(v.nextFollowUp);
               const touchCount=(v.contactLog||[]).length;
               const warmthColor={'Cold':C.blue,'Warm':C.yellow,'Hot':C.orange,'Established':C.green}[v.warmth]||C.muted;
-              return <div key={v.id} onClick={()=>setDetailId(v.id)} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:12,padding:'14px 16px',marginBottom:8,cursor:'pointer',transition:'all 0.15s ease',position:'relative'}}>
+              return <div key={v.id} className="sb-card" onClick={()=>setDetailId(v.id)} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:12,padding:'14px 16px',marginBottom:8,cursor:'pointer',position:'relative'}}>
                 {overdue&&<div style={{position:'absolute',top:10,right:10,width:8,height:8,borderRadius:'50%',background:C.red,boxShadow:`0 0 8px ${C.red}`}}/>}
                 <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
                   <div style={{flex:1,minWidth:0}}>
@@ -2705,7 +2799,7 @@ function StageBoss({user,onLogout,accessToken}){
         {tab==='calendar'&&<CalendarTab venues={venues} tours={tours} onVenueClick={id=>setDetailId(id)} onChecklist={id=>setChecklistId(id)} toast2={toast2} comedians={comedians}/>}
 
         {/* == OUTREACH TAB == */}
-        {tab==='outreach'&&<div style={{padding:'20px 20px 60px'}}>
+        {tab==='outreach'&&<div style={{padding:'14px 14px 100px'}}>
           {/* OUTREACH HEADER */}
           <div style={{marginBottom:20}}>
             <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:4}}>Outreach</div>
@@ -2715,7 +2809,7 @@ function StageBoss({user,onLogout,accessToken}){
           {/* AI QUICK OUTREACH TOOL */}
           <div style={{background:'linear-gradient(135deg,rgba(124,58,237,0.1),rgba(236,72,153,0.05))',border:`1px solid ${C.acc}30`,borderRadius:14,padding:20,marginBottom:20}}>
             <div style={{fontSize:11,color:C.acc2,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:700,marginBottom:12}}>🤖 AI Email Generator</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+            <div style={{...s.grid2,marginBottom:12}}>
               <div>
                 <label style={s.label}>Venue</label>
                 <select style={s.input()} value={aiDraft.venueId||''} onChange={e=>setAiDraft(prev=>({...prev,venueId:e.target.value}))}>
@@ -2820,7 +2914,7 @@ function StageBoss({user,onLogout,accessToken}){
           })}
         </div>}
 
-        {tab==='tours'&&<div style={{padding:'20px 20px 60px'}}>
+        {tab==='tours'&&<div style={{padding:'14px 14px 100px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
             <div>
               <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5}}>Tours & Route Planner</div>
@@ -2950,7 +3044,7 @@ function StageBoss({user,onLogout,accessToken}){
 
             {/* Revenue Summary */}
             <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Revenue Summary</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+            <div style={{...s.grid2,gap:8,marginBottom:16}}>
               {[['Total Gross',formatCurrency(totalGross),C.green],['Confirmed Rev',formatCurrency(confirmedRev),C.green],['Total Expenses',formatCurrency(totalExp),C.red],['Net Estimate',formatCurrency(netEst),netEst>=0?C.green:C.red],['Avg Per Show',formatCurrency(avgPerShow),C.yellow],['Shows Booked',btDates.length+' total',C.txt]].map(([l,v,color])=>(
                 <div key={l} style={{background:C.surf2,borderRadius:10,padding:'10px 12px'}}>
                   <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:3}}>{l}</div>
@@ -3015,7 +3109,7 @@ function StageBoss({user,onLogout,accessToken}){
       })()}
 
         {/* == ANALYTICS TAB == */}
-        {tab==='analytics'&&<div style={{padding:'20px 20px 80px',overflowY:'auto'}}>
+        {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
           <AnalyticsTab venues={venues} tours={tours} />
         </div>}
 
@@ -3027,9 +3121,9 @@ function StageBoss({user,onLogout,accessToken}){
       {/* NAV - mobile only */}
       <nav className="sb-mobile-nav" style={s.nav}>
         {[['today','🏠','Today'],['venues','🏛️','Venues'],['outreach','✉️','Outreach'],['tours','🗺️','Tours'],['calendar','📅','Cal'],['analytics','📊','Stats']].map(([t,icon,label])=>(
-          <button key={t} onClick={()=>setTab(t)} style={{background:'none',border:'none',color:tab===t?C.acc2:C.muted,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'6px 12px',fontFamily:'inherit',minWidth:56}}>
-            <span style={{fontSize:20}}>{icon}</span>
-            <span style={{fontSize:10,fontWeight:tab===t?700:400,letterSpacing:'0.02em'}}>{label}</span>
+          <button key={t} onClick={()=>setTab(t)} className={`sb-nav-btn${tab===t?' active':''}`} style={{color:tab===t?C.acc2:C.muted,fontFamily:'inherit'}}>
+            <span style={{fontSize:20,lineHeight:1}}>{icon}</span>
+            <span style={{fontSize:9,fontWeight:tab===t?700:500,letterSpacing:'0.03em',marginTop:1}}>{label}</span>
           </button>
         ))}
         </nav>
@@ -3042,7 +3136,7 @@ function StageBoss({user,onLogout,accessToken}){
           {/* Agreement summary for confirmed */}
           {['Confirmed','Advancing'].includes(dv.status)&&<div style={{background:'rgba(108,92,231,0.08)',border:'1px solid rgba(108,92,231,0.25)',borderRadius:12,padding:'12px 14px',marginBottom:14}}>
             <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,marginBottom:8}}>{dv.agreementType==='Contract'?'[doc] Contract Booking':'[email] Email Agreement Booking'}</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+            <div style={{...s.grid2,gap:6}}>
               {[['Deal',dv.dealType||' - '],['Guarantee',formatCurrency(dv.guarantee)],['Shows',dv.showCount||' - '],['Dates',dv.targetDates||' - '],['Lodging',dv.lodging||' - '],['Confirmed',dv.confirmedViaEmailDate||' - ']].map(([l,v2])=><div key={l}><div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:1}}>{l}</div><div style={{fontSize:12,color:C.txt}}>{v2}</div></div>)}
             </div>
             {dv.termsLocked&&<div style={{marginTop:8,fontSize:10,color:C.green}}>[lock] Terms locked</div>}
@@ -3054,7 +3148,7 @@ function StageBoss({user,onLogout,accessToken}){
             <button onClick={()=>{setDetailId(null);setTimeout(()=>setChecklistId(dv.id),250);}} style={{fontSize:11,color:C.acc2,background:'none',border:'none',cursor:'pointer',fontFamily:font.body,padding:0}}>View / edit checklist </button>
           </div>}
           <div style={s.sectionTitle}>[chart] Pipeline</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:16}}>{PIPELINE.map(st=>{const color=PIPE_COLORS[st]||C.muted;const active=dv.status===st;return<div key={st} onClick={()=>{upd(dv.id,{status:st});toast2(`Status: ${st}`);}} style={{padding:'8px 10px',borderRadius:9,border:`1px solid ${active?color:C.bord}`,background:active?`${color}18`:C.surf2,color:active?color:C.muted,textAlign:'center',cursor:'pointer',fontSize:10,fontFamily:font.body}}>{st}</div>;})}</div>
+          <div style={{...s.grid2,gap:6,marginBottom:16}}>{PIPELINE.map(st=>{const color=PIPE_COLORS[st]||C.muted;const active=dv.status===st;return<div key={st} onClick={()=>{upd(dv.id,{status:st});toast2(`Status: ${st}`);}} style={{padding:'8px 10px',borderRadius:9,border:`1px solid ${active?color:C.bord}`,background:active?`${color}18`:C.surf2,color:active?color:C.muted,textAlign:'center',cursor:'pointer',fontSize:10,fontFamily:font.body}}>{st}</div>;})}</div>
           <div style={s.sectionTitle}>[temp] Warmth</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:16}}>{WARMTH.map(w=>{const color=WARMTH_COLORS[w];const active=dv.warmth===w;return<div key={w} onClick={()=>upd(dv.id,{warmth:w})} style={{padding:'7px 4px',borderRadius:9,border:`1px solid ${active?color:C.bord}`,background:active?`${color}18`:C.surf2,color:active?color:C.muted,textAlign:'center',cursor:'pointer',fontSize:10,fontFamily:font.body}}>{w}</div>;})}</div>
           <div style={s.sectionTitle}>[person] Booker</div>
@@ -3547,7 +3641,7 @@ function StageBoss({user,onLogout,accessToken}){
             {/* P&L RESULTS */}
             <div style={{background:'linear-gradient(135deg,rgba(124,58,237,0.08),rgba(236,72,153,0.05))',border:`1px solid ${C.acc}30`,borderRadius:14,padding:20,marginBottom:16}}>
               <div style={{fontSize:11,color:C.acc2,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:700,marginBottom:14}}>📊 P&L Projection</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              <div style={{...s.grid2,gap:12}}>
                 {[
                   {label:'Est. Tickets Sold',value:calc.totalTickets?.toLocaleString()||'-',color:C.txt},
                   {label:'Gross Revenue',value:fmt$(calc.grossRevenue),color:C.txt},
@@ -3823,7 +3917,7 @@ function CalendarTab({venues,tours=[],onVenueClick,onChecklist,toast2,comedians=
           const pcolor=PIPE_COLORS[v.status]||C.muted;
           const gcalUrl=buildGoogleCalendarUrl(v, v.date||null);
           const outlookUrl=buildOutlookCalendarUrl(v, v.date||null);
-          return <div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:12,padding:'12px 14px',marginBottom:10}}>
+          return <div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${pcolor}`,borderRadius:12,padding:'14px 14px',marginBottom:10,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
               <div style={{flex:1,cursor:'pointer'}} onClick={()=>v.type==='venue'&&onVenueClick&&onVenueClick(v.id)}>
                 <div style={{fontFamily:font.head,fontWeight:700,fontSize:15,marginBottom:3}}>
