@@ -1548,7 +1548,7 @@ function AnalyticsTab({venues, tours}){
 
   const fmtK=(n)=>n>=1000?`$${(n/1000).toFixed(1)}k`:`$${n.toLocaleString()}`;
 
-  return <div>
+  return (<div>
     {/* HEADER */}
     <div style={{marginBottom:20}}>
       <div style={{fontFamily:'Bebas Neue,Impact,sans-serif',fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:4}}>Analytics</div>
@@ -1587,7 +1587,6 @@ function AnalyticsTab({venues, tours}){
             <div style={{fontSize:8,color:isThisMonth?C.acc2:C.muted,fontWeight:isThisMonth?700:400}}>{m.label}</div>
           </div>;
         })}
-      </div>
       </div></div>
       {totalRevenue===0&&<div style={{textAlign:'center',color:C.muted,fontSize:11,marginTop:8}}>No confirmed shows yet — data will appear as you confirm bookings</div>}
     </div>
@@ -1743,7 +1742,7 @@ function AnalyticsTab({venues, tours}){
       <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>Analytics will populate as you use StageBoss</div>
       <div style={{fontSize:12}}>Confirm shows, build tours, and log outreach to start seeing your data here.</div>
     </div>}
-  </div>;
+  </div>);
 }
 
 
