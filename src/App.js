@@ -5218,9 +5218,9 @@ Return a JSON object ONLY (no markdown, no backticks) with this exact structure:
                   {openMonths} MONTHS STILL OPEN IN {viewYear}
                 </div>
                 <div style={{fontSize:11, color:'rgba(200,200,255,0.5)', marginBottom:10}}>
-                  At your current booking pace you're leaving significant revenue on the table.
+                  At your current booking pace — leaving significant revenue on the table.
                 </div>
-                <div style={{display:'flex', gap:8'}}>
+                <div style={{display:'flex', gap:8}}>
                   <button onClick={()=>setMode('plan')} style={{flex:1, padding:'10px', background:'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(236,72,153,0.2))', border:'1px solid rgba(124,58,237,0.4)', borderRadius:10, color:'#a78bfa', fontSize:11, fontWeight:700, cursor:'pointer'}}>
                     🗺️ Generate Tour Plan
                   </button>
