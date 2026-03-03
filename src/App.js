@@ -2413,7 +2413,7 @@ function StageBoss({user,onLogout,accessToken}){
         :v
     ));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }[]);
+  }, []);
 
   const dv=detailId?getV(detailId):null;
   const cv=composeId?getV(composeId):null;
