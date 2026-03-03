@@ -4635,6 +4635,7 @@ function SmartBossAI({venues=[], tours=[], comedians=[]}) {
   const [planResult, setPlanResult] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [activeCard, setActiveCard] = useState(null);
+  const [expandedMonth, setExpandedMonth] = useState(null);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -5044,8 +5045,6 @@ Return a JSON object ONLY (no markdown, no backticks) with this exact structure:
         const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
         const statusColor = s => s==='Confirmed'?'#00b894':s==='Hold'?'#ffd700':s==='Negotiating'?'#a78bfa':s==='Advancing'?'#74b9ff':'rgba(200,200,255,0.4)';
-        const [expandedMonth, setExpandedMonth] = useState(null);
-
         // Week grid: build 52-week strip
         const jan1 = new Date(viewYear, 0, 1);
         const eventByWeek = {};
