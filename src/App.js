@@ -1434,7 +1434,7 @@ class ErrorBoundary extends React.Component {
 // ════════════════════════════════════════════════════════════
 // ANALYTICS TAB COMPONENT
 // ════════════════════════════════════════════════════════════
-function AnalyticsTab({venues, tours}){
+function AnalyticsTab({venues, tours, bestTimeData={}}){
   const C = {
     bg:'#07070f', surf:'#10101e', surf2:'#16162e', bord:'#2a2a50',
     acc:'#7c3aed', acc2:'#a78bfa', green:'#00b894', pink:'#ec4899',
@@ -1661,6 +1661,41 @@ function AnalyticsTab({venues, tours}){
         </div>;
       })}
       {topTemplates.length===0&&<div style={{color:C.muted,fontSize:11}}>Send outreach emails to start tracking response rates</div>}
+    </div>}
+
+    {/* BEST TIME TO CONTACT */}
+    {Object.keys(bestTimeData).length>0&&<div style={card()}>
+      <div style={sectionTitle}>⏰ Best Time to Send</div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Days and times you've sent the most outreach</div>
+      {(()=>{
+        const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        const dayCounts={};
+        const hourCounts={};
+        Object.entries(bestTimeData).forEach(([key,count])=>{
+          const [day,hour]=key.split(':');
+          dayCounts[day]=(dayCounts[day]||0)+count;
+          hourCounts[hour]=(hourCounts[hour]||0)+count;
+        });
+        const topDay=Object.entries(dayCounts).sort((a,b)=>b[1]-a[1])[0];
+        const topHour=Object.entries(hourCounts).sort((a,b)=>b[1]-a[1])[0];
+        const maxDay=Math.max(...Object.values(dayCounts));
+        return<div>
+          <div style={{display:'flex',gap:4,alignItems:'flex-end',height:50,marginBottom:8}}>
+            {days.map(d=>{
+              const count=dayCounts[d]||0;
+              const h=maxDay>0?Math.round((count/maxDay)*50):0;
+              return<div key={d} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                <div style={{width:'100%',height:h||2,background:topDay&&topDay[0]===d?C.acc2:C.bord,borderRadius:'2px 2px 0 0',minHeight:2}}/>
+                <div style={{fontSize:8,color:count>0?C.muted2:C.muted}}>{d}</div>
+              </div>;
+            })}
+          </div>
+          {topDay&&<div style={{fontSize:12,color:C.txt,marginTop:4}}>
+            Best day: <strong style={{color:C.acc2}}>{topDay[0]}</strong>
+            {topHour&&<> · Best time: <strong style={{color:C.acc2}}>{parseInt(topHour[0])>12?parseInt(topHour[0])-12+'pm':topHour[0]+'am'}</strong></>}
+          </div>}
+        </div>;
+      })()}
     </div>}
 
     {/* TOUR PROFITABILITY */}
@@ -1998,6 +2033,13 @@ function StageBoss({user,onLogout,accessToken}){
   const[cityFilter,setCityFilter]=useState('All');
   const[toast,setToast]=useState('');
   const[activeFilter,setActiveFilter]=useState('All');
+  const[hotSheet,setHotSheet]=useState(false);
+  const[dmOpen,setDmOpen]=useState(null);
+  const[researchOpen,setResearchOpen]=useState(null);
+  const[researchResult,setResearchResult]=useState('');
+  const[researchLoading,setResearchLoading]=useState(false);
+  const[winsHistory,setWinsHistory]=useState([]);
+  const[bestTimeData,setBestTimeData]=useState({});
   // panel states
   const[detailId,setDetailId]=useState(null);
   const[composeId,setComposeId]=useState(null);
@@ -2307,8 +2349,71 @@ function StageBoss({user,onLogout,accessToken}){
   useEffect(()=>{try{localStorage.setItem('sb_tours',JSON.stringify(tours));}catch{}},[tours]);
 
   const toast2=useCallback((msg)=>{setToast(msg);setTimeout(()=>setToast(''),2500);},[]);
-  const upd=useCallback((id,fields)=>setVenues(vs=>vs.map(v=>v.id===id?{...v,...fields}:v)),[]);
+  const upd=useCallback((id,fields)=>{
+    // Track wins when status changes to Confirmed
+    if(fields.status==='Confirmed'){
+      setVenues(vs=>{
+        const v=vs.find(x=>x.id===id);
+        if(v&&v.status!=='Confirmed'){
+          setWinsHistory(wh=>[{id:Date.now(),venue:v.venue,city:v.city,state:v.state,guarantee:v.guarantee||fields.guarantee||0,date:new Date().toISOString().split('T')[0]},...wh.slice(0,19)]);
+        }
+        return vs.map(x=>x.id===id?{...x,...fields}:x);
+      });
+    } else {
+      setVenues(vs=>vs.map(v=>v.id===id?{...v,...fields}:v));
+    }
+  },[]);
+
+  // Auto follow-up scheduling based on touch sequence
+  const AUTO_FOLLOWUP_DAYS={1:5,2:7,3:10,4:14};
+  const logTouch=useCallback((id,method='Email',note='')=>{
+    setVenues(vs=>vs.map(v=>{
+      if(v.id!==id) return v;
+      const entry={date:new Date().toISOString().split('T')[0],method,note};
+      const newLog=[...(v.contactLog||[]),entry];
+      const touchNum=newLog.length;
+      const daysOut=AUTO_FOLLOWUP_DAYS[touchNum]||14;
+      const nextDate=new Date(Date.now()+daysOut*24*60*60*1000).toISOString().split('T')[0];
+      return{...v,contactLog:newLog,nextFollowUp:nextDate};
+    }));
+    toast2(`✓ Touch logged — follow-up auto-scheduled`);
+  },[toast2]);
   const getV=(id)=>venues.find(v=>v.id===id);
+
+  // ── BOUNCE TRACKER ──────────────────────────────────────────────────────
+  const markBounced=useCallback((id)=>{
+    setVenues(vs=>vs.map(v=>v.id===id?{...v,emailBounced:true,emailBouncedDate:new Date().toISOString().split('T')[0]}:v));
+    toast2('⚠️ Email marked as bounced');
+  },[toast2]);
+  const clearBounce=useCallback((id)=>{
+    setVenues(vs=>vs.map(v=>v.id===id?{
+      ...v,
+      emailBounced:false,
+      emailBouncedDate:'',
+      contactLog:[], // reset sequence so next email starts at Touch 1
+      status:'Lead', // reset status back to lead
+      warmth: v.warmth === 'Hot' || v.warmth === 'Warm' ? 'Cold' : v.warmth,
+    }:v));
+    toast2('✓ Bounce cleared — sequence reset to Touch 1');
+  },[toast2]);
+
+  // Auto-mark known bounced emails on first load
+  const KNOWN_BOUNCED=[
+    'entertainment@winstar.com','indy@heliumcomedy.com','stl@heliumcomedy.com',
+    'kc@improv.com','entertainment@paysbig.com','schaumburg@improv.com',
+    'info@secondcity.com','entertainment@mohegansun.com','dsm@funnybone.com',
+    'info@acmecomedyco.com','info@laughboston.com','info@comedyunderground.com',
+    'entertainment@tulalipresorts.com','info@wiseguyscomedy.com',
+    'entertainment@parxcasino.com'
+  ];
+  useEffect(()=>{
+    setVenues(vs=>vs.map(v=>
+      KNOWN_BOUNCED.includes((v.email||'').toLowerCase().trim())&&!v.emailBounced
+        ?{...v,emailBounced:true,emailBouncedDate:'2025-01-01'}
+        :v
+    ));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }[]);
 
   const dv=detailId?getV(detailId):null;
   const cv=composeId?getV(composeId):null;
@@ -2341,6 +2446,45 @@ function StageBoss({user,onLogout,accessToken}){
   const depositsDue=useMemo(()=>venues.filter(v=>{if(!v.depositAmount||v.depositPaid||!v.depositDue)return false;const days=daysUntil(v.depositDue);return days!==null&&days>=0&&days<=14;}),[venues]);
 
   const needsPaidMark=useMemo(()=>venues.filter(v=>{if(v.paid||!v.targetDates)return false;return['Confirmed','Advancing','Completed'].includes(v.status);}),[venues]);
+  // Deal expiry: Negotiating/Responded with no activity 14+ days
+  const expiringDeals=useMemo(()=>venues.filter(v=>{
+    if(!['Negotiating','Responded'].includes(v.status)) return false;
+    const log=v.contactLog||[];
+    if(!log.length) return false;
+    const lastTouch=new Date(log[log.length-1].date);
+    const daysSince=Math.floor((Date.now()-lastTouch)/(1000*60*60*24));
+    return daysSince>=14;
+  }),[venues]);
+  // Booking momentum score (0-100)
+  const momentumScore=useMemo(()=>(v)=>{
+    let score=0;
+    const log=v.contactLog||[];
+    if(log.length>0){const last=new Date(log[log.length-1].date);const days=Math.floor((Date.now()-last)/(1000*60*60*24));score+=Math.max(0,30-days*2);}
+    if(v.warmth==='Hot') score+=25;
+    else if(v.warmth==='Warm') score+=15;
+    else if(v.warmth==='Established') score+=20;
+    if(v.status==='Negotiating') score+=25;
+    else if(v.status==='Responded') score+=15;
+    else if(v.status==='Follow-Up') score+=8;
+    if(log.length>=2) score+=10;
+    if(v.email) score+=5;
+    if(v.booker) score+=5;
+    return Math.min(100,score);
+  },[venues]);
+  // Response rate by template
+  const templateStats=useMemo(()=>{
+    const stats={};
+    venues.forEach(v=>{
+      (v.contactLog||[]).forEach(entry=>{
+        if(entry.template){
+          if(!stats[entry.template]) stats[entry.template]={sent:0,responded:0};
+          stats[entry.template].sent++;
+          if(['Responded','Negotiating','Confirmed'].includes(v.status)) stats[entry.template].responded++;
+        }
+      });
+    });
+    return stats;
+  },[venues]);
 
   // State and city options derived from venues
   const stateOptions = useMemo(()=>{
@@ -2830,6 +2974,35 @@ function StageBoss({user,onLogout,accessToken}){
             </div>;
           })()}
 
+          {/* DEAL EXPIRY WARNINGS */}
+          {expiringDeals.length>0&&<div style={{background:'rgba(249,202,36,0.07)',border:'1px solid rgba(249,202,36,0.25)',borderRadius:12,padding:14,marginBottom:14}}>
+            <div style={{fontSize:10,color:C.yellow,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700,marginBottom:8}}>🔥 Deals Going Cold · {expiringDeals.length}</div>
+            {expiringDeals.map(v=>{
+              const log=v.contactLog||[];
+              const last=new Date(log[log.length-1].date);
+              const days=Math.floor((Date.now()-last)/(1000*60*60*24));
+              return<div key={v.id} onClick={()=>setComposeId(v.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:`1px solid rgba(249,202,36,0.1)`,cursor:'pointer'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>{v.venue}</div>
+                  <div style={{fontSize:11,color:C.muted3}}>{v.status} · No contact for {days} days</div>
+                </div>
+                <span style={{fontSize:11,color:C.yellow,fontWeight:700}}>Follow Up →</span>
+              </div>;
+            })}
+          </div>}
+
+          {/* WINS FEED */}
+          {winsHistory.length>0&&<div style={{background:'rgba(0,184,148,0.06)',border:'1px solid rgba(0,184,148,0.2)',borderRadius:12,padding:14,marginBottom:14}}>
+            <div style={{fontSize:10,color:C.green,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700,marginBottom:8}}>🏆 Recent Wins</div>
+            {winsHistory.slice(0,3).map(w=><div key={w.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:`1px solid rgba(0,184,148,0.1)`}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600}}>{w.venue} ✓</div>
+                <div style={{fontSize:11,color:C.muted3}}>{w.city}, {w.state} · {w.date}</div>
+              </div>
+              {w.guarantee>0&&<span style={{fontSize:13,color:C.green,fontWeight:700}}>{fmt$(w.guarantee)}</span>}
+            </div>)}
+          </div>}
+
           {/* DAILY CONTACT LIST */}
           {(()=>{
             const today=new Date();
@@ -2967,12 +3140,56 @@ function StageBoss({user,onLogout,accessToken}){
         {/* == OUTREACH TAB == */}
         {tab==='outreach'&&<div style={{padding:'14px 14px 100px'}}>
           {/* OUTREACH HEADER */}
-          <div style={{marginBottom:20}}>
-            <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:4}}>Outreach</div>
-            <div style={{fontSize:12,color:C.muted3}}>Email your venue contacts with AI-powered drafts</div>
+          <div style={{marginBottom:16}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+              <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5}}>Outreach</div>
+              <button onClick={()=>setHotSheet(h=>!h)} style={{...s.btn(hotSheet?'rgba(249,202,36,0.2)':C.surf2,hotSheet?C.yellow:C.muted,hotSheet?'rgba(249,202,36,0.4)':C.bord),padding:'6px 12px',fontSize:11,fontWeight:700,flexShrink:0}}>{hotSheet?'🔥 Hot Sheet ON':'🔥 Hot Sheet'}</button>
+            </div>
+            <div style={{fontSize:12,color:C.muted3}}>{hotSheet?'Live deals only — Responding & Negotiating':'Email your venue contacts with AI-powered drafts'}</div>
+            {venues.filter(v=>v.emailBounced).length>0&&(
+              <div style={{marginTop:10,background:'rgba(225,112,85,0.08)',border:'1px solid rgba(225,112,85,0.25)',borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:16}}>⚠️</span>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:'#e17055'}}>{venues.filter(v=>v.emailBounced).length} venues with bounced emails</div>
+                  <div style={{fontSize:11,color:C.muted3}}>Marked in red below — update their email before sending</div>
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* HOT SHEET VIEW */}
+          {hotSheet&&<div style={{marginBottom:16}}>
+            <div style={{fontSize:10,color:C.yellow,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700,marginBottom:10}}>🔥 Live Deals — Close These Now</div>
+            {venues.filter(v=>['Negotiating','Responded','Hold'].includes(v.status)).sort((a,b)=>(b.guarantee||0)-(a.guarantee||0)).map(v=>{
+              const score=momentumScore(v);
+              const log=v.contactLog||[];
+              const lastDate=log.length?log[log.length-1].date:null;
+              const daysSince=lastDate?Math.floor((Date.now()-new Date(lastDate))/(1000*60*60*24)):null;
+              return<div key={v.id} onClick={()=>setComposeId(v.id)} style={{...s.card(),padding:'12px 14px',marginBottom:8,cursor:'pointer',borderColor:'rgba(249,202,36,0.2)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{v.venue}</div>
+                    <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {v.status} · {log.length} touches</div>
+                    {daysSince!==null&&<div style={{fontSize:10,color:daysSince>14?C.red:daysSince>7?C.yellow:C.green,marginTop:2}}>{daysSince===0?'Contacted today':`Last contact: ${daysSince}d ago`}</div>}
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+                    {v.guarantee>0&&<span style={{fontSize:12,color:C.green,fontWeight:700}}>{fmt$(v.guarantee)}</span>}
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <div style={{width:40,height:4,background:C.bord,borderRadius:2,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:score+'%',background:score>70?C.green:score>40?C.yellow:C.orange,borderRadius:2}}/>
+                      </div>
+                      <span style={{fontSize:9,color:C.muted}}>{score}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>;
+            })}
+            {venues.filter(v=>['Negotiating','Responded','Hold'].includes(v.status)).length===0&&
+              <div style={{textAlign:'center',padding:'20px 0',color:C.muted,fontSize:13}}>No active deals yet — keep outreaching!</div>}
+          </div>}
+
           {/* VENUE LIST FOR OUTREACH */}
+          {!hotSheet&&<>
           <div style={{fontSize:11,color:C.muted2,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:700,marginBottom:12}}>All Venues by Priority</div>
           {['Hot','Warm','Cold','Established'].map(warmth=>{
             const group=venues.filter(v=>v.warmth===warmth).sort((a,b)=>{
@@ -2986,20 +3203,28 @@ function StageBoss({user,onLogout,accessToken}){
               <div style={{...s.badge(wColor),marginBottom:8,fontSize:11}}>{warmth} · {group.length}</div>
               {group.map(v=>{
                 const overdue=v.nextFollowUp&&isOverdue(v.nextFollowUp);
-                return<div key={v.id} style={{...s.card(),padding:'12px 16px',marginBottom:6,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}
+                const bounced=v.emailBounced;
+                return<div key={v.id} style={{...s.card(),padding:'12px 16px',marginBottom:6,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderColor:bounced?'rgba(225,112,85,0.4)':undefined,background:bounced?'rgba(225,112,85,0.04)':undefined}}
                   onClick={()=>setComposeId(v.id)}>
                   <div>
-                    <div style={{fontSize:13,fontWeight:600}}>{v.venue}</div>
+                    <div style={{fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:6}}>
+                      {v.venue}
+                      {bounced&&<span style={{fontSize:9,fontWeight:700,color:'#e17055',background:'rgba(225,112,85,0.15)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:4,padding:'1px 5px',letterSpacing:'0.05em'}}>BOUNCED</span>}
+                    </div>
                     <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {v.status} · {(v.contactLog||[]).length} touches</div>
+                    {bounced&&v.email&&<div style={{fontSize:10,color:'#e17055',marginTop:2}}>✗ {v.email}</div>}
                   </div>
                   <div style={{display:'flex',gap:8,alignItems:'center'}}>
                     {overdue&&<span style={s.badge(C.red)}>⚡ Due</span>}
+                    {bounced&&<span style={{...s.badge('#e17055'),fontSize:9}}>⚠️ Fix Email</span>}
                     <span style={{fontSize:18,color:C.acc2}}>›</span>
                   </div>
                 </div>;
               })}
             </div>;
           })}
+          </>
+          }
         </div>}
 
         {tab==='tours'&&<div style={{padding:'14px 14px 100px'}}>
@@ -3286,7 +3511,7 @@ function StageBoss({user,onLogout,accessToken}){
 
         {/* == ANALYTICS TAB == */}
         {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
-          <AnalyticsTab venues={venues} tours={tours} />
+          <AnalyticsTab venues={venues} tours={tours} bestTimeData={bestTimeData} />
         </div>}
 
       </div>{/* end content */}
@@ -3333,7 +3558,41 @@ function StageBoss({user,onLogout,accessToken}){
             <div style={s.field()}><label style={s.label}>Last Name</label><input style={s.input(12)} defaultValue={dv.bookerLast||''} onChange={e=>upd(dv.id,{bookerLast:e.target.value})} placeholder="Smith"/></div>
           </div>
           <div style={s.sectionTitle}>[phone] Contact</div>
-          <div style={{marginBottom:16}}>{[['Email',dv.email],['Instagram',dv.instagram],['Phone',dv.phone],['Address',dv.address?(dv.address+(dv.zip?' '+dv.zip:'')):'']].map(([l,val])=>val?<div key={l} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 0',borderBottom:`1px solid ${C.bord}`}}><span style={{fontSize:10,color:C.muted,width:72,flexShrink:0,letterSpacing:1,textTransform:'uppercase'}}>{l}</span><span style={{fontSize:13,flex:1,wordBreak:'break-all'}}>{val}</span><button onClick={()=>copyText(val,l,toast2)} style={{padding:'3px 10px',borderRadius:6,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer'}}>copy</button></div>:null)}</div>
+          <div style={{marginBottom:16}}>
+            {dv.emailBounced&&<div style={{background:'rgba(225,112,85,0.08)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:8,padding:'10px 12px',marginBottom:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:'#e17055'}}>⚠️ Email Bounced</div>
+                <div style={{fontSize:11,color:C.muted3}}>Update the email address before sending again</div>
+              </div>
+              <button onClick={()=>clearBounce(dv.id)} style={{fontSize:10,padding:'4px 10px',borderRadius:6,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:'#00b894',cursor:'pointer',whiteSpace:'nowrap'}}>✓ Mark Fixed</button>
+            </div>}
+            {[
+              {label:'Email', field:'email', type:'email', placeholder:'booking@venue.com'},
+              {label:'Phone', field:'phone', type:'tel', placeholder:'+1 (555) 000-0000'},
+              {label:'Instagram', field:'instagram', type:'text', placeholder:'@venuebooker'},
+              {label:'Address', field:'address', type:'text', placeholder:'123 Main St'},
+            ].map(({label,field,type,placeholder})=>(
+              <div key={field} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 0',borderBottom:`1px solid ${C.bord}`}}>
+                <span style={{fontSize:10,color:C.muted,width:72,flexShrink:0,letterSpacing:1,textTransform:'uppercase'}}>{label}</span>
+                <input
+                  type={type}
+                  defaultValue={dv[field]||''}
+                  placeholder={placeholder}
+                  onBlur={e=>{
+                    if(e.target.value!==dv[field]){
+                      upd(dv.id,{[field]:e.target.value});
+                      if(field==='email'&&dv.emailBounced&&e.target.value!==dv.email) clearBounce(dv.id);
+                      toast2(`✓ ${label} updated`);
+                    }
+                  }}
+                  style={{flex:1,background:'transparent',border:'none',borderBottom:`1px dashed ${C.bord}`,color:field==='email'&&dv.emailBounced?'#e17055':C.txt,fontSize:13,padding:'2px 4px',outline:'none',fontFamily:'inherit',minWidth:0}}
+                />
+                {dv[field]&&<button onClick={()=>copyText(dv[field],label,toast2)} style={{padding:'3px 10px',borderRadius:6,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer',flexShrink:0}}>copy</button>}
+                {field==='email'&&dv.emailBounced&&<span style={{fontSize:9,color:'#e17055',flexShrink:0}}>⚠️</span>}
+              </div>
+            ))}
+            {dv.email&&!dv.emailBounced&&<div style={{padding:'8px 0',display:'flex',justifyContent:'flex-end'}}><button onClick={()=>markBounced(dv.id)} style={{fontSize:10,padding:'3px 10px',borderRadius:6,border:'1px solid rgba(225,112,85,0.3)',background:'rgba(225,112,85,0.06)',color:'#e17055',cursor:'pointer'}}>⚠️ Mark Email Bounced</button></div>}
+          </div>
           <div style={s.field()}><label style={s.label}>Address</label><input style={s.input(12)} defaultValue={dv.address||''} placeholder="123 Main St" onBlur={e=>upd(dv.id,{address:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>Zip Code</label><input style={s.input(12)} defaultValue={dv.zip||''} placeholder="90028" onBlur={e=>upd(dv.id,{zip:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>Target Dates</label><input style={s.input(12)} defaultValue={dv.targetDates||''} onChange={e=>upd(dv.id,{targetDates:e.target.value})} placeholder="June 21-24"/></div>
@@ -3428,7 +3687,15 @@ function StageBoss({user,onLogout,accessToken}){
           <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:14,padding:14,marginBottom:12}}>
             <div style={s.sectionTitle}>[email] Generated Email</div>
             <div style={{background:C.bg,border:`1px solid ${C.bord}`,borderRadius:10,padding:12,marginBottom:10}}>
-              <div style={{fontSize:10,color:C.muted,marginBottom:4}}>To: {cv.email||'No email on file'}</div>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <span>To: {cv.email||'No email on file'}</span>
+                {cv.emailBounced&&<span style={{fontSize:9,fontWeight:700,color:'#e17055',background:'rgba(225,112,85,0.15)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:4,padding:'1px 6px'}}>⚠️ EMAIL BOUNCED</span>}
+                {cv.email&&(
+                  cv.emailBounced
+                    ?<button onClick={()=>clearBounce(cv.id)} style={{fontSize:9,padding:'2px 7px',borderRadius:4,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:'#00b894',cursor:'pointer'}}>✓ Mark Fixed</button>
+                    :<button onClick={()=>markBounced(cv.id)} style={{fontSize:9,padding:'2px 7px',borderRadius:4,border:'1px solid rgba(225,112,85,0.3)',background:'rgba(225,112,85,0.08)',color:'#e17055',cursor:'pointer'}}>⚠️ Mark Bounced</button>
+                )}
+              </div>
               <div style={{fontSize:12,color:C.acc2,marginBottom:8,fontWeight:500}}>Subject: {filledSubject}</div>
               <div style={{fontSize:11,color:'#9090b0',lineHeight:1.8,whiteSpace:'pre-wrap',maxHeight:220,overflowY:'auto'}}>{fullBody}</div>
             </div>
@@ -3436,25 +3703,103 @@ function StageBoss({user,onLogout,accessToken}){
             {cv&&<button onClick={()=>{
               const touches=(cv.contactLog||[]).length;
               const isNew=touches===0;
-              const prompt='You are Jason Schuster, comedian and tour manager for Phil Medina. Write a SHORT natural booking email.\n\nVenue: '+cv.venue+'\nCity: '+cv.city+', '+cv.state+'\nBooker: '+(cv.booker||'their booker')+(cv.bookerLast?' '+cv.bookerLast:'')+'\nRelationship: '+(isNew?'brand new contact, first outreach':'existing contact, touch #'+(touches+1))+'\nPrevious contacts: '+touches+'\nHistory: '+(cv.history||'none')+'\nWarmth: '+(cv.warmth||'Cold')+'\nStatus: '+cv.status+'\nTarget dates: '+(cv.targetDates||'flexible')+'\n\nPhil Medina credits: Laugh Factory, Hollywood Improv, Ice House, Netflix Is A Joke Fest, Hulu West Coast Comedy.\nJason Schuster credits: Comedy Store, Jimmy Kimmel Comedy Club, Kenan Presents.\n\n'+(isNew?'First outreach - warm, professional, brief.':'Follow-up - reference previous outreach, stay persistent but friendly.')+'\n\nWrite ONLY the email body under 120 words. Sign as Jason Schuster.';
-              // API key handled server-side
-              getToken().then(token3=>{
-                if(!token3){toast2('Session expired. Please log out and log in again.');return;}
-                fetch('/.netlify/functions/generate-email',{method:'POST',
-                  headers:{'Content-Type':'application/json','Authorization':'Bearer '+token3},
-                  body:JSON.stringify({venue:cv,tone:'professional',dates:co.customDates||'',touchHistory:(cv.contactLog||[]).slice(-5)})})
-                .then(r=>r.json()).then(d=>{if(d.error){toast2(d.error);return;}setComposeOpts(o=>({...o,aiNote:d.body,filledBody:d.body}));toast2('AI draft ready!');})
-                .catch(e=>toast2('Connection error: '+e.message));
-              });
+              const targetDates=co.customDates||cv.targetDates||'flexible';
+              const booker=(cv.booker||'there')+(cv.bookerLast?' '+cv.bookerLast:'');
+              const prompt='You are Jason Schuster, comedian and tour manager for Phil Medina, a nationally touring headliner.\n\nVenue: '+cv.venue+'\nCity: '+cv.city+', '+cv.state+'\nBooker: '+booker+'\nTouch #: '+(touches+1)+'\nRelationship: '+(isNew?'First ever contact - brand new cold outreach':'Existing contact - touch #'+(touches+1)+', reached out '+touches+' time'+(touches===1?'':'s')+' before')+'\nWarmth: '+(cv.warmth||'Cold')+'\nStatus: '+cv.status+'\nTarget dates: '+targetDates+'\nNotes: '+(cv.history||cv.notes||'none')+'\n\nPhil Medina credits: Laugh Factory, Hollywood Improv, Ice House Comedy Club, Netflix Is A Joke Fest, Hulu West Coast Comedy.\nJason Schuster credits: Comedy Store, Jimmy Kimmel Comedy Club, Kenan Presents.\n\n'+(isNew?'Write a warm professional first-touch cold outreach. Brief and friendly, not pushy.':'Write a natural follow-up referencing prior outreach. Persistent but friendly, different opener each time.')+'\n\nWrite ONLY the email body under 120 words. Sign: Jason Schuster / jschucomedy@gmail.com';
               toast2('Generating AI draft...');
-            }} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),width:'100%',marginBottom:8,fontSize:12}}>AI Draft Email (relationship-aware)</button>}
+              fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})})
+              .then(r=>r.json()).then(d=>{
+                const body=d?.content?.[0]?.text?.trim()||'';
+                if(body){setComposeOpts(o=>({...o,aiNote:body,filledBody:body}));toast2('AI draft ready!');}
+                else throw new Error('empty');
+              }).catch(()=>{
+                const b=(cv.booker||'there');
+                const draft=isNew
+                  ?`Hi ${b},\n\nI hope you\'re doing well! I\'m Jason Schuster — I manage Phil Medina, a nationally touring headliner with credits at the Laugh Factory, Hollywood Improv, and Netflix Is A Joke Fest.\n\nWe\'re building Phil\'s touring schedule and would love to explore a date at ${cv.venue}${targetDates!=='flexible'?' around '+targetDates:''}.\n\nWould you be open to a quick chat?\n\nBest,\nJason Schuster\njschucomedy@gmail.com`
+                  :`Hi ${b},\n\nFollowing up on my previous note about Phil Medina at ${cv.venue}. Phil is touring strong right now and I think he\'d do great numbers in your room.\n\nStill looking at dates${targetDates!=='flexible'?' around '+targetDates:''} — would love to make this work!\n\nBest,\nJason Schuster\njschucomedy@gmail.com`;
+                setComposeOpts(o=>({...o,aiNote:draft,filledBody:draft}));toast2('Draft ready!');
+              });
+            }} style={{...s.btn('rgba(108,92,231,0.15)',C.acc2,'rgba(108,92,231,0.4)'),width:'100%',marginBottom:8,fontSize:12,fontWeight:600}}>✨ AI Draft Email (relationship-aware)</button>}
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-              {mailto&&<button onClick={()=>{upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status,nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Outreach email sent via Gmail'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('Opening Gmail...');openGmail(cv?.email||'',filledSubject,fullBody);}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>[email] Open Gmail</button>}
+              {mailto&&cv?.emailBounced&&<div style={{background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:8,padding:'10px 12px',fontSize:12,color:'#e17055',textAlign:'center'}}>⚠️ Email bounced — update the address before sending</div>}
+              {mailto&&!cv?.emailBounced&&<button onClick={()=>{
+  // Track best time to contact
+  const now=new Date();
+  const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()];
+  const hour=now.getHours();
+  setBestTimeData(prev=>{
+    const key=dayName+':'+hour;
+    return{...prev,[key]:(prev[key]||0)+1};
+  });
+  // Use auto follow-up scheduling
+  logTouch(cv.id,'Email','Outreach email sent via Gmail - '+co.templateId);
+  upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status});
+  toast2('Opening Gmail...');
+  openGmail(cv?.email||'',filledSubject,fullBody);
+}} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>📧 Open Gmail</button>}
               <button onClick={()=>copyText(`Subject: ${filledSubject}\n\n${fullBody}`,'Email',toast2)} style={{...s.btn(C.surf2,C.txt,C.bord),flex:'0 0 auto',padding:'12px 14px'}}>Copy</button>
             </div>
           </div>
-          <button onClick={()=>setTemplateOpen(true)} style={{...s.btn(C.surf2,C.acc2,C.bord),width:'100%',marginBottom:10}}>? Edit Templates</button>
-          <button onClick={()=>{upd(cv.id,{status:'Contacted',nextFollowUp:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]});const entry={date:new Date().toISOString().split('T')[0],method:'Email',note:'Marked as contacted'};setVenues(vs=>vs.map(v=>v.id===cv.id?{...v,contactLog:[...(v.contactLog||[]),entry]}:v));toast2('OK Contacted  -  follow-up set');}} style={s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)')}>OK Mark Contacted + Set Follow-Up</button>
+          <button onClick={()=>setTemplateOpen(true)} style={{...s.btn(C.surf2,C.acc2,C.bord),width:'100%',marginBottom:8}}>? Edit Templates</button>
+
+          {/* INSTAGRAM DM DRAFT */}
+          <div style={{background:'rgba(236,72,153,0.06)',border:'1px solid rgba(236,72,153,0.2)',borderRadius:12,padding:14,marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+              <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:'0.06em',textTransform:'uppercase'}}>📸 Instagram DM Draft</div>
+              <button onClick={()=>{
+                const b=(cv.booker||'there');
+                const td=co.customDates||cv.targetDates||'upcoming dates';
+                const dm=`Hey${cv.booker?' '+cv.booker:''}! I'm Jason Schuster, manager for Phil Medina. He's a nationally touring headliner — Laugh Factory, Hollywood Improv, Netflix Is A Joke Fest. We'd love to bring him to ${cv.venue}${td!=='upcoming dates'?' around '+td:''}. Would you be open to chatting? 🎤`;
+                copyText(dm,'DM',toast2);
+                if(cv.instagram){window.open('https://instagram.com/'+cv.instagram.replace('@',''),'_blank');}
+              }} style={{...s.btn('rgba(236,72,153,0.15)',C.pink,'rgba(236,72,153,0.3)'),fontSize:10,padding:'4px 10px',fontWeight:700}}>
+                {cv?.instagram?'Copy + Open IG':'Copy DM'}
+              </button>
+            </div>
+            <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>
+              {`Hey${cv?.booker?' '+cv.booker:''}! I'm Jason Schuster, manager for Phil Medina. He's a nationally touring headliner — Laugh Factory, Hollywood Improv, Netflix Is A Joke Fest. We'd love to bring him to ${cv?.venue||'your venue'}${co.customDates?' around '+co.customDates:''}. Would you be open to chatting? 🎤`}
+            </div>
+            {!cv?.instagram&&<div style={{fontSize:10,color:C.muted,marginTop:6}}>💡 Add Instagram handle to the venue to open their profile automatically</div>}
+          </div>
+
+          {/* VENUE RESEARCH */}
+          <div style={{background:'rgba(14,165,233,0.06)',border:'1px solid rgba(14,165,233,0.2)',borderRadius:12,padding:14,marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:researchOpen===cv?.id?8:0}}>
+              <div style={{fontSize:11,color:C.blue,fontWeight:700,letterSpacing:'0.06em',textTransform:'uppercase'}}>🔍 Venue Research</div>
+              <button onClick={()=>{
+                if(researchOpen===cv?.id){setResearchOpen(null);return;}
+                setResearchOpen(cv.id);
+                setResearchResult('');
+                setResearchLoading(true);
+                const prompt=`Research this comedy venue and provide a brief intel report:\n\nVenue: ${cv.venue}\nCity: ${cv.city}, ${cv.state}\nVenue Type: ${cv.venueType||'Comedy Club'}\n\nProvide:\n1. Typical comedian tier they book (local/regional/national/headliner)\n2. Estimated typical guarantee range\n3. Any known booker preferences or booking style\n4. Best approach for first outreach\n5. One specific talking point that would resonate with this venue\n\nKeep it under 150 words. Be specific and actionable.`;
+                fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:300,messages:[{role:'user',content:prompt}]})})
+                .then(r=>r.json()).then(d=>{setResearchResult(d?.content?.[0]?.text||'No data found');setResearchLoading(false);})
+                .catch(()=>{setResearchResult(`${cv.venue} is a ${cv.venueType||'comedy venue'} in ${cv.city}, ${cv.state}. ${cv.capacity?`Capacity: ${cv.capacity}.`:''} ${cv.guarantee?`Typical guarantee around ${fmt$(cv.guarantee)}.`:''} Approach: professional first-touch email referencing Phil's touring credits. Best angle: emphasize his draw and ability to sell tickets.`);setResearchLoading(false);});
+              }} style={{...s.btn(researchOpen===cv?.id?'rgba(14,165,233,0.2)':C.surf2,C.blue,researchOpen===cv?.id?'rgba(14,165,233,0.4)':C.bord),fontSize:10,padding:'4px 10px',fontWeight:700}}>
+                {researchOpen===cv?.id?'Close':'Research'}
+              </button>
+            </div>
+            {researchOpen===cv?.id&&<div style={{fontSize:12,color:C.muted2,lineHeight:1.7,whiteSpace:'pre-wrap'}}>
+              {researchLoading?'🔍 Researching...':researchResult}
+            </div>}
+          </div>
+
+          {/* MOMENTUM SCORE */}
+          {cv&&(()=>{const score=momentumScore(cv);return<div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:8,marginBottom:8}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700}}>Booking Momentum</div>
+              <div style={{fontSize:11,color:C.muted2,marginTop:2}}>{score>=70?'Strong — push to close':score>=40?'Building — keep touching':'Low — warm this up first'}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,color:score>=70?C.green:score>=40?C.yellow:C.orange}}>{score}</div>
+              <div style={{fontSize:9,color:C.muted}}>/ 100</div>
+            </div>
+            <div style={{width:6,height:40,background:C.bord,borderRadius:3,overflow:'hidden'}}>
+              <div style={{width:'100%',height:score+'%',background:score>=70?C.green:score>=40?C.yellow:C.orange,borderRadius:3,marginTop:(100-score)+'%'}}/>
+            </div>
+          </div>;})()} 
+
+          <button onClick={()=>{logTouch(cv.id,'Email','Marked as contacted');upd(cv.id,{status:'Contacted'});toast2('✓ Contacted + follow-up auto-scheduled');}} style={s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)')}>✓ Mark Contacted + Auto-Schedule Follow-Up</button>
         </>}
       </Panel>
 
