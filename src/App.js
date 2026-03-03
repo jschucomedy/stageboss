@@ -2412,7 +2412,6 @@ function StageBoss({user,onLogout,accessToken}){
         ?{...v,emailBounced:true,emailBouncedDate:'2025-01-01'}
         :v
     ));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dv=detailId?getV(detailId):null;
