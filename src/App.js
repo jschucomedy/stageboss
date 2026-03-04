@@ -4765,21 +4765,23 @@ You speak like a smart, direct industry insider. No fluff. Be specific with city
     setLoading(true);
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const session = await sbAuthClient.auth.getSession();
+      const token = session?.data?.session?.access_token || '';
+      const res = await fetch('/.netlify/functions/smartboss', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`},
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1800,
           system: SYSTEM_PROMPT + contextBlock,
           messages: newMessages.map(m => ({role: m.role, content: m.content})),
+          max_tokens: 1800,
         })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
       const reply = data.content?.find(c => c.type === 'text')?.text || 'No response.';
       setMessages(prev => [...prev, {role:'assistant', content: reply}]);
     } catch(e) {
-      setMessages(prev => [...prev, {role:'assistant', content: '⚠️ Connection error. Check your network and try again.'}]);
+      setMessages(prev => [...prev, {role:'assistant', content: `⚠️ ${e.message || 'Connection error. Try again.'}`}]);
     }
     setLoading(false);
   }
@@ -4838,23 +4840,25 @@ Return a JSON object ONLY (no markdown, no backticks) with this exact structure:
 }`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const session = await sbAuthClient.auth.getSession();
+      const token = session?.data?.session?.access_token || '';
+      const res = await fetch('/.netlify/functions/smartboss', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`},
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
           system: SYSTEM_PROMPT,
           messages: [{role:'user', content: prompt}],
+          max_tokens: 2000,
         })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
       const raw = data.content?.find(c => c.type === 'text')?.text || '{}';
       const clean = raw.replace(/```json|```/g,'').trim();
       const plan = JSON.parse(clean);
       setPlanResult(plan);
     } catch(e) {
-      setPlanResult({error: 'Failed to generate plan. Try again.'});
+      setPlanResult({error: `Failed to generate plan: ${e.message || 'Try again.'}`});
     }
     setPlanLoading(false);
   }
