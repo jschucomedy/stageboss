@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StageBoss — The Complete Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@700;800;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #06060f;
+    --surf: #0e0e1c;
+    --surf2: #141428;
+    --bord: #1e1e40;
+    --acc: #7c3aed;
+    --acc2: #a78bfa;
+    --green: #00b894;
+    --pink: #ec4899;
+    --yellow: #f9ca24;
+    --red: #e17055;
+    --blue: #0ea5e9;
+    --txt: #e8e8ff;
+    --muted: #5050a0;
+    --muted2: #8080b0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 15% 0%, rgba(124,58,237,0.18) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 100%, rgba(236,72,153,0.1) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(0,184,148,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── SECTIONS ── */
+  .section {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 24px 120px;
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .section.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .section-active {
+    border-left: 3px solid var(--acc);
+  }
+
+  /* ── TYPOGRAPHY ── */
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--acc2);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .eyebrow::before {
+    content: '';
+    width: 24px;
+    height: 1px;
+    background: var(--acc2);
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(56px, 10vw, 96px);
+    letter-spacing: -1px;
+    line-height: 0.95;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #e8e8ff 0%, #a78bfa 50%, #ec4899 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(36px, 6vw, 64px);
+    letter-spacing: -0.5px;
+    line-height: 1;
+    margin-bottom: 20px;
+    color: var(--txt);
+  }
+
+  h2 .accent { color: var(--acc2); }
+  h2 .green { color: var(--green); }
+  h2 .pink { color: var(--pink); }
+  h2 .yellow { color: var(--yellow); }
+
+  .lead {
+    font-size: clamp(16px, 2.5vw, 20px);
+    color: var(--muted2);
+    line-height: 1.7;
+    max-width: 680px;
+    margin-bottom: 32px;
+  }
+
+  .lead strong { color: var(--txt); font-weight: 600; }
+
+  /* ── FEATURE CARDS ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .card {
+    background: var(--surf);
+    border: 1px solid var(--bord);
+    border-radius: 16px;
+    padding: 20px;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+
+  .card:hover {
+    border-color: rgba(124,58,237,0.4);
+    transform: translateY(-2px);
+  }
+
+  .card-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--txt);
+    margin-bottom: 6px;
+  }
+
+  .card-body {
+    font-size: 13px;
+    color: var(--muted2);
+    line-height: 1.6;
+  }
+
+  /* ── STAT BLOCKS ── */
+  .stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 24px 0;
+  }
+
+  .stat {
+    background: var(--surf);
+    border: 1px solid var(--bord);
+    border-radius: 12px;
+    padding: 16px 20px;
+    min-width: 120px;
+  }
+
+  .stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  /* ── FEATURE ROW ── */
+  .feature-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: var(--surf);
+    border: 1px solid var(--bord);
+    border-radius: 16px;
+  }
+
+  .feature-row-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+    width: 48px;
+    text-align: center;
+  }
+
+  .feature-row-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--txt);
+    margin-bottom: 6px;
+  }
+
+  .feature-row-body {
+    font-size: 13px;
+    color: var(--muted2);
+    line-height: 1.6;
+  }
+
+  .feature-row-body strong { color: var(--acc2); }
+
+  /* ── HIGHLIGHT BOX ── */
+  .highlight {
+    background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(236,72,153,0.06));
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 24px 0;
+  }
+
+  .highlight-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 0.5px;
+    color: var(--acc2);
+    margin-bottom: 10px;
+  }
+
+  .highlight p {
+    font-size: 14px;
+    color: var(--muted2);
+    line-height: 1.7;
+  }
+
+  .highlight p strong { color: var(--txt); }
+
+  /* ── DIVIDER ── */
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--bord), transparent);
+    margin: 40px 0;
+  }
+
+  /* ── PILL TAGS ── */
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 16px 0;
+  }
+
+  .tag {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .tag-purple { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.3); color: var(--acc2); }
+  .tag-green { background: rgba(0,184,148,0.12); border: 1px solid rgba(0,184,148,0.3); color: var(--green); }
+  .tag-pink { background: rgba(236,72,153,0.12); border: 1px solid rgba(236,72,153,0.3); color: var(--pink); }
+  .tag-yellow { background: rgba(249,202,36,0.12); border: 1px solid rgba(249,202,36,0.3); color: var(--yellow); }
+  .tag-blue { background: rgba(14,165,233,0.12); border: 1px solid rgba(14,165,233,0.3); color: var(--blue); }
+
+  /* ── NUMBER LIST ── */
+  .num-list { margin: 16px 0; }
+  .num-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .num-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(124,58,237,0.2);
+    border: 1px solid rgba(124,58,237,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--acc2);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .num-text {
+    font-size: 14px;
+    color: var(--muted2);
+    line-height: 1.6;
+  }
+  .num-text strong { color: var(--txt); }
+
+  /* ── REVENUE BAR ── */
+  .rev-bar {
+    background: var(--surf);
+    border: 1px solid var(--bord);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .rev-label { font-size: 13px; color: var(--txt); font-weight: 600; min-width: 180px; }
+  .rev-track { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+  .rev-fill { height: 100%; border-radius: 3px; transition: width 1.5s ease; }
+  .rev-val { font-family: 'Bebas Neue', sans-serif; font-size: 18px; min-width: 80px; text-align: right; }
+
+  /* ── PLAYER BAR ── */
+  .player {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(6,6,15,0.97);
+    border-top: 1px solid rgba(124,58,237,0.3);
+    backdrop-filter: blur(20px);
+    z-index: 1000;
+    padding: 12px 20px;
+  }
+
+  .player-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .player-brain {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--acc), var(--pink));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+
+  .player-info { flex: 1; min-width: 0; }
+
+  .player-section {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--acc2);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 2px;
+  }
+
+  .player-text {
+    font-size: 12px;
+    color: var(--muted2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.3s;
+  }
+
+  .player-text.speaking { color: var(--txt); }
+
+  .player-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .ctrl-btn {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--bord);
+    background: var(--surf);
+    color: var(--txt);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .ctrl-btn:hover { background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.4); }
+  .ctrl-btn.active { background: linear-gradient(135deg, var(--acc), var(--pink)); border-color: transparent; }
+
+  .play-btn {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, var(--acc), var(--pink));
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.4);
+    transition: transform 0.2s;
+  }
+
+  .play-btn:hover { transform: scale(1.05); }
+
+  /* Progress */
+  .progress-track {
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--acc), var(--pink));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  /* Nav dots */
+  .nav-dots {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .nav-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--bord);
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid transparent;
+  }
+
+  .nav-dot.active {
+    background: var(--acc2);
+    transform: scale(1.4);
+  }
+
+  .nav-dot:hover { background: var(--muted); }
+
+  /* ── WAVEFORM ── */
+  .waveform {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 20px;
+  }
+
+  .wave-bar {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--acc2);
+    opacity: 0.4;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+
+  .wave-bar.playing { opacity: 1; }
+
+  @keyframes wave {
+    0%, 100% { height: 4px; }
+    50% { height: 16px; }
+  }
+
+  /* ── HERO SECTION ── */
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(124,58,237,0.15);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--acc2);
+    margin-bottom: 24px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.08em;
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .hero-stat {
+    background: var(--surf);
+    border: 1px solid var(--bord);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .hero-stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .hero-stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* Glowing border animation */
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(124,58,237,0.2); }
+    50% { box-shadow: 0 0 40px rgba(124,58,237,0.4), 0 0 60px rgba(236,72,153,0.1); }
+  }
+
+  .glow { animation: glow-pulse 3s ease-in-out infinite; }
+
+  /* ── CLOSING ── */
+  .closing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .closing-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: var(--surf);
+    border: 1px solid var(--bord);
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .closing-check {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: rgba(0,184,148,0.15);
+    border: 1px solid rgba(0,184,148,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+    color: var(--green);
+  }
+
+  .closing-label { font-size: 13px; color: var(--txt); font-weight: 600; }
+
+  @media (max-width: 600px) {
+    .hero-grid { grid-template-columns: repeat(2, 1fr); }
+    .closing-grid { grid-template-columns: 1fr; }
+    .nav-dots { display: none; }
+    .cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV DOTS -->
+<div class="nav-dots" id="navDots"></div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 0 — HERO
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s0">
+  <div class="hero-badge">🎤 Built for the Comedy Industry</div>
+  <h1>Stage<br>Boss</h1>
+  <p class="lead">The first <strong>all-in-one touring management platform</strong> built specifically for comedians and their managers. Book smarter, tour further, earn more.</p>
+  <div class="tags">
+    <span class="tag tag-purple">333 Venues</span>
+    <span class="tag tag-green">AI-Powered</span>
+    <span class="tag tag-pink">SmartBoss AI</span>
+    <span class="tag tag-yellow">Tour Builder</span>
+    <span class="tag tag-blue">Cloud Sync</span>
+  </div>
+  <div class="hero-grid">
+    <div class="hero-stat">
+      <div class="hero-stat-val" style="color:var(--acc2)">333</div>
+      <div class="hero-stat-label">Venues in Database</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val" style="color:var(--green)">10</div>
+      <div class="hero-stat-label">Core Features</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val" style="color:var(--pink)">AI</div>
+      <div class="hero-stat-label">Tour Intelligence</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 1 — TODAY TAB
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s1">
+  <div class="eyebrow">Feature 01</div>
+  <h2>The <span class="accent">Today</span> Tab</h2>
+  <p class="lead">Your <strong>daily command center</strong>. Every morning you open StageBoss and this screen tells you exactly what needs your attention today — no guessing, no missed follow ups.</p>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📊</div>
+    <div>
+      <div class="feature-row-title">Revenue Tracker 2026</div>
+      <div class="feature-row-body">Live running total of <strong>confirmed revenue for the year</strong>. Updates in real time every time you confirm a new show. Shows confirmed shows count and percentage of your annual goal.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">⚡</div>
+    <div>
+      <div class="feature-row-title">Contact Today — Daily Hit List</div>
+      <div class="feature-row-body">StageBoss automatically surfaces the <strong>venues that are overdue for outreach</strong> based on your follow up schedule. You open the app, you see exactly who to email first. No spreadsheet needed.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🏆</div>
+    <div>
+      <div class="feature-row-title">Recent Wins Feed</div>
+      <div class="feature-row-body">Every time you confirm a show it appears here instantly. <strong>Momentum is everything</strong> in booking — seeing your wins stack up keeps you moving. Each win shows venue, city, date, and guarantee.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🎭</div>
+    <div>
+      <div class="feature-row-title">Comedian Roster Quick Access</div>
+      <div class="feature-row-body">One tap to view and manage your full comedian roster including blackout dates, fees, and availability — all from the Today tab.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📈</div>
+    <div>
+      <div class="feature-row-title">Export P&L Statement</div>
+      <div class="feature-row-body">Generate a <strong>professional profit and loss statement</strong> for the year with one tap. Ready to share with your comedian, accountant, or business partner.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 2 — VENUE CRM
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s2">
+  <div class="eyebrow">Feature 02</div>
+  <h2>Venue <span class="green">CRM</span></h2>
+  <p class="lead">A <strong>333-venue database</strong> covering every major comedy club, theater, casino, university, and arena in the country — with full contact data pre-loaded and ready to use.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-val" style="color:var(--acc2)">333</div><div class="stat-label">Total Venues</div></div>
+    <div class="stat"><div class="stat-val" style="color:var(--green)">86</div><div class="stat-label">Universities</div></div>
+    <div class="stat"><div class="stat-val" style="color:var(--yellow)">50+</div><div class="stat-label">Casinos</div></div>
+    <div class="stat"><div class="stat-val" style="color:var(--pink)">150+</div><div class="stat-label">Comedy Clubs</div></div>
+  </div>
+
+  <div class="highlight">
+    <div class="highlight-title">Every Venue Includes</div>
+    <p>Full street address · Direct phone number · Booking email · Instagram handle · Capacity · Typical guarantee · Booker name where available · Venue type · Deal type defaults</p>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">🔍</div>
+      <div class="card-title">Smart Filtering</div>
+      <div class="card-body">Filter by state, city, venue type, status, and warmth level. Find every comedy club in Illinois or every casino in Nevada in two seconds.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <div class="card-title">Status Pipeline</div>
+      <div class="card-body">Track every venue from Lead → Contacted → Responding → Negotiating → Hold → Confirmed → Completed. Your entire pipeline in one view.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🌡️</div>
+      <div class="card-title">Warmth Tracking</div>
+      <div class="card-body">Cold, Warm, Hot, Established. Instantly know the temperature of every relationship so you prioritize the right conversations.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📋</div>
+      <div class="card-title">Full Deal Terms</div>
+      <div class="card-body">Store guarantee, deal type, ticket price, capacity, lodging, contract status, radius clause, deposit info, and payment timing for every venue.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📝</div>
+      <div class="card-title">Contact Log</div>
+      <div class="card-body">Every email sent, every call made, every follow up logged automatically. Complete outreach history for every venue in one place.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">✅</div>
+      <div class="card-title">Show Checklist</div>
+      <div class="card-body">Pre-show checklist for every confirmed booking — contract signed, deposit paid, lodging confirmed, sound check scheduled, settlement ready.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 3 — OUTREACH
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s3">
+  <div class="eyebrow">Feature 03</div>
+  <h2><span class="pink">AI</span> Outreach Engine</h2>
+  <p class="lead">Stop writing the same email over and over. StageBoss <strong>writes every booking email for you</strong> using AI — personalized for each venue, each booker, and each point in the conversation sequence.</p>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">✉️</div>
+    <div>
+      <div class="feature-row-title">8 Smart Email Templates</div>
+      <div class="feature-row-body">
+        <strong>Comedy Club Touch 1</strong> — Cold outreach to clubs<br>
+        <strong>Casino Touch 1</strong> — Casino-specific pitch<br>
+        <strong>College Touch 1</strong> — University programming pitch<br>
+        <strong>Follow-Up Touch 2</strong> — Short, friendly nudge<br>
+        <strong>Follow-Up Touch 3</strong> — Professional, firmer<br>
+        <strong>Follow-Up Touch 4</strong> — Final attempt<br>
+        <strong>Jason Solo</strong> — Personal cold outreach<br>
+        <strong>Existing Relationship</strong> — New dates for past venues
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🤖</div>
+    <div>
+      <div class="feature-row-title">AI Email Generation</div>
+      <div class="feature-row-body">Every email is <strong>written by Claude AI</strong> — personalized with the booker's name, venue name, city, capacity, your dates, and Phil's bio. No two emails are identical. Sounds like a real human, not a template blast.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🔥</div>
+    <div>
+      <div class="feature-row-title">Hot Sheet Filter</div>
+      <div class="feature-row-body">One tap filters your entire venue list to show <strong>only live deals</strong> — venues that are Responding or Negotiating right now. Your active pipeline, instant view. No noise, just the money conversations.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📸</div>
+    <div>
+      <div class="feature-row-title">Instagram DM Draft</div>
+      <div class="feature-row-body">Every venue has a ready-to-send <strong>Instagram DM</strong> pre-written. If email doesn't get a response, one tap copies the DM and opens their Instagram profile. Two-channel outreach built in.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📊</div>
+    <div>
+      <div class="feature-row-title">Booking Momentum Score (0–100)</div>
+      <div class="feature-row-body">Every venue gets a <strong>real-time momentum score</strong> based on touches sent, response time, warmth level, and deal stage. Know at a glance which venues are heating up and which are going cold.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🔍</div>
+    <div>
+      <div class="feature-row-title">Venue Research AI</div>
+      <div class="feature-row-body">Before pitching any venue, tap Venue Research and get an <strong>AI-generated briefing</strong> — typical guarantee, capacity notes, how to approach their booker, and the best angle for your pitch.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">⚡</div>
+    <div>
+      <div class="feature-row-title">Bounce Detection & Auto-Flag</div>
+      <div class="feature-row-body">Email bounce back? Mark it bounced in one tap. StageBoss <strong>flags the venue</strong>, stops the sequence, and prompts you to find a corrected email. Keeps your outreach clean and deliverable.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 4 — TOUR BUILDER
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s4">
+  <div class="eyebrow">Feature 04</div>
+  <h2>Tour <span class="yellow">Builder</span></h2>
+  <p class="lead">Build <strong>complete tours from scratch</strong> — every show date, every venue, every deal term, every payout tracked in one place. Your entire touring operation organized professionally.</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">📅</div>
+      <div class="card-title">Multi-Show Tour Creation</div>
+      <div class="card-body">Name your tour, set start and end dates, add every show date with venue, city, date, deal type, guarantee, and status. Build an unlimited number of tours.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">💰</div>
+      <div class="card-title">4 Deal Types</div>
+      <div class="card-body">Flat Guarantee, Door Deal, Versus Deal, and Guarantee + Bonus. Each deal type has its own fields — GBOR percentage, door splits, venue minimums, bonus thresholds.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎭</div>
+      <div class="card-title">Comedian Payouts Per Show</div>
+      <div class="card-body">Enter projected and actual payouts for every comedian on every show date. Track who gets paid what across the entire tour automatically.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <div class="card-title">Live Tour P&L</div>
+      <div class="card-body">Gross revenue, travel budget, lodging budget, misc expenses, comedian payouts, and net estimate — calculated automatically and updated in real time as you add shows.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🗺️</div>
+      <div class="card-title">Route Planner</div>
+      <div class="card-body">Add venues to a visual route and map every stop on Google Maps. See your entire tour geography at a glance and optimize for minimal dead miles.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🚫</div>
+      <div class="card-title">Blackout Date Warnings</div>
+      <div class="card-body">Schedule a show on a date when a comedian is blacked out and StageBoss warns you instantly. Prevents double bookings before they happen.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="highlight">
+    <div class="highlight-title">📋 Professional Tour Documents — One Tap</div>
+    <p><strong>Tour Schedule PDF</strong> — every date, venue, location, deal type, and guarantee in a clean printable document.<br><br>
+    <strong>Revenue Forecast Report</strong> — confirmed revenue, holds, pipeline, and best case total in a shareable professional format.<br><br>
+    Both documents are generated instantly and include your contact info and the StageBoss branding.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 5 — CALENDAR
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s5">
+  <div class="eyebrow">Feature 05</div>
+  <h2>Calendar <span class="accent">View</span></h2>
+  <p class="lead">Every confirmed show from every tour displayed <strong>chronologically in one unified calendar</strong>. See your entire schedule at a glance — no switching between tours or tabs.</p>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📅</div>
+    <div>
+      <div class="feature-row-title">Unified Show Timeline</div>
+      <div class="feature-row-body">All shows from all tours appear in date order. Each card shows venue name, tour name, city, date, status, deal type, and guarantee. Your complete schedule in one scroll.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📱</div>
+    <div>
+      <div class="feature-row-title">Add Tour to Phone Calendar</div>
+      <div class="feature-row-body">One tap syncs your entire tour to your phone's native calendar app. <strong>Never miss a show date</strong>. Works on iPhone and Android.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🔗</div>
+    <div>
+      <div class="feature-row-title">Show Detail Quick Access</div>
+      <div class="feature-row-body">Tap any show in the calendar to see full deal details — then jump directly to edit the tour or open the venue CRM card. Everything connected.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">✅</div>
+    <div>
+      <div class="feature-row-title">Show Checklist Integration</div>
+      <div class="feature-row-body">Access the pre-show checklist for any confirmed booking directly from the calendar. Track contract, deposit, lodging, and settlement status for every date.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 6 — ANALYTICS
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s6">
+  <div class="eyebrow">Feature 06</div>
+  <h2>Analytics <span class="green">&</span> Revenue Intelligence</h2>
+  <p class="lead">Real business intelligence for your touring career. <strong>See exactly where your money comes from</strong>, what your conversion rate is, and what your revenue trajectory looks like for the rest of the year.</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">📈</div>
+      <div class="card-title">Revenue by Month</div>
+      <div class="card-body">Visual bar chart of all 12 months. See which months are booked and which are dead at a glance. Your entire year in one chart.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎯</div>
+      <div class="card-title">Outreach Conversion Funnel</div>
+      <div class="card-body">Total venues → Contacted → Responded → Confirmed with percentage at each stage. Know exactly how efficient your booking machine is.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏛️</div>
+      <div class="card-title">Revenue by Venue Type</div>
+      <div class="card-body">Comedy clubs vs theaters vs casinos vs universities. See where your revenue actually comes from and where to focus your energy.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📍</div>
+      <div class="card-title">Top Markets by Revenue</div>
+      <div class="card-body">Which states and cities are generating the most money. Instantly know your highest-value markets so you can return to them strategically.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <div class="card-title">Booking Velocity</div>
+      <div class="card-body">Average days from first contact to confirmed booking. How fast are you closing? Track cold leads, active pipeline, and shows on hold.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">👕</div>
+      <div class="card-title">Merch Analytics</div>
+      <div class="card-body">Track merchandise revenue separately from show guarantees. See your merch income trend across the year alongside your booking revenue.</div>
+    </div>
+  </div>
+
+  <div class="highlight" style="margin-top:24px">
+    <div class="highlight-title">📈 Revenue Projections — 3, 6, and 12 Months</div>
+    <p>StageBoss calculates your projected revenue using <strong>close probability weights</strong> for every stage of your pipeline — Negotiating at 80%, Hold at 60%, Responded at 45%, Follow-Up at 25%, Contacted at 12%, Lead at 5%. Your total projected revenue updates in real time as your pipeline moves.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 7 — COMEDIAN ROSTER
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s7">
+  <div class="eyebrow">Feature 07</div>
+  <h2>Comedian <span class="pink">Roster</span></h2>
+  <p class="lead">Manage your <strong>entire stable of comedians</strong> — their roles, fees, availability, and blackout dates — all connected to every tour and booking in the system.</p>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">👤</div>
+    <div>
+      <div class="feature-row-title">Comedian Profiles</div>
+      <div class="feature-row-body">Each comedian has a full profile with <strong>role</strong> (Headliner, Feature, Opener, Guest, Host/MC), <strong>default fee</strong>, active status, and notes. Add as many comedians as you manage.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🚫</div>
+    <div>
+      <div class="feature-row-title">Blackout Date Management</div>
+      <div class="feature-row-body">Enter date ranges when a comedian is unavailable with a reason — <strong>Other Gig, Vacation, Personal, Filming, Unavailable</strong>. StageBoss cross-references these against every tour date and warns you instantly if there's a conflict.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">💰</div>
+    <div>
+      <div class="feature-row-title">Per-Show Payout Tracking</div>
+      <div class="feature-row-body">In the Tour Builder, every comedian's <strong>projected and actual payout</strong> is tracked per show date. Know exactly who gets paid what and reconcile after every performance.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🎭</div>
+    <div>
+      <div class="feature-row-title">Package Booking</div>
+      <div class="feature-row-body">StageBoss supports <strong>package deals</strong> — booking Jason and Phil together as a unit. The AI outreach templates reference both comedians automatically in every email pitch.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 8 — SMARTBOSS AI
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s8">
+  <div class="eyebrow">Feature 08 — The Flagship</div>
+  <h2>🧠 Smart<span class="accent">Boss</span> AI</h2>
+  <p class="lead">The most powerful feature in StageBoss. An <strong>AI touring agent</strong> that knows everything about your booking operation and gives you real strategic advice — specific venues, specific cities, specific dollar amounts.</p>
+
+  <div class="highlight glow">
+    <div class="highlight-title">What Makes SmartBoss Different</div>
+    <p>Every time you ask SmartBoss a question, it reads your <strong>entire live booking state</strong> — all tours, all confirmed shows, all venues, all calendar gaps, all revenue data, all states played, all states never played. It's not giving generic advice. It's analyzing YOUR specific operation right now.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2 style="font-size:28px; margin-bottom:16px">📆 Year View</h2>
+
+  <div class="num-list">
+    <div class="num-item">
+      <div class="num-badge">1</div>
+      <div class="num-text"><strong>Year Headline Stats</strong> — Total shows booked, estimated revenue, open months remaining, average revenue per month. Your entire year in four numbers.</div>
+    </div>
+    <div class="num-item">
+      <div class="num-badge">2</div>
+      <div class="num-text"><strong>52-Week Activity Strip</strong> — Every single week of the year as a colored tile. Green = confirmed, Yellow = hold, Purple = negotiating, Dark = nothing booked. One glance, full picture.</div>
+    </div>
+    <div class="num-item">
+      <div class="num-badge">3</div>
+      <div class="num-text"><strong>Quarter Breakdown</strong> — Q1 through Q4, each showing shows booked, estimated revenue, and a fill bar. Red warning if a quarter has zero bookings.</div>
+    </div>
+    <div class="num-item">
+      <div class="num-badge">4</div>
+      <div class="num-text"><strong>Month-by-Month Expandable List</strong> — All 12 months. Every open future month shows a red warning. Tap any open month to instantly fire a SmartBoss chat asking what to book.</div>
+    </div>
+    <div class="num-item">
+      <div class="num-badge">5</div>
+      <div class="num-text"><strong>Open Month Alert</strong> — When 3+ months are open, a bottom alert appears with one-tap buttons to generate a tour plan or jump into AI chat to fill them.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2 style="font-size:28px; margin-bottom:16px">💬 Chat Mode</h2>
+  <p class="lead" style="font-size:15px">Ask SmartBoss anything — it responds like a veteran touring agent with 20 years of experience.</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">🗺️</div>
+      <div class="card-title">Find Calendar Gaps</div>
+      <div class="card-body">Finds every dead window in your schedule and tells you what cities make geographic sense to fill them.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📍</div>
+      <div class="card-title">Best Next Market</div>
+      <div class="card-body">Based on where you're already booked, recommends the single best city to target next with specific venues from your CRM.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏆</div>
+      <div class="card-title">Underserved States</div>
+      <div class="card-body">Ranks the states you've never played by revenue potential and recommends the top venues to approach in each one.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🚗</div>
+      <div class="card-title">Optimize Route</div>
+      <div class="card-body">Takes your confirmed shows and reorders them into the most logistically efficient sequence — minimum dead miles, maximum revenue.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">💰</div>
+      <div class="card-title">Revenue Gap Analysis</div>
+      <div class="card-body">Calculates exactly how much money you're leaving on the table in the next 90 days and what it would take to capture it.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎓</div>
+      <div class="card-title">College Tour Strategy</div>
+      <div class="card-body">Designs a campus circuit with optimal booking windows, the right pitch for activity boards, and revenue projections.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎰</div>
+      <div class="card-title">Casino Circuit</div>
+      <div class="card-body">Maps the tribal and commercial casino circuit geographically with typical guarantees and the best venues to approach first.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📅</div>
+      <div class="card-title">Best Months to Book</div>
+      <div class="card-body">Analyzes your calendar and tells you which months need the most attention and your current revenue trajectory vs potential.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2 style="font-size:28px; margin-bottom:16px">🗺️ Tour Blueprint Generator</h2>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">⚙️</div>
+    <div>
+      <div class="feature-row-title">Configure Your Tour</div>
+      <div class="feature-row-body">Set comedian, tour length (1–8 weeks), region (Nationwide, Southeast, Northeast, Midwest, Southwest, West Coast, Texas, College, Casino, Pacific Northwest), venue focus, start date, and strategy focus.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🧠</div>
+    <div>
+      <div class="feature-row-title">7 Strategy Modes</div>
+      <div class="feature-row-body"><strong>Max Revenue</strong> · <strong>New Markets</strong> · <strong>Fill Calendar Gaps</strong> · <strong>Cluster Nearby Cities</strong> · <strong>Anchor + Fill</strong> · <strong>Build Fan Base</strong> · <strong>Casino Heavy</strong></div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📋</div>
+    <div>
+      <div class="feature-row-title">Day-by-Day Tour Plan</div>
+      <div class="feature-row-body">SmartBoss generates a <strong>complete week-by-week itinerary</strong> with specific show days, cities, venue recommendations from your CRM, estimated guarantees per show, routing notes, and travel logistics.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">⚠️</div>
+    <div>
+      <div class="feature-row-title">Warnings & Conflict Detection</div>
+      <div class="feature-row-body">Flags radius clause conflicts, oversaturated markets, venues booked too recently, calendar problems, and routing inefficiencies — before you make a costly mistake.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">✅</div>
+    <div>
+      <div class="feature-row-title">Actionable Next Steps</div>
+      <div class="feature-row-body">Every tour blueprint ends with a <strong>numbered action list for Jason</strong> — specific venues to contact today, in priority order, with the exact outreach strategy for each one.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 9 — CLOUD SYNC + SECURITY
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s9">
+  <div class="eyebrow">Feature 09</div>
+  <h2>Cloud <span class="green">Sync</span></h2>
+  <p class="lead">Your data lives in the cloud and syncs across <strong>every device in real time</strong>. Open StageBoss on your phone in an arena green room and see the exact same data as your desktop.</p>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">☁️</div>
+    <div>
+      <div class="feature-row-title">Supabase Real-Time Sync</div>
+      <div class="feature-row-body">Powered by Supabase — enterprise-grade database infrastructure. Every change syncs instantly across devices. <strong>Your data is never lost</strong>.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🔐</div>
+    <div>
+      <div class="feature-row-title">Secure Authentication</div>
+      <div class="feature-row-body">Email-based login with Supabase Auth. <strong>JWT tokens</strong> protect every API call. Your booking data is private and authenticated — nobody else can access it.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">🔒</div>
+    <div>
+      <div class="feature-row-title">Server-Side API Security</div>
+      <div class="feature-row-body">All AI calls route through <strong>secure Netlify serverless functions</strong>. Your Anthropic API key never touches the browser and is never exposed in code. Industry-standard security architecture.</div>
+    </div>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-row-icon">📱</div>
+    <div>
+      <div class="feature-row-title">Mobile-First Design</div>
+      <div class="feature-row-body">Built to work on your phone first. <strong>Add to home screen</strong> on iPhone or Android and it behaves like a native app — no App Store required, no updates to install.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 10 — CLOSING
+════════════════════════════════════════════════════════ -->
+<div class="section" id="s10">
+  <div class="eyebrow">The Bottom Line</div>
+  <h1>Built<br>Different.</h1>
+  <p class="lead">StageBoss is the <strong>only platform in the world</strong> built specifically for the business of comedy touring. Nothing else comes close.</p>
+
+  <div class="closing-grid">
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">333 Pre-Loaded Venues</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">AI Email Writing</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">Tour Builder + P&L</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">SmartBoss AI Brain</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">Year-at-a-Glance Calendar</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">Revenue Analytics</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">Cloud Sync Everywhere</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">Mobile-First Design</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">Comedian Roster</div>
+    </div>
+    <div class="closing-item">
+      <div class="closing-check">✓</div>
+      <div class="closing-label">Secure API Architecture</div>
+    </div>
+  </div>
+
+  <div class="highlight" style="margin-top:32px; text-align:center">
+    <div class="highlight-title" style="font-size:24px">$36,400 – $46,400</div>
+    <p style="font-size:16px; margin-top:8px"><strong>Projected 2026 revenue</strong> based on current pipeline and SmartBoss tour recommendations. That's what full-time comedy touring looks like when you run it like a business.</p>
+  </div>
+
+  <div style="margin-top:32px; text-align:center">
+    <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:8px">Managed by</div>
+    <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--acc2); letter-spacing:1px">Jason Schuster · jschucomedy@gmail.com</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     PLAYER BAR
+════════════════════════════════════════════════════════ -->
+<div class="player">
+  <div class="player-inner">
+    <div class="player-brain">🎤</div>
+    <div class="player-info">
+      <div class="player-section" id="playerSection">StageBoss</div>
+      <div class="player-text" id="playerText">Press play to start the walkthrough</div>
+    </div>
+    <div class="waveform" id="waveform">
+      <div class="wave-bar" style="animation-delay:0s"></div>
+      <div class="wave-bar" style="animation-delay:0.1s"></div>
+      <div class="wave-bar" style="animation-delay:0.2s"></div>
+      <div class="wave-bar" style="animation-delay:0.3s"></div>
+      <div class="wave-bar" style="animation-delay:0.15s"></div>
+    </div>
+    <div class="player-controls">
+      <button class="ctrl-btn" id="prevBtn" title="Previous section">⏮</button>
+      <button class="play-btn" id="playBtn">▶</button>
+      <button class="ctrl-btn" id="nextBtn" title="Next section">⏭</button>
+      <button class="ctrl-btn" id="muteBtn" title="Toggle music">🔊</button>
+    </div>
+    <div class="progress-track" id="progressTrack">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SCRIPT ──────────────────────────────────────────────────────────────────
+
+const SECTIONS = [
+  {
+    id: 's0',
+    label: 'Introduction',
+    voice: `StageBoss. The first all-in-one touring management platform built specifically for comedians and their managers. 333 venues pre-loaded. AI-powered outreach. Smart tour routing. And a full artificial intelligence brain that thinks like a veteran touring agent. This is what running comedy as a real business looks like.`
+  },
+  {
+    id: 's1',
+    label: 'Today Tab',
+    voice: `Feature one — the Today Tab. This is your command center every single morning. The moment you open StageBoss you see your total revenue for the year, your confirmed shows, and a live contact list telling you exactly which venues need your attention today. The Recent Wins feed shows every confirmed booking as it happens — momentum in real time. No spreadsheets, no sticky notes. Just your business, organized.`
+  },
+  {
+    id: 's2',
+    label: 'Venue CRM',
+    voice: `Feature two — the Venue CRM. 333 venues covering every major comedy club, theater, casino, university, and arena in the country. Every single one comes pre-loaded with full street address, direct phone number, booking email, Instagram handle, capacity, typical guarantee, and booker name where available. Filter by state, city, venue type, or status. Track every relationship from cold lead to confirmed headliner booking. This is your entire touring universe in one searchable database.`
+  },
+  {
+    id: 's3',
+    label: 'AI Outreach Engine',
+    voice: `Feature three — the AI Outreach Engine. Stop writing the same booking email over and over. StageBoss writes every email for you using Claude AI — personalized with the booker's name, venue name, city, capacity, your dates, and Phil's full bio. Eight smart templates cover every stage of the sequence from cold outreach to final touch. The Hot Sheet filter shows only live deals with one tap. Every venue also has an Instagram DM draft ready to copy and paste. And the Venue Research AI gives you a briefing before any important pitch — typical guarantee, best angle, how to approach their specific booker.`
+  },
+  {
+    id: 's4',
+    label: 'Tour Builder',
+    voice: `Feature four — the Tour Builder. Build complete tours from scratch. Add every show date with venue, city, deal type, guarantee, and comedian payouts. The live P&L calculates gross revenue, expenses, comedian payouts, and net estimate in real time. The Route Planner maps every stop on Google Maps. One tap generates a professional Tour Schedule PDF and Revenue Forecast report — ready to share with your comedian, your accountant, or any venue asking for credentials. This is agency-level tour management.`
+  },
+  {
+    id: 's5',
+    label: 'Calendar View',
+    voice: `Feature five — the Calendar View. Every confirmed show from every tour displayed in one unified chronological view. See your complete schedule at a glance. One tap adds your entire tour to your iPhone or Android calendar so you never miss a date. Tap any show to see full deal details and jump directly to edit. The show checklist tracks contract status, deposit, lodging, and settlement for every booking.`
+  },
+  {
+    id: 's6',
+    label: 'Analytics',
+    voice: `Feature six — Analytics and Revenue Intelligence. Real business intelligence for your touring career. Revenue by month, revenue by venue type, top markets by revenue, outreach conversion funnel, booking velocity, and merch analytics — all in one dashboard. The revenue projection engine uses close probability weights at every stage of your pipeline to calculate your three, six, and twelve month revenue forecast in real time. You always know exactly where your business stands and where it's going.`
+  },
+  {
+    id: 's7',
+    label: 'Comedian Roster',
+    voice: `Feature seven — the Comedian Roster. Manage every comedian you work with — their role, default fee, active status, and blackout dates. Enter unavailable date ranges with reasons like other gigs, filming, or vacation. StageBoss cross-references these against every tour date and warns you instantly if you try to book someone who's unavailable. Per-show payout tracking means you always know exactly who gets paid what and can reconcile after every performance.`
+  },
+  {
+    id: 's8',
+    label: 'SmartBoss AI',
+    voice: `Feature eight — SmartBoss AI. The flagship. This is what makes StageBoss unlike anything else in the industry. SmartBoss is an artificial intelligence touring agent that reads your entire live booking state on every single query — all your tours, all your confirmed shows, all your venues, all your calendar gaps, all your revenue data, and every state you've played or never played. Three modes. The Year View shows your complete 2026 calendar — a 52-week activity strip, quarter breakdown, and month-by-month list that flags every open window in red. The Chat mode lets you ask anything — find my gaps, best next market, optimize my route, college tour strategy, casino circuit — and get answers with specific venue names, specific cities, and specific dollar amounts. And the Tour Blueprint Generator builds you a complete day-by-day tour plan in seconds — with venue recommendations from your CRM, per-show guarantees, routing logic, conflict warnings, and a numbered action list telling you exactly what to do today. This is a full-time touring agent living inside your app.`
+  },
+  {
+    id: 's9',
+    label: 'Cloud Sync & Security',
+    voice: `Feature nine — Cloud Sync and Security. Your data lives in the cloud powered by Supabase enterprise infrastructure. It syncs in real time across every device — open StageBoss on your phone backstage and see the exact same data as your desktop. Email-based authentication with JWT tokens protects every request. All AI calls route through secure Netlify serverless functions — your API key never touches the browser and is never exposed in code. And the mobile-first design means you can add StageBoss to your iPhone home screen and it runs like a native app. No App Store, no updates, no friction.`
+  },
+  {
+    id: 's10',
+    label: 'The Bottom Line',
+    voice: `The bottom line. StageBoss is the only platform in the world built specifically for the business of comedy touring. 333 venues. AI email writing. Tour builder with live P&L. SmartBoss AI intelligence. Year-at-a-glance calendar. Revenue analytics. Cloud sync. Mobile-first. Comedian roster. And enterprise-grade security. The system is already projecting thirty-six to forty-six thousand dollars in revenue for 2026 based on the current pipeline and SmartBoss tour recommendations. That's what full-time comedy touring looks like when you run it like a business.`
+  }
+];
+
+let currentSection = 0;
+let isPlaying = false;
+let isMuted = false;
+let audioCtx = null;
+let masterGain = null;
+let loopTimer = null;
+let keepAliveTimer = null;
+
+// ── BUILD NAV DOTS ──
+const navDotsEl = document.getElementById('navDots');
+SECTIONS.forEach((s, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+  dot.title = s.label;
+  dot.addEventListener('click', () => goToSection(i));
+  navDotsEl.appendChild(dot);
+});
+
+// ── INTERSECTION OBSERVER ──
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.section').forEach(s => observer.observe(s));
+
+// ── MUSIC ENGINE ──
+function startMusic() {
+  if (isMuted || audioCtx) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.07, audioCtx.currentTime + 4);
+    masterGain.connect(audioCtx.destination);
+    scheduleLoop();
+  } catch(e) { console.log('Audio error:', e); }
+}
+
+function scheduleLoop() {
+  if (!audioCtx || isMuted) return;
+  const scale = [110, 123.5, 138.6, 146.8, 164.8, 185, 220];
+  const pattern = [0, 2, 4, 3, 0, 1, 4, 2, 5, 3, 6, 4];
+  const beatLen = 3.5;
+  const now = audioCtx.currentTime;
+
+  pattern.forEach((noteIdx, i) => {
+    const freq = scale[noteIdx];
+    const t = now + i * beatLen;
+
+    // Sine pad
+    const osc1 = audioCtx.createOscillator();
+    const g1 = audioCtx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.value = freq;
+    g1.gain.setValueAtTime(0, t);
+    g1.gain.linearRampToValueAtTime(0.35, t + 0.8);
+    g1.gain.linearRampToValueAtTime(0.2, t + beatLen - 0.3);
+    g1.gain.linearRampToValueAtTime(0, t + beatLen);
+    osc1.connect(g1); g1.connect(masterGain);
+    osc1.start(t); osc1.stop(t + beatLen);
+
+    // Triangle octave up
+    const osc2 = audioCtx.createOscillator();
+    const g2 = audioCtx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.value = freq * 2.005;
+    g2.gain.setValueAtTime(0, t);
+    g2.gain.linearRampToValueAtTime(0.08, t + 1);
+    g2.gain.linearRampToValueAtTime(0, t + beatLen);
+    osc2.connect(g2); g2.connect(masterGain);
+    osc2.start(t); osc2.stop(t + beatLen);
+
+    // Sub bass on beat 0 and 6
+    if (i === 0 || i === 6) {
+      const sub = audioCtx.createOscillator();
+      const gs = audioCtx.createGain();
+      sub.type = 'sine';
+      sub.frequency.value = freq * 0.5;
+      gs.gain.setValueAtTime(0, t);
+      gs.gain.linearRampToValueAtTime(0.25, t + 0.1);
+      gs.gain.linearRampToValueAtTime(0, t + 1.5);
+      sub.connect(gs); gs.connect(masterGain);
+      sub.start(t); sub.stop(t + 1.5);
+    }
+  });
+
+  const loopDur = pattern.length * beatLen;
+  loopTimer = setTimeout(scheduleLoop, (loopDur - 2) * 1000);
+}
+
+function stopMusic() {
+  if (loopTimer) clearTimeout(loopTimer);
+  loopTimer = null;
+  if (masterGain) {
+    try {
+      masterGain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 1);
+    } catch(e) {}
+  }
+  setTimeout(() => {
+    if (audioCtx) { try { audioCtx.close(); } catch(e) {} }
+    audioCtx = null;
+    masterGain = null;
+  }, 1200);
+}
+
+// ── SPEECH ENGINE — chunked to prevent browser cutoff ──
+let speechQueue = [];
+let speechActive = false;
+let speechOnComplete = null;
+
+function speakChunked(text, onDone) {
+  if (!('speechSynthesis' in window)) { setTimeout(onDone, 2000); return; }
+  window.speechSynthesis.cancel();
+  speechOnComplete = onDone;
+
+  // Split on sentence boundaries to prevent browser cutting off long strings
+  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+  speechQueue = sentences.map(s => s.trim()).filter(Boolean);
+  speechActive = true;
+  speakNext();
+}
+
+function speakNext() {
+  if (!speechActive || speechQueue.length === 0) {
+    speechActive = false;
+    if (speechOnComplete) speechOnComplete();
+    return;
+  }
+  const chunk = speechQueue.shift();
+  const utt = new SpeechSynthesisUtterance(chunk);
+  utt.rate = 0.90;
+  utt.pitch = 1.0;
+  utt.volume = 1.0;
+
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v =>
+    v.name.includes('Daniel') || v.name.includes('Alex') ||
+    v.name.includes('Samantha') || v.name.includes('Google US English')
+  ) || voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+  if (preferred) utt.voice = preferred;
+
+  utt.onend = () => {
+    // Small pause between sentences
+    setTimeout(speakNext, 150);
+  };
+  utt.onerror = (e) => {
+    if (e.error !== 'interrupted') setTimeout(speakNext, 300);
+  };
+
+  // Chrome bugfix: keepalive ping every 10s to prevent speech stopping
+  clearInterval(keepAliveTimer);
+  keepAliveTimer = setInterval(() => {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }
+  }, 10000);
+
+  window.speechSynthesis.speak(utt);
+}
+
+function stopSpeech() {
+  speechActive = false;
+  speechQueue = [];
+  speechOnComplete = null;
+  clearInterval(keepAliveTimer);
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
+// ── NAVIGATION ──
+function goToSection(idx) {
+  currentSection = Math.max(0, Math.min(SECTIONS.length - 1, idx));
+  const sec = SECTIONS[currentSection];
+  const el = document.getElementById(sec.id);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('visible');
+  }
+  document.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('active', i === currentSection));
+  document.getElementById('progressFill').style.width = (currentSection / (SECTIONS.length - 1) * 100) + '%';
+  document.getElementById('playerSection').textContent = sec.label;
+
+  if (isPlaying) {
+    stopSpeech();
+    setTimeout(() => playSection(currentSection), 700);
+  }
+}
+
+function setWaveform(on) {
+  document.querySelectorAll('.wave-bar').forEach(b => b.classList.toggle('playing', on));
+  document.getElementById('playerText').classList.toggle('speaking', on);
+}
+
+function playSection(idx) {
+  if (!isPlaying) return;
+  const sec = SECTIONS[idx];
+  document.getElementById('playerText').textContent = sec.label + ' — ' + sec.voice.slice(0, 60) + '...';
+  setWaveform(true);
+
+  speakChunked(sec.voice, () => {
+    setWaveform(false);
+    if (!isPlaying) return;
+    if (idx < SECTIONS.length - 1) {
+      setTimeout(() => {
+        goToSection(idx + 1);
+        setTimeout(() => playSection(idx + 1), 900);
+      }, 1000);
+    } else {
+      isPlaying = false;
+      document.getElementById('playBtn').textContent = '▶';
+      document.getElementById('playerText').textContent = 'Presentation complete. Press play to restart.';
+    }
+  });
+}
+
+// ── CONTROLS ──
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (isPlaying) {
+    isPlaying = false;
+    stopSpeech();
+    setWaveform(false);
+    document.getElementById('playBtn').textContent = '▶';
+    document.getElementById('playerText').textContent = 'Paused — press play to continue';
+  } else {
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏸';
+    startMusic();
+    if (currentSection >= SECTIONS.length - 1) currentSection = 0;
+    goToSection(currentSection);
+    setTimeout(() => playSection(currentSection), 800);
+  }
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => goToSection(currentSection - 1));
+document.getElementById('nextBtn').addEventListener('click', () => goToSection(currentSection + 1));
+
+document.getElementById('muteBtn').addEventListener('click', () => {
+  isMuted = !isMuted;
+  document.getElementById('muteBtn').textContent = isMuted ? '🔇' : '🔊';
+  document.getElementById('muteBtn').classList.toggle('active', isMuted);
+  if (isMuted) stopMusic();
+  else if (isPlaying) startMusic();
+});
+
+document.getElementById('progressTrack').addEventListener('click', (e) => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const idx = Math.round((e.clientX - rect.left) / rect.width * (SECTIONS.length - 1));
+  goToSection(idx);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goToSection(currentSection + 1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goToSection(currentSection - 1);
+  if (e.key === ' ') { e.preventDefault(); document.getElementById('playBtn').click(); }
+});
+
+// Pre-load voices
+if ('speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+
+// Init
+goToSection(0);
+</script>
+</body>
+</html>
