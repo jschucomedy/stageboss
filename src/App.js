@@ -357,6 +357,15 @@ const PRE_LOADED_VENUES = [
 ];
 
 const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
+
+// SHARED WORKSPACE — all authorized users read/write Jason's data row.
+// To add a new user: create their account in Supabase Auth, then add their
+// email to AUTHORIZED_USERS below. Data always lives under OWNER_EMAIL.
+const OWNER_EMAIL = 'jschucomedy@gmail.com';
+const AUTHORIZED_USERS = [
+  'jschucomedy@gmail.com', // Jason — owner
+  // 'pej@hisemail.com',   // Pej Ahmadi — replace with his real email and uncomment
+];
 // AI calls are routed through /.netlify/functions/generate-email (server-side).
 // No Anthropic key in the client. No FUNCTION_SECRET.
 // Auth uses Supabase Auth JWTs — access_token sent as Authorization: Bearer header.
@@ -467,6 +476,7 @@ function migrateVenue(v) {
     lastResponse: v.lastResponse||'',
     lastResponseDate: v.lastResponseDate||'',
     merchSales: v.merchSales||[],
+    dealClosedBy: v.dealClosedBy||'',
   };
 }
 function migrateData(raw) {
@@ -2017,9 +2027,12 @@ function App(){
 
   // On mount: restore session from Supabase if still valid
   useEffect(()=>{
+    const isAuthorized = (email) => AUTHORIZED_USERS.map(e=>e.toLowerCase()).includes(email.toLowerCase().trim());
     sbAuthClient.auth.getSession().then(({data})=>{
       if(data?.session){
-        const s={email:data.session.user.email, access_token:data.session.access_token};
+        const email = data.session.user.email;
+        if(!isAuthorized(email)){ sbAuthClient.auth.signOut(); return; }
+        const s={email, access_token:data.session.access_token};
         setSession(s);
         try{localStorage.setItem('sb_session',JSON.stringify(s));}catch{}
       }
@@ -2027,7 +2040,9 @@ function App(){
     // Listen for auth state changes (token refresh, sign-out)
     const{data:{subscription}}=sbAuthClient.auth.onAuthStateChange((_event,s)=>{
       if(s){
-        const updated={email:s.user.email, access_token:s.access_token};
+        const email = s.user.email;
+        if(!isAuthorized(email)){ sbAuthClient.auth.signOut(); return; }
+        const updated={email, access_token:s.access_token};
         setSession(updated);
         try{localStorage.setItem('sb_session',JSON.stringify(updated));}catch{}
       } else {
@@ -2040,7 +2055,13 @@ function App(){
 
   if(!session) return <LoginScreen onLogin={s=>{
     // s is the full Supabase session object from signInWithPassword
-    const stored={email:s.user.email, access_token:s.access_token};
+    const email = s.user.email.toLowerCase().trim();
+    if(!AUTHORIZED_USERS.map(e=>e.toLowerCase()).includes(email)){
+      sbAuthClient.auth.signOut();
+      alert('Access denied. Contact Jason to request access.');
+      return;
+    }
+    const stored={email, access_token:s.access_token};
     setSession(stored);
     try{
       localStorage.setItem('sb_session',JSON.stringify(stored));
@@ -2190,7 +2211,7 @@ function StageBoss({user,onLogout,accessToken}){
 
     async function pollCloud() {
       if (!active) return;
-      const result = await cloudFetch(user);
+      const result = await cloudFetch(OWNER_EMAIL);
       if (!active) return;
       if (result.error) {
         setSyncError(result.error);
@@ -2244,7 +2265,7 @@ function StageBoss({user,onLogout,accessToken}){
       dirtyRef.current = false;
       setSyncing(true);
       try {
-        const returnedAt = await cloudPush(user, venues, templates, tours, comedians);
+        const returnedAt = await cloudPush(OWNER_EMAIL, venues, templates, tours, comedians);
         localVersionRef.current = returnedAt || version;
         setLastSync(new Date());
         setLastPushStatus('ok @ '+new Date().toLocaleTimeString()+' ('+venues.length+' venues)');
@@ -2925,7 +2946,7 @@ function StageBoss({user,onLogout,accessToken}){
           <button onClick={async()=>{
             setSyncing(true);
             try{
-              const returnedAt=await cloudPush(user,venues,templates,tours,comedians);
+              const returnedAt=await cloudPush(OWNER_EMAIL,venues,templates,tours,comedians);
               localVersionRef.current=returnedAt||new Date().toISOString();
               setLastSync(new Date());
               setSyncError(null);
@@ -2973,7 +2994,7 @@ function StageBoss({user,onLogout,accessToken}){
             <div style={{fontSize:9,color:C.muted,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>Comedy Booking Command Center</div>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={async()=>{setSyncing(true);try{const r=await cloudPush(user,venues,templates,tours,comedians);localVersionRef.current=r||new Date().toISOString();setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed: '+e.message);}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
+            <button onClick={async()=>{setSyncing(true);try{const r=await cloudPush(OWNER_EMAIL,venues,templates,tours,comedians);localVersionRef.current=r||new Date().toISOString();setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed: '+e.message);}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
             <button onClick={onLogout} style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer',fontFamily:font.body}}>OUT</button>
             <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:'50%',background:C.acc,border:'none',color:'#fff',fontSize:22,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>+</button>
           </div>
@@ -3476,6 +3497,77 @@ function StageBoss({user,onLogout,accessToken}){
             </div>;
           })}
 
+          <div style={{height:1,background:C.bord,margin:'4px 0 14px'}}/>
+
+          {/* WEBSITE PUBLISHING */}
+          <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',marginBottom:10}}>🌐 WEBSITE PUBLISHING</div>
+          <div style={{background:C.surf2,borderRadius:10,padding:'12px 14px',marginBottom:12}}>
+            {/* Master toggle */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:C.txt}}>Publish to websites</div>
+                <div style={{fontSize:10,color:C.muted}}>Master switch — shows date on selected sites</div>
+              </div>
+              <div onClick={()=>updTourDate({websitePublish:!d.websitePublish})}
+                style={{width:44,height:24,borderRadius:12,background:d.websitePublish?'#7c3aed':'rgba(255,255,255,0.12)',cursor:'pointer',position:'relative',transition:'background 0.2s',flexShrink:0}}>
+                <div style={{position:'absolute',top:3,left:d.websitePublish?22:3,width:18,height:18,borderRadius:9,background:'#fff',transition:'left 0.2s'}}/>
+              </div>
+            </div>
+
+            {d.websitePublish&&<>
+              {/* Site selectors */}
+              <div style={{fontSize:10,color:C.muted,marginBottom:6,letterSpacing:'0.08em'}}>SHOW ON:</div>
+              <div style={{display:'flex',gap:8,marginBottom:12}}>
+                {[{key:'jason',label:"Jason's Site"},{key:'phil',label:"Phil's Site"}].map(site=>{
+                  const active=(d.websiteSites||[]).includes(site.key);
+                  return <div key={site.key} onClick={()=>{
+                    const cur=d.websiteSites||[];
+                    updTourDate({websiteSites:active?cur.filter(x=>x!==site.key):[...cur,site.key]});
+                  }} style={{flex:1,padding:'8px 10px',borderRadius:8,border:`1px solid ${active?'#7c3aed':'rgba(255,255,255,0.12)'}`,background:active?'rgba(124,58,237,0.12)':'transparent',cursor:'pointer',textAlign:'center',fontSize:11,fontWeight:active?700:400,color:active?'#a78bfa':C.muted,transition:'all 0.15s'}}>
+                    {site.label}
+                  </div>;
+                })}
+              </div>
+
+              {/* Public fields */}
+              <div style={{fontSize:10,color:C.muted,marginBottom:6,letterSpacing:'0.08em'}}>PUBLIC INFO:</div>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+                {[
+                  {key:'websiteShowDate',label:'Date',default:true},
+                  {key:'websiteShowVenue',label:'Venue',default:true},
+                  {key:'websiteShowCity',label:'City',default:true},
+                  {key:'websiteShowTickets',label:'Ticket Link'},
+                  {key:'websiteShowPrice',label:'Price'},
+                ].map(field=>{
+                  const on=field.key in d ? d[field.key] : (field.default!==false);
+                  return <div key={field.key} onClick={()=>updTourDate({[field.key]:!on})}
+                    style={{padding:'5px 10px',borderRadius:6,border:`1px solid ${on?'rgba(0,184,148,0.4)':'rgba(255,255,255,0.1)'}`,background:on?'rgba(0,184,148,0.08)':'transparent',cursor:'pointer',fontSize:10,fontWeight:on?700:400,color:on?C.green:C.muted,transition:'all 0.15s'}}>
+                    {on?'✓ ':''}{field.label}
+                  </div>;
+                })}
+              </div>
+
+              {/* Ticket URL */}
+              <div style={s.field()}><label style={s.label}>Ticket URL</label>
+                <input style={s.input()} value={d.websiteTicketUrl||''} placeholder="https://ticketmaster.com/..." onChange={e=>updTourDate({websiteTicketUrl:e.target.value})}/>
+              </div>
+
+              {/* Public price (can differ from ticket price) */}
+              <div style={s.field()}><label style={s.label}>Public Price (shown on site)</label>
+                <input style={s.input()} value={d.websitePrice||''} placeholder="e.g. 25 or 20-35" onChange={e=>updTourDate({websitePrice:e.target.value})}/>
+              </div>
+
+              {/* Site notes */}
+              <div style={s.field()}><label style={s.label}>Notes for Website</label>
+                <input style={s.input()} value={d.websiteNotes||''} placeholder="e.g. VIP meet & greet available" onChange={e=>updTourDate({websiteNotes:e.target.value})}/>
+              </div>
+
+              <div style={{fontSize:10,color:C.muted,marginTop:4}}>
+                💡 Ticket URL and Price are only shown if those toggles above are enabled
+              </div>
+            </>}
+          </div>
+
           <button onClick={()=>setEditTourDateId(null)} style={{...s.btn('linear-gradient(135deg,#7c3aed,#ec4899)','#fff',null),width:'100%',marginTop:8}}>
             ✓ Done
           </button>
@@ -3690,6 +3782,17 @@ function StageBoss({user,onLogout,accessToken}){
           {(dv.contactLog||[]).length>0&&<><div style={s.divider}/><div style={s.sectionTitle}>[scroll] Contact History</div>{[...(dv.contactLog||[])].reverse().map((entry,i)=><div key={i} style={{padding:'8px 10px',background:C.surf2,borderRadius:8,marginBottom:6,fontSize:11}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:C.acc2}}>{entry.method}</span><span style={{color:C.muted}}>{entry.date}</span></div><div style={{color:C.muted2}}>{entry.note}</div></div>)}</>}
           <div style={s.divider}/>
           <div style={s.field()}><label style={s.label}>Notes</label><textarea style={{...s.input(),resize:'none',minHeight:70}} defaultValue={dv.notes||''} onChange={e=>upd(dv.id,{notes:e.target.value})} placeholder="Deal notes, follow-up details..."/></div>
+          <div style={s.field()}>
+            <label style={s.label}>Deal Closed By</label>
+            <select style={s.select} value={dv.dealClosedBy||''} onChange={e=>upd(dv.id,{dealClosedBy:e.target.value})}>
+              <option value=''>— Not yet closed —</option>
+              <option value='Jason'>Jason</option>
+              <option value='Pej'>Pej</option>
+              <option value='Jason + Pej'>Jason + Pej</option>
+            </select>
+            {dv.dealClosedBy==='Pej'&&dv.guarantee>0&&<div style={{marginTop:6,padding:'6px 10px',background:'rgba(162,155,254,0.08)',border:'1px solid rgba(162,155,254,0.2)',borderRadius:8,fontSize:11,color:'#a29bfe'}}>Pej commission (15%): <strong>${(dv.guarantee*0.15).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0})}</strong></div>}
+            {dv.dealClosedBy==='Jason + Pej'&&dv.guarantee>0&&<div style={{marginTop:6,padding:'6px 10px',background:'rgba(162,155,254,0.08)',border:'1px solid rgba(162,155,254,0.2)',borderRadius:8,fontSize:11,color:'#a29bfe'}}>Joint deal — commission split TBD · Total 15%: <strong>${(dv.guarantee*0.15).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0})}</strong></div>}
+          </div>
           <div style={s.divider}/>
           <button onClick={()=>setConfirmDelete(dv.id)} style={{...s.btn('rgba(225,112,85,0.1)',C.red,'rgba(225,112,85,0.3)'),width:'100%'}}>Delete Venue</button>
         </>}
@@ -4791,52 +4894,55 @@ You speak like a smart, direct industry insider. No fluff. Be specific with city
     setPlanLoading(true);
     setPlanResult(null);
 
-    const prompt = `Generate a detailed ${planConfig.weeks}-week tour plan with the following parameters:
-- Comedian/Artist: ${planConfig.comedian || 'Phil Medina'}
+    const prompt = `You are a comedy touring expert. Generate a ${planConfig.weeks}-week tour plan.
+
+PARAMETERS:
+- Comedian: ${planConfig.comedian || 'Phil Medina'}
 - Region: ${planConfig.region}
-- Venue Type Priority: ${planConfig.venueType}
-- Strategy Focus: ${planConfig.focus}
-- Start After: ${planConfig.startAfter || 'ASAP / next available'}
-- Avoid Dates/Notes: ${planConfig.avoidDates || 'none'}
-- Additional Notes: ${planConfig.notes || 'none'}
+- Venue Type: ${planConfig.venueType}
+- Strategy: ${planConfig.focus}
+- Start After: ${planConfig.startAfter || 'ASAP'}
+- Avoid: ${planConfig.avoidDates || 'none'}
+- Notes: ${planConfig.notes || 'none'}
 
-Current booking state for context:
-${JSON.stringify(ctx, null, 2)}
+CURRENT BOOKING STATE:
+- Confirmed shows: ${ctx.summary.totalConfirmedShows}
+- Cities already booked: ${ctx.confirmedCities.slice(0,10).join(', ') || 'none yet'}
+- Calendar gaps: ${ctx.calendarGaps.slice(0,5).map(g=>g.days+' days between '+g.afterCity+' and '+g.beforeCity).join('; ') || 'none found'}
+- Top uncontacted venues in region: ${ctx.topUncontactedClubs.slice(0,10).join(' | ')}
+- States never played: ${ctx.summary.statesNeverPlayed.slice(0,15).join(', ')}
 
-Return a JSON object ONLY (no markdown, no backticks) with this exact structure:
+Return ONLY a valid JSON object — no markdown, no backticks, no extra text before or after. Exact structure:
 {
   "tourName": "string",
   "region": "string",
-  "weeks": number,
   "estimatedGross": number,
   "totalShows": number,
   "summary": "2-3 sentence overview",
-  "routeLogic": "explanation of why this route makes sense",
-  "warnings": ["array of booking warnings or conflicts"],
+  "routeLogic": "brief routing explanation",
+  "warnings": ["warning1"],
   "weeks_breakdown": [
     {
       "week": 1,
-      "dates": "date range string",
+      "dates": "date range",
+      "weekRevenue": number,
+      "travelNote": "logistics note",
       "shows": [
         {
-          "day": "Mon Mar 10",
+          "day": "Mon Jun 1",
           "city": "string",
           "state": "string",
-          "venueRecommendation": "specific venue name from CRM if available",
-          "venueType": "Comedy Club|Theater|Casino|University",
+          "venueRecommendation": "venue name",
+          "venueType": "Comedy Club",
           "guarantee": number,
-          "notes": "routing note, why this show, travel note",
-          "priority": "High|Medium|Low"
+          "notes": "brief note",
+          "priority": "High"
         }
-      ],
-      "weekRevenue": number,
-      "travelNote": "driving/flying logistics"
+      ]
     }
   ],
-  "gapsFound": [{"gap": "string", "opportunity": "string"}],
-  "marketsToPrioritize": ["list of cities not yet booked that should be hit"],
-  "marketsToAvoid": ["markets booked too recently"],
-  "nextSteps": ["specific action items for Jason to do today"]
+  "marketsToPrioritize": ["city1","city2"],
+  "nextSteps": ["action1","action2","action3"]
 }`;
 
     try {
@@ -4848,14 +4954,26 @@ Return a JSON object ONLY (no markdown, no backticks) with this exact structure:
         body: JSON.stringify({
           system: SYSTEM_PROMPT,
           messages: [{role:'user', content: prompt}],
-          max_tokens: 2000,
+          max_tokens: 4000,
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Server error');
       const raw = data.content?.find(c => c.type === 'text')?.text || '{}';
-      const clean = raw.replace(/```json|```/g,'').trim();
-      const plan = JSON.parse(clean);
+      let clean = raw.replace(/```json|```/g,'').trim();
+      // Repair truncated JSON — AI can cut off before closing all brackets
+      function repairJSON(str) {
+        try { return JSON.parse(str); } catch {}
+        let fixed = str.replace(/,\s*$/, '').replace(/,\s*([}\]])/g,'$1');
+        const opens = (fixed.match(/\[/g)||[]).length - (fixed.match(/\]/g)||[]).length;
+        const objOpens = (fixed.match(/\{/g)||[]).length - (fixed.match(/\}/g)||[]).length;
+        for(let i=0;i<opens;i++) fixed += ']';
+        for(let i=0;i<objOpens;i++) fixed += '}';
+        try { return JSON.parse(fixed); } catch {}
+        return null;
+      }
+      const plan = repairJSON(clean);
+      if(!plan) throw new Error('Response was malformed. Please try again.');
       setPlanResult(plan);
     } catch(e) {
       setPlanResult({error: `Failed to generate plan: ${e.message || 'Try again.'}`});
