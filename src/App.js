@@ -364,7 +364,7 @@ const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
 const OWNER_EMAIL = 'jschucomedy@gmail.com';
 const AUTHORIZED_USERS = [
   'jschucomedy@gmail.com', // Jason — owner
-  // 'pej@hisemail.com',   // Pej Ahmadi — replace with his real email and uncomment
+  'pejmana85@gmail.com', // Pej Ahmadi — venue outreach, 15% commission
 ];
 // AI calls are routed through /.netlify/functions/generate-email (server-side).
 // No Anthropic key in the client. No FUNCTION_SECRET.
