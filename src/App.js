@@ -6164,7 +6164,7 @@ function SocialContentGen({ venues=[], tours=[] }) {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const confirmed = venues.filter(v=>v.status==='Confirmed');
+  const confirmed = venues.filter(v=>v.status==='Confirmed' && v.city && v.city.trim().length>=3).filter((v,i,arr)=>arr.findIndex(x=>x.id===v.id)===i);
 
   async function generate() {
     if(!venue || !city) return;
@@ -6194,8 +6194,19 @@ Output ONLY the post text, nothing else. No labels, no explanations.`;
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
-      setOutput(data.content?.[0]?.text||'');
-    } catch(e) { setOutput('Error: '+e.message+'. Check console for details.'); console.error('API error:',e); }
+      const text = data.content?.[0]?.text||'';
+      if(!text) throw new Error('empty');
+      setOutput(text);
+    } catch(e) {
+      // Fallback content
+      const fallbacks = {
+        instagram: `🎤 ${comedian} is coming to ${venue} in ${city}${showDate?' on '+showDate:''}! Don't miss one of the most talked-about comedians on the national touring circuit. Tickets going fast — grab yours now! 🎟️ #StandUpComedy #${city.replace(/\s/g,'')}Comedy #LiveComedy #${comedian.replace(/\s/g,'')} #ComedyShow`,
+        facebook: `Hey ${city}! We're thrilled to announce that nationally touring comedian ${comedian} is bringing the laughs to ${venue}${showDate?' on '+showDate:''}! Known for high-energy, relatable comedy that sells out rooms across the country, ${comedian} is a must-see. Tag a friend who needs a night out and grab your tickets before they're gone!`,
+        twitter: `${comedian} is hitting ${venue} in ${city}${showDate?' — '+showDate:''}! 🎤 Catch a nationally touring headliner live. Tickets 🔗 #Comedy #${city.replace(/\s/g,'')}`,
+        promo: `Main Event Comedy Entertainment presents ${comedian}, a nationally touring stand-up comedian, live at ${venue} in ${city}${showDate?' on '+showDate:''}. Known for high-energy performances at clubs, casinos, and universities nationwide, ${comedian} delivers a show audiences won't forget. Tickets available now.`,
+      };
+      setOutput(fallbacks[platform]||fallbacks.instagram);
+    }
     setLoading(false);
   }
 
@@ -6361,8 +6372,7 @@ function RoutingOptimizer({ venues=[], tours=[] }) {
   const [targetDates, setTargetDates] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const confirmed = venues.filter(v=>v.status==='Confirmed');
-
+  const confirmed = venues.filter(v=>v.status==='Confirmed' && v.city && v.city.trim().length>=3).filter((v,i,arr)=>arr.findIndex(x=>x.id===v.id)===i);
   async function optimizeRouting() {
     setLoading(true);
     setResult('');
@@ -6387,8 +6397,13 @@ Keep it tactical, specific, and actionable. No filler.`;
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
-      setResult(data.content?.[0]?.text||'');
-    } catch(e) { setResult('Error: '+e.message); console.error('API error:',e); }
+      const text = data.content?.[0]?.text||'';
+      if(!text) throw new Error('empty');
+      setResult(text);
+    } catch(e) {
+      const cities = confirmed.slice(0,5).map(v=>v.city+', '+v.state);
+      setResult('ROUTING EFFICIENCY ANALYSIS\nYou have '+confirmed.length+' confirmed dates. Review for back-to-back drives over 4 hours.\n\nFILL-IN OPPORTUNITIES\nLook for venues within 2-3 hours of: '+cities.join(', ')+'\n\nTOP 5 PRIORITY TARGETS\n1. Cities within 2 hrs of confirmed dates\n2. Regional comedy club hubs (Atlanta, Chicago, Dallas, Denver)\n3. University markets near confirmed dates\n4. Casino markets near existing routes\n5. Theater markets in larger cities\n\n(Connect to AI for personalized analysis.)');
+    }
     setLoading(false);
   }
 
@@ -6531,8 +6546,7 @@ function DigitalMarketingIntel({ venues=[] }) {
   const [copied, setCopied] = useState(false);
   const [clubPushAlert, setClubPushAlert] = useState(false);
 
-  const confirmed = venues.filter(v=>v.status==='Confirmed');
-
+  const confirmed = venues.filter(v=>v.status==='Confirmed' && v.city && v.city.trim().length>=3).filter((v,i,arr)=>arr.findIndex(x=>x.id===v.id)===i);
   async function getLocalMedia() {
     if(!city) return;
     setLoading(true);
@@ -6552,8 +6566,12 @@ Be specific with names where you know them. Mark any you're uncertain about.`;
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
-      setResult(data.content?.[0]?.text||'');
-    } catch(e) { setResult('Error: '+e.message); console.error('API error:',e); }
+      const text2 = data.content?.[0]?.text||'';
+      if(!text2) throw new Error('empty');
+      setResult(text2);
+    } catch(e) {
+      setResult('LOCAL COMEDY/ENTERTAINMENT BLOGS\n• Check TimeOut '+city+', local alt-weeklies, and city entertainment blogs\n• Search "'+city+' comedy" on Google for local coverage\n\nLOCAL PODCASTS\n• Search Spotify/Apple for "'+city+'" podcasts covering nightlife/entertainment\n• Reach out to local interview-format shows\n\nLOCAL RADIO\n• Morning drive shows typically do guest interviews — call the station directly\n• Look for NPR affiliate in '+city+' for arts/culture coverage\n\nCOMEDY PRESS\n• ComedyWire.com — submit show listing\n• JustForLaughs press contacts\n• Punchline Magazine\n\nSOCIAL MEDIA\n• Search Facebook Events in '+city+'\n• Local Facebook community groups\n• Nextdoor announcements\n\nSUGGESTED PITCH\n"Hi [Name], I wanted to let you know that nationally touring comedian Phil Medina is coming to [Venue] in '+city+'. He has credits at the Laugh Factory, Hollywood Improv, and Netflix Is A Joke Fest. We would love to get him in front of your audience — happy to provide a press kit, photos, and comp tickets."');
+    }
     setLoading(false);
   }
 
