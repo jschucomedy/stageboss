@@ -6637,72 +6637,79 @@ Be specific with names where you know them. Mark any you're uncertain about.`;
 function VenueIntelligence({ venues=[] }) {
   const [viTab, setViTab] = useState('pitch-timing');
   const [searchTerm, setSearchTerm] = useState('');
-  const [compVenue, setCompVenue] = useState('');
-  const [compCity, setCompCity] = useState('');
-  const [competitors, setCompetitors] = useState('');
-  const [loadingComp, setLoadingComp] = useState(false);
-  const [copiedComp, setCopiedComp] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [targetDatesInput, setTargetDatesInput] = useState('');
 
   const now = new Date();
   const currentMonth = now.toLocaleString('default',{month:'long'});
+  const confirmed = venues.filter(v=>v.status==='Confirmed' && v.city && v.city.trim().length>=3)
+    .filter((v,i,arr)=>arr.findIndex(x=>x.id===v.id)===i);
 
-  // Filter venues by search
+  // Search CRM for venue intelligence
+  function searchVenueIntel() {
+    if(!searchQuery.trim()) return;
+    const q = searchQuery.toLowerCase();
+    // Find matching venues in CRM
+    const matches = venues.filter(v=>
+      (v.venue||'').toLowerCase().includes(q) ||
+      (v.city||'').toLowerCase().includes(q) ||
+      (v.booker||'').toLowerCase().includes(q)
+    );
+    // Check for date conflicts with confirmed shows
+    const conflicts = confirmed.filter(c=>{
+      const cCity = (c.city||'').toLowerCase();
+      const cState = (c.state||'').toLowerCase();
+      return matches.some(m=>(m.city||'').toLowerCase()===cCity && (m.state||'').toLowerCase()===cState);
+    });
+    setSearchResults({ matches, conflicts, query: searchQuery });
+  }
+
+  // Parse date string loosely to check overlap
+  function datesOverlap(d1, d2) {
+    if(!d1||!d2) return false;
+    const normalize = s => s.toLowerCase().replace(/[^a-z0-9\s]/g,'').trim();
+    const n1 = normalize(d1); const n2 = normalize(d2);
+    const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    for(const m of months){ if(n1.includes(m)&&n2.includes(m)) return true; }
+    return false;
+  }
+
+  // Filter venues by search for contact db
   const filteredVenues = venues.filter(v=>{
     if(!searchTerm) return true;
-    return (v.venue+v.city+v.state+v.venueType||'').toLowerCase().includes(searchTerm.toLowerCase());
+    return ((v.venue||'')+(v.city||'')+(v.state||'')+(v.venueType||'')).toLowerCase().includes(searchTerm.toLowerCase());
   });
-
-  async function checkCompetitors() {
-    if(!compVenue||!compCity) return;
-    setLoadingComp(true);
-    setCompetitors('');
-    const prompt = `You are a comedy industry intelligence expert. Give me a competitor and calendar analysis for this venue:
-
-Venue: ${compVenue}
-City: ${compCity}
-
-Provide:
-1. COMEDIANS WHO PLAY HERE — Name 5-8 comedians at a similar level who regularly perform at this type of venue in ${compCity}. These are our "market comps."
-2. BOOKING PATTERNS — What day of the week and what times of year does this venue type in ${compCity} typically book?
-3. CALENDAR INSIGHT — Are there typically open Fri/Sat slots in the coming 60 days for this venue type in ${compCity}? What should we know before pitching?
-4. OUR COMPETITIVE POSITION — Given Phil Medina is a nationally touring headliner with club credits, how do we position this pitch?
-5. BEST PITCH APPROACH — One specific tactical tip for getting a response from this booker.
-
-Be specific and tactical. No filler.`;
-
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:700,messages:[{role:'user',content:prompt}]})});
-      const data = await res.json();
-      setCompetitors(data.content?.[0]?.text||'');
-    } catch(e) { setCompetitors('Error: '+e.message); }
-    setLoadingComp(false);
-  }
 
   return (
     <div>
       <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:14}}>🏛️ Venue Intelligence</div>
 
       <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
-        {[['pitch-timing','⏰ Pitch Timing'],['competitor','🎭 Competitor Intel'],['contact-db','📋 Contact Notes']].map(([id,label])=>(
+        {[['pitch-timing','⏰ Pitch Timing'],['venue-search','🔍 Venue Lookup'],['contact-db','📋 Contact Notes']].map(([id,label])=>(
           <button key={id} onClick={()=>setViTab(id)} style={s.pill(viTab===id,C.acc)}>{label}</button>
         ))}
       </div>
 
-      {/* PITCH TIMING */}
+      {/* ── PITCH TIMING ── */}
       {viTab==='pitch-timing' && (
         <div>
           <div style={{background:`rgba(247,144,9,0.08)`,border:`1px solid rgba(247,144,9,0.25)`,borderRadius:10,padding:'10px 14px',marginBottom:14}}>
             <div style={{fontSize:11,color:C.yellow,fontWeight:700}}>📅 Current Month: {currentMonth}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:2}}>Pitch timing grades below are based on today's date</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>Pitch timing grades are based on today's date</div>
           </div>
           {Object.entries(BOOKING_SEASONS).map(([type,data])=>{
             const {isHot,isCold} = getPitchStatus(type);
             const statusColor = isHot?C.green:isCold?C.red:C.yellow;
             const statusLabel = isHot?'🔥 PITCH NOW':isCold?'🧊 OFF SEASON':'📬 OKAY TO PITCH';
+            const count = venues.filter(v=>(v.venueType||'').includes(type.split('/')[0])).length;
             return (
               <div key={type} style={{background:C.surf2,border:`1px solid ${statusColor}22`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                  <div style={{fontFamily:font.head,fontWeight:700,fontSize:14,color:C.txt}}>{type}</div>
+                  <div>
+                    <div style={{fontFamily:font.head,fontWeight:700,fontSize:14,color:C.txt}}>{type}</div>
+                    {count>0&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{count} venues in your CRM</div>}
+                  </div>
                   <div style={{...s.badge(statusColor)}}>{statusLabel}</div>
                 </div>
                 <div style={{fontSize:11,color:C.muted2,marginBottom:6}}>
@@ -6715,46 +6722,201 @@ Be specific and tactical. No filler.`;
         </div>
       )}
 
-      {/* COMPETITOR TRACKING */}
-      {viTab==='competitor' && (
+      {/* ── VENUE LOOKUP (replaces Competitor Intel) ── */}
+      {viTab==='venue-search' && (
         <div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Enter a venue to see which comedians play there and get calendar insights before you pitch.</div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Search your CRM to see everything you know about a venue — status, booker, notes, deal history, and date conflicts with your existing confirmed shows.</div>
+
           <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-              <div style={s.field()}>
-                <label style={s.label}>Venue Name</label>
-                <input style={s.input()} value={compVenue} onChange={e=>setCompVenue(e.target.value)} placeholder="The Improv"/>
-              </div>
-              <div style={s.field()}>
-                <label style={s.label}>City</label>
-                <input style={s.input()} value={compCity} onChange={e=>setCompCity(e.target.value)} placeholder="Chicago"/>
-              </div>
+            <div style={s.field()}>
+              <label style={s.label}>Search Venue Name, City, or Booker</label>
+              <input
+                style={s.input()}
+                value={searchQuery}
+                onChange={e=>setSearchQuery(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&searchVenueIntel()}
+                placeholder="e.g. Improv, Chicago, Dave..."
+              />
             </div>
-            <button onClick={checkCompetitors} disabled={loadingComp||!compVenue||!compCity} style={{...s.btn(!loadingComp&&compVenue&&compCity?C.acc:'#333','#fff',null),width:'100%'}}>
-              {loadingComp?'🔍 Analyzing...':'🔍 Analyze Venue & Competitors'}
+            <div style={s.field()}>
+              <label style={s.label}>Dates You're Looking to Book (optional)</label>
+              <input
+                style={s.input()}
+                value={targetDatesInput}
+                onChange={e=>setTargetDatesInput(e.target.value)}
+                placeholder="e.g. June 14-15, July 2026..."
+              />
+              <div style={{fontSize:10,color:C.muted,marginTop:3}}>We'll flag conflicts with your confirmed shows in those months</div>
+            </div>
+            <button type="button" onClick={searchVenueIntel} style={{background:C.acc,color:'#fff',border:'none',borderRadius:10,padding:'12px 16px',width:'100%',fontSize:13,fontWeight:700,fontFamily:font.head,cursor:'pointer',minHeight:44,WebkitTapHighlightColor:'transparent'}}>
+              🔍 Search My CRM
             </button>
           </div>
-          {competitors && (
-            <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2}}>Intelligence Report</div>
-                <button onClick={()=>{navigator.clipboard?.writeText(competitors);setCopiedComp(true);setTimeout(()=>setCopiedComp(false),2000);}} style={{...s.btn(copiedComp?C.green:C.surf3,C.txt,C.bord),padding:'6px 12px',fontSize:11}}>{copiedComp?'✅ Copied':'Copy'}</button>
+
+          {/* Quick browse confirmed shows for date check */}
+          {!searchResults && confirmed.length > 0 && (
+            <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+              <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.05em'}}>📅 Your Confirmed Dates ({confirmed.length})</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:10}}>These dates are locked — venues in same cities may conflict</div>
+              {confirmed.map(v=>(
+                <div key={v.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.bord}`}}>
+                  <div>
+                    <div style={{fontSize:12,color:C.txt,fontWeight:600}}>{v.venue}</div>
+                    <div style={{fontSize:10,color:C.muted}}>{v.city}, {v.state}</div>
+                  </div>
+                  <div style={{fontSize:11,color:C.green,fontWeight:700}}>{v.targetDates||'TBD'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Search Results */}
+          {searchResults && (
+            <div>
+              {/* Matches from CRM */}
+              <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                CRM Results for "{searchResults.query}" — {searchResults.matches.length} venue{searchResults.matches.length!==1?'s':''} found
               </div>
-              <div style={{fontSize:12,color:C.txt,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{competitors}</div>
+
+              {searchResults.matches.length === 0 && (
+                <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'20px',textAlign:'center',marginBottom:14}}>
+                  <div style={{fontSize:14,marginBottom:6}}>🤷</div>
+                  <div style={{fontSize:12,color:C.muted}}>No venues matching "{searchResults.query}" in your CRM.</div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:4}}>This could be a new target — add it to your venues list to start tracking it.</div>
+                </div>
+              )}
+
+              {searchResults.matches.map(v=>{
+                // Check if this specific venue has a date conflict
+                const isSameVenueConfirmed = v.status==='Confirmed';
+                const cityConflicts = confirmed.filter(c=>
+                  (c.city||'').toLowerCase()===(v.city||'').toLowerCase() &&
+                  c.id !== v.id
+                );
+                const dateConflict = targetDatesInput
+                  ? cityConflicts.filter(c=>datesOverlap(targetDatesInput, c.targetDates||''))
+                  : [];
+                const hasConflict = dateConflict.length > 0;
+                const borderColor = isSameVenueConfirmed ? C.green : hasConflict ? C.red : C.bord;
+
+                return (
+                  <div key={v.id} style={{background:C.surf2,border:`1px solid ${borderColor}`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
+                    {/* Header */}
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:font.head,fontWeight:800,fontSize:14,color:C.txt}}>{v.venue}</div>
+                        <div style={{fontSize:11,color:C.muted}}>{v.city}, {v.state}{v.venueType?` · ${v.venueType}`:''}{v.capacity?` · Cap: ${v.capacity}`:''}</div>
+                      </div>
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4,flexShrink:0,marginLeft:8}}>
+                        <StatusPill status={v.status}/>
+                        {isSameVenueConfirmed && <div style={{fontSize:9,color:C.green,fontWeight:700}}>✅ ALREADY BOOKED</div>}
+                        {hasConflict && <div style={{fontSize:9,color:C.red,fontWeight:700}}>⚠️ DATE CONFLICT</div>}
+                        {!isSameVenueConfirmed && !hasConflict && targetDatesInput && <div style={{fontSize:9,color:C.green,fontWeight:700}}>✅ DATES AVAILABLE</div>}
+                      </div>
+                    </div>
+
+                    {/* Date conflict warning */}
+                    {hasConflict && (
+                      <div style={{background:`${C.red}15`,border:`1px solid ${C.red}33`,borderRadius:8,padding:'8px 12px',marginBottom:8}}>
+                        <div style={{fontSize:11,color:C.red,fontWeight:700,marginBottom:4}}>⚠️ Conflict: You already have a confirmed show in {v.city} around those dates</div>
+                        {dateConflict.map(c=>(
+                          <div key={c.id} style={{fontSize:11,color:C.muted2}}>→ {c.venue} · {c.targetDates||'TBD'}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Confirmed show banner */}
+                    {isSameVenueConfirmed && (
+                      <div style={{background:`${C.green}15`,border:`1px solid ${C.green}33`,borderRadius:8,padding:'8px 12px',marginBottom:8}}>
+                        <div style={{fontSize:11,color:C.green,fontWeight:700}}>✅ This venue is already confirmed on your calendar</div>
+                        {v.targetDates&&<div style={{fontSize:11,color:C.muted2,marginTop:2}}>Dates: {v.targetDates}</div>}
+                      </div>
+                    )}
+
+                    {/* Booker info */}
+                    {(v.booker||v.email) && (
+                      <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:6}}>
+                        {v.booker&&<div style={{fontSize:11,color:C.acc2}}>👤 {v.booker}{v.bookerLast?' '+v.bookerLast:''}</div>}
+                        {v.email&&<div style={{fontSize:11,color:C.muted2}}>✉️ {v.email}</div>}
+                      </div>
+                    )}
+
+                    {/* Deal info */}
+                    {(v.dealType||v.guarantee) && (
+                      <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:6}}>
+                        {v.dealType&&<div style={{fontSize:11,color:C.muted2}}>💰 {v.dealType}</div>}
+                        {v.guarantee&&<div style={{fontSize:11,color:C.green}}>Guarantee: ${Number(v.guarantee).toLocaleString()}</div>}
+                      </div>
+                    )}
+
+                    {/* Contact history */}
+                    {v.contactLog && v.contactLog.length > 0 && (
+                      <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
+                        📞 {v.contactLog.length} contact{v.contactLog.length!==1?'s':''} logged · Last: {v.contactLog[v.contactLog.length-1]?.date||'unknown'}
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {v.notes && (
+                      <div style={{fontSize:11,color:C.txt,padding:'8px 10px',background:C.surf3,borderRadius:8,lineHeight:1.5,marginBottom:6}}>
+                        📝 {v.notes}
+                      </div>
+                    )}
+
+                    {/* History */}
+                    {v.history && (
+                      <div style={{fontSize:11,color:C.muted2,padding:'8px 10px',background:C.surf3,borderRadius:8,lineHeight:1.5}}>
+                        🕓 {v.history}
+                      </div>
+                    )}
+
+                    {/* Nearby confirmed shows */}
+                    {cityConflicts.length > 0 && !isSameVenueConfirmed && (
+                      <div style={{marginTop:8,padding:'8px 10px',background:`${C.blue}10`,border:`1px solid ${C.blue}22`,borderRadius:8}}>
+                        <div style={{fontSize:10,color:C.blue,fontWeight:700,marginBottom:4}}>📍 Other confirmed shows near {v.city}:</div>
+                        {cityConflicts.map(c=>(
+                          <div key={c.id} style={{fontSize:11,color:C.muted2}}>→ {c.venue} · {c.targetDates||'TBD'}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Pitch timing for this venue type */}
+                    {v.venueType && (()=>{
+                      const vt = Object.keys(BOOKING_SEASONS).find(k=>v.venueType.includes(k.split('/')[0]))||'Comedy Club';
+                      const {isHot,isCold} = getPitchStatus(vt);
+                      return (
+                        <div style={{marginTop:8,display:'flex',alignItems:'center',gap:8}}>
+                          <div style={{...s.badge(isHot?C.green:isCold?C.red:C.yellow),fontSize:9}}>
+                            {isHot?'🔥 PITCH NOW':isCold?'🧊 OFF SEASON':'📬 OK TO PITCH'}
+                          </div>
+                          <span style={{fontSize:10,color:C.muted}}>for {vt}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })}
+
+              <button type="button" onClick={()=>setSearchResults(null)} style={{...s.btn(C.surf3,C.muted,C.bord),width:'100%',fontSize:12,marginTop:4}}>
+                Clear Search
+              </button>
             </div>
           )}
         </div>
       )}
 
-      {/* CONTACT DB */}
+      {/* ── CONTACT NOTES ── */}
       {viTab==='contact-db' && (
         <div>
           <div style={{marginBottom:12}}>
             <input style={s.input()} value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search venues, bookers, cities..."/>
           </div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:12}}>
+            {filteredVenues.filter(v=>v.booker||v.notes).length} venues with booker info or notes
+          </div>
           {filteredVenues.filter(v=>v.booker||v.notes).length === 0 && (
             <div style={{textAlign:'center',padding:'30px',color:C.muted,fontSize:12}}>
-              No booker notes yet. Add booker names and notes to venues in your CRM to see them here.
+              No booker notes yet. Add booker names and notes to venues in your CRM.
             </div>
           )}
           {filteredVenues.filter(v=>v.booker||v.notes).map(v=>(
@@ -6764,11 +6926,13 @@ Be specific and tactical. No filler.`;
                   <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt}}>{v.venue}</div>
                   <div style={{fontSize:11,color:C.muted}}>{v.city}, {v.state}{v.venueType?` · ${v.venueType}`:''}</div>
                 </div>
-                <div style={{...s.badge(C.blue),fontSize:9}}>{getPitchStatus(v.venueType||'Comedy Club').isHot?'Hot Season':'Regular'}</div>
+                <StatusPill status={v.status} small/>
               </div>
-              {v.booker && <div style={{fontSize:11,color:C.acc2,marginBottom:4}}>👤 {v.booker}{v.bookerLast?' '+v.bookerLast:''}</div>}
-              {v.email && <div style={{fontSize:11,color:C.muted2,marginBottom:4}}>✉️ {v.email}</div>}
-              {v.notes && <div style={{fontSize:11,color:C.txt,marginTop:6,padding:'8px 10px',background:C.surf3,borderRadius:8,lineHeight:1.5}}>{v.notes}</div>}
+              {v.booker&&<div style={{fontSize:11,color:C.acc2,marginBottom:4}}>👤 {v.booker}{v.bookerLast?' '+v.bookerLast:''}</div>}
+              {v.email&&<div style={{fontSize:11,color:C.muted2,marginBottom:4}}>✉️ {v.email}</div>}
+              {v.contactLog&&v.contactLog.length>0&&<div style={{fontSize:10,color:C.muted,marginBottom:4}}>📞 {v.contactLog.length} contact{v.contactLog.length!==1?'s':''} logged</div>}
+              {v.notes&&<div style={{fontSize:11,color:C.txt,marginTop:6,padding:'8px 10px',background:C.surf3,borderRadius:8,lineHeight:1.5}}>{v.notes}</div>}
+              {v.history&&<div style={{fontSize:11,color:C.muted2,marginTop:4,padding:'8px 10px',background:C.surf3,borderRadius:8,lineHeight:1.5}}>{v.history}</div>}
             </div>
           ))}
         </div>
