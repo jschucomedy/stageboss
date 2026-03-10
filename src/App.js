@@ -2914,9 +2914,12 @@ function StageBoss({user,onLogout,accessToken}){
           ['today','📋','Today','Dashboard'],
           ['venues','🏛️','Venues','CRM Pipeline'],
           ['outreach','✉️','Outreach','Email & Contact'],
+          ['templates','📝','Templates','Smart Outreach'],
           ['tours','🚌','Tours','Routing & P&L'],
           ['calendar','📅','Calendar','Schedule'],
           ['analytics','📊','Analytics','Revenue & Stats'],
+          ['marketing','🎯','Marketing','Promo Intelligence'],
+          ['presskit','🗂️','Press Kit','One-Sheet Builder'],
           ['smartboss','🧠','SmartBoss AI','Tour Intelligence'],
         ].map(([t,icon,label,sub])=>(
           <div key={t} onClick={()=>setTab(t)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:11,marginBottom:3,cursor:'pointer',background:tab===t?'rgba(124,58,237,0.12)':'transparent',border:`1px solid ${tab===t?'rgba(124,58,237,0.35)':'transparent'}`,color:tab===t?C.acc3:C.muted,transition:'all 0.15s ease',position:'relative'}}>
@@ -3668,6 +3671,9 @@ function StageBoss({user,onLogout,accessToken}){
         {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
           <AnalyticsTab venues={venues} tours={tours} bestTimeData={bestTimeData} />
         </div>}
+        {tab==='marketing'&&<MarketingTab venues={venues} tours={tours} comedians={comedians} currentUserEmail={session?.email||'jschucomedy@gmail.com'}/>}
+        {tab==='templates'&&<TemplatesTab venues={venues} currentUserEmail={session?.email||'jschucomedy@gmail.com'}/>}
+        {tab==='presskit'&&<PressKitBuilder venues={venues} comedians={comedians}/>}
 
       </div>{/* end content */}
 
@@ -3676,7 +3682,7 @@ function StageBoss({user,onLogout,accessToken}){
 
       {/* NAV - mobile only */}
       <nav className="sb-mobile-nav" style={s.nav}>
-        {[['today','🏠','Today'],['venues','🏛️','Venues'],['outreach','✉️','Outreach'],['tours','🗺️','Tours'],['calendar','📅','Cal'],['analytics','📊','Stats'],['smartboss','🧠','AI']].map(([t,icon,label])=>(
+        {[['today','🏠','Today'],['venues','🏛️','Venues'],['outreach','✉️','Outreach'],['templates','📝','Templates'],['tours','🗺️','Tours'],['calendar','📅','Cal'],['marketing','🎯','Mktg'],['analytics','📊','Stats'],['presskit','🗂️','Press'],['smartboss','🧠','AI']].map(([t,icon,label])=>(
           <button key={t} onClick={()=>setTab(t)} className={`sb-nav-btn${tab===t?' active':''}`} style={{color:tab===t?C.acc2:C.muted,fontFamily:'inherit'}}>
             <span style={{fontSize:20,lineHeight:1}}>{icon}</span>
             <span style={{fontSize:9,fontWeight:tab===t?700:500,letterSpacing:'0.03em',marginTop:1}}>{label}</span>
@@ -5695,6 +5701,1358 @@ function TourEditor({tour,onSave,onCancel,comedians=[]}){
       <button onClick={onCancel} style={s.btn(C.surf2,C.txt,C.bord)}>Cancel</button>
     </div>
   </>;
+}
+
+// ============================================================
+// MARKETING INTELLIGENCE MODULE — StageBoss v11
+// Features: Analytics Dashboard, Profitability Calc, Social AI,
+// Posting Schedule, Routing Optimizer, Show Momentum,
+// Digital Marketing, Venue Intelligence, SmartBoss upgrades,
+// Personalized Templates (per-user), Press Kit Builder
+// ============================================================
+
+const USER_PROFILES = {
+  'jschucomedy@gmail.com': {
+    name: 'Jason Schuster',
+    displayName: 'Jason',
+    email: 'jason@maineventcomedy.com',
+    fallbackEmail: 'jschucomedy@gmail.com',
+    credits: 'Producer & Touring Manager, Main Event Comedy Entertainment',
+    title: 'Producer / Tour Manager',
+    phone: '',
+    signature: `Jason Schuster\nProducer & Tour Manager\nMain Event Comedy Entertainment\njason@maineventcomedy.com`,
+    role: 'owner',
+  },
+  'pejmana85@gmail.com': {
+    name: 'Pej Ahmadi',
+    displayName: 'Pej',
+    email: 'pej@maineventcomedy.com',
+    fallbackEmail: 'pejmana85@gmail.com',
+    credits: 'Booking & Venue Outreach, Main Event Comedy Entertainment',
+    title: 'Booking & Venue Outreach',
+    phone: '',
+    signature: `Pej Ahmadi\nBooking & Venue Outreach\nMain Event Comedy Entertainment\npej@maineventcomedy.com`,
+    role: 'outreach',
+  },
+};
+
+// ─── VENUE INTELLIGENCE DATA ─────────────────────────────────
+const BOOKING_SEASONS = {
+  'University/College': {
+    peak: ['August','September','October','January','February'],
+    avoid: ['May','June','July'],
+    tip: 'College CABs book fall semester in Aug–Oct and spring in Jan–Feb. Submit during spring for fall dates.',
+    pitchWindow: 'Aug–Oct (fall) · Jan–Feb (spring)',
+    urgency: 'high',
+  },
+  'Casino': {
+    peak: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+    avoid: [],
+    tip: 'Casinos book year-round and often fill gaps last-minute. Follow up every 45 days.',
+    pitchWindow: 'Year-round · 60–90 day advance',
+    urgency: 'medium',
+  },
+  'Comedy Club': {
+    peak: ['September','October','November','January','February','March'],
+    avoid: ['July','August'],
+    tip: 'Comedy clubs build calendars 8–12 weeks out. Summer is slow booking season.',
+    pitchWindow: 'Sep–Mar strongest · pitch 8–12 wks out',
+    urgency: 'medium',
+  },
+  'Theater': {
+    peak: ['July','August','September','October'],
+    avoid: ['November','December'],
+    tip: 'Theaters book 3–6 months out. Lock fall dates by July.',
+    pitchWindow: 'Jul–Sep for fall · Jan–Mar for summer',
+    urgency: 'low',
+  },
+};
+
+function getPitchStatus(venueType) {
+  const month = new Date().toLocaleString('default',{month:'long'});
+  const data = BOOKING_SEASONS[venueType] || BOOKING_SEASONS['Comedy Club'];
+  const isHot = data.peak.includes(month);
+  const isCold = data.avoid.includes(month);
+  return { isHot, isCold, data };
+}
+
+// ─── MARKETING TAB COMPONENT ─────────────────────────────────
+function MarketingTab({ venues=[], tours=[], comedians=[], currentUserEmail='jschucomedy@gmail.com' }) {
+  const [mTab, setMTab] = useState('analytics');
+  const userProfile = USER_PROFILES[currentUserEmail] || USER_PROFILES['jschucomedy@gmail.com'];
+
+  const subTabs = [
+    ['analytics','📊','Analytics'],
+    ['profitability','💰','Profit Calc'],
+    ['social','📱','Social AI'],
+    ['schedule','📅','Post Schedule'],
+    ['routing','🗺️','Routing'],
+    ['momentum','📈','Momentum'],
+    ['intel','🎯','Dig. Marketing'],
+    ['venue-intel','🏛️','Venue Intel'],
+  ];
+
+  return (
+    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+      <div style={{marginBottom:16}}>
+        <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,color:C.txt,marginBottom:2}}>Marketing Intelligence</div>
+        <div style={{fontSize:11,color:C.muted}}>Revenue · Promotion · Routing · Venue Intel</div>
+      </div>
+
+      {/* Sub-nav scroll */}
+      <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:10,marginBottom:16,scrollbarWidth:'none'}}>
+        {subTabs.map(([id,icon,label])=>(
+          <button key={id} onClick={()=>setMTab(id)} style={{
+            flexShrink:0,background:mTab===id?`${C.acc}22`:'transparent',
+            color:mTab===id?C.acc2:C.muted,border:`1px solid ${mTab===id?C.acc+'44':'transparent'}`,
+            borderRadius:20,padding:'6px 14px',fontSize:11,fontWeight:600,cursor:'pointer',
+            fontFamily:font.head,letterSpacing:'0.03em',whiteSpace:'nowrap',
+          }}>{icon} {label}</button>
+        ))}
+      </div>
+
+      {mTab==='analytics'&&<AnalyticsDashboard venues={venues} tours={tours}/>}
+      {mTab==='profitability'&&<ProfitabilityCalc/>}
+      {mTab==='social'&&<SocialContentGen venues={venues} tours={tours}/>}
+      {mTab==='schedule'&&<PostingSchedule venues={venues} tours={tours}/>}
+      {mTab==='routing'&&<RoutingOptimizer venues={venues} tours={tours}/>}
+      {mTab==='momentum'&&<MomentumTracker venues={venues}/>}
+      {mTab==='intel'&&<DigitalMarketingIntel venues={venues}/>}
+      {mTab==='venue-intel'&&<VenueIntelligence venues={venues}/>}
+    </div>
+  );
+}
+
+// ─── ANALYTICS DASHBOARD ─────────────────────────────────────
+function AnalyticsDashboard({ venues=[], tours=[] }) {
+  const confirmed = venues.filter(v=>v.status==='Confirmed');
+  const negotiating = venues.filter(v=>v.status==='Negotiating');
+  const pipeline = [...confirmed,...negotiating,...venues.filter(v=>v.status==='Responded')];
+  const totalPipelineValue = pipeline.reduce((s,v)=>{
+    const g = Number(v.guarantee)||0;
+    return s + (v.showCount||1)*g;
+  },0);
+
+  const byType = {};
+  confirmed.forEach(v=>{
+    const t = v.venueType||'Other';
+    if(!byType[t]) byType[t]={count:0,revenue:0};
+    byType[t].count++;
+    byType[t].revenue += (Number(v.guarantee)||0)*(v.showCount||1);
+  });
+
+  // Deal closed by
+  const byCloser = {Jason:0, Pej:0, 'Jason + Pej':0};
+  confirmed.forEach(v=>{
+    const c = v.dealClosedBy||'Jason';
+    if(byCloser[c]!==undefined) byCloser[c]++;
+    else byCloser['Jason']++;
+  });
+
+  const dealStages = [
+    {label:'Cold Lead', count:venues.filter(v=>v.status==='Lead'||v.warmth==='Cold').length, color:C.muted},
+    {label:'Contacted', count:venues.filter(v=>v.status==='Contacted').length, color:C.blue},
+    {label:'Responded', count:venues.filter(v=>v.status==='Responded').length, color:C.yellow},
+    {label:'Negotiating', count:venues.filter(v=>v.status==='Negotiating').length, color:C.orange},
+    {label:'Confirmed', count:confirmed.length, color:C.green},
+  ];
+
+  const totalContacted = venues.filter(v=>['Contacted','Responded','Negotiating','Confirmed'].includes(v.status)).length;
+  const closeRate = totalContacted > 0 ? ((confirmed.length/totalContacted)*100).toFixed(1) : 0;
+
+  return (
+    <div>
+      {/* KPI Row */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+        {[
+          ['Pipeline Value',`$${totalPipelineValue.toLocaleString()}`,C.acc2,'Total confirmed + negotiating'],
+          ['Close Rate',`${closeRate}%`,C.green,'Contacted → Confirmed'],
+          ['Confirmed Shows',confirmed.length,C.yellow,'Active confirmed deals'],
+          ['Avg Guarantee',confirmed.length?`$${Math.round(confirmed.reduce((s,v)=>s+(Number(v.guarantee)||0),0)/confirmed.length).toLocaleString()}`:'$0',C.orange,'Per confirmed venue'],
+        ].map(([l,v,color,sub])=>(
+          <div key={l} style={{background:`${color}0d`,border:`1px solid ${color}22`,borderRadius:12,padding:'14px 14px'}}>
+            <div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>{l}</div>
+            <div style={{fontFamily:font.head,fontWeight:900,fontSize:24,color,lineHeight:1,marginBottom:3}}>{v}</div>
+            <div style={{fontSize:10,color:C.muted2}}>{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pipeline funnel */}
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+        <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt,marginBottom:12}}>📊 Pipeline Funnel</div>
+        {dealStages.map(({label,count,color})=>{
+          const pct = venues.length > 0 ? Math.max(4,(count/venues.length)*100) : 4;
+          return (
+            <div key={label} style={{marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                <span style={{fontSize:11,color:C.muted2}}>{label}</span>
+                <span style={{fontSize:11,fontWeight:700,color}}>{count}</span>
+              </div>
+              <div style={{height:6,background:C.surf3,borderRadius:3,overflow:'hidden'}}>
+                <div style={{height:'100%',width:`${pct}%`,background:`linear-gradient(90deg,${color},${color}88)`,borderRadius:3,transition:'width 0.5s ease'}}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Deal closed by */}
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+        <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt,marginBottom:12}}>🤝 Deals Closed By</div>
+        <div style={{display:'flex',gap:10}}>
+          {Object.entries(byCloser).map(([name,count])=>(
+            <div key={name} style={{flex:1,textAlign:'center',background:C.surf3,borderRadius:10,padding:'12px 8px'}}>
+              <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,color:name==='Pej'?C.blue:C.acc2}}>{count}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:3}}>{name}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Revenue by venue type */}
+      {Object.keys(byType).length > 0 && (
+        <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+          <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt,marginBottom:12}}>🏛️ Revenue by Venue Type</div>
+          {Object.entries(byType).sort((a,b)=>b[1].revenue-a[1].revenue).map(([type,data])=>(
+            <div key={type} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:`1px solid ${C.bord}`}}>
+              <div>
+                <div style={{fontSize:12,color:C.txt,fontWeight:600}}>{type}</div>
+                <div style={{fontSize:10,color:C.muted}}>{data.count} venue{data.count!==1?'s':''}</div>
+              </div>
+              <div style={{fontFamily:font.head,fontWeight:700,fontSize:14,color:C.green}}>${data.revenue.toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {venues.length === 0 && (
+        <div style={{textAlign:'center',padding:'40px 20px',color:C.muted,fontSize:12}}>
+          Analytics populate as you add and close deals in your CRM.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PROFITABILITY CALCULATOR ─────────────────────────────────
+function ProfitabilityCalc() {
+  const [guarantee, setGuarantee] = useState('');
+  const [travel, setTravel] = useState('');
+  const [hotel, setHotel] = useState('');
+  const [meals, setMeals] = useState('');
+  const [showCount, setShowCount] = useState('1');
+  const [dealType, setDealType] = useState('flat');
+  const [doorPct, setDoorPct] = useState('70');
+  const [ticketPrice, setTicketPrice] = useState('20');
+  const [capacity, setCapacity] = useState('');
+  const [pejDeal, setPejDeal] = useState(false);
+  const [producerFee, setProducerFee] = useState('200');
+  const [philFee, setPhilFee] = useState('500');
+  const [result, setResult] = useState(null);
+
+  function calculate() {
+    const g = Number(guarantee)||0;
+    const t = Number(travel)||0;
+    const h = Number(hotel)||0;
+    const m = Number(meals)||0;
+    const sc = Number(showCount)||1;
+    const pf = Number(producerFee)||0;
+    const phil = Number(philFee)||0;
+    const totalExpenses = (t+h+m);
+
+    let grossRevenue = 0;
+    if(dealType==='flat') grossRevenue = g*sc;
+    else if(dealType==='door') {
+      const cap = Number(capacity)||200;
+      const tp = Number(ticketPrice)||20;
+      const dp = Number(doorPct)||70;
+      grossRevenue = cap * tp * (dp/100) * sc;
+    } else if(dealType==='versus') {
+      const doorEst = (Number(capacity)||200)*(Number(ticketPrice)||20)*(Number(doorPct)||70/100);
+      grossRevenue = Math.max(g, doorEst)*sc;
+    } else if(dealType==='casino') {
+      grossRevenue = g*sc;
+    }
+
+    const bookingCommission = pejDeal ? grossRevenue * 0.15 : 0;
+    const afterCommission = grossRevenue - bookingCommission;
+    const producerTake = pf * sc;
+    const philTake = phil * sc;
+    const totalPayouts = producerTake + philTake;
+    const netProfit = afterCommission - totalExpenses - totalPayouts;
+    const breakEven = totalExpenses + totalPayouts + bookingCommission;
+    const verdict = netProfit > 0 ? 'profit' : netProfit === 0 ? 'breakeven' : 'loss';
+
+    setResult({ grossRevenue, bookingCommission, afterCommission, totalExpenses, producerTake, philTake, totalPayouts, netProfit, breakEven, verdict, sc });
+  }
+
+  const vColor = result?.verdict==='profit'?C.green:result?.verdict==='loss'?C.red:C.yellow;
+
+  return (
+    <div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:14}}>💰 Show Profitability Calculator</div>
+
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+        <div style={{...s.field()}}>
+          <label style={s.label}>Deal Type</label>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[['flat','Flat Guarantee'],['door','Door Deal'],['versus','Versus Deal'],['casino','Casino']].map(([id,label])=>(
+              <button key={id} onClick={()=>setDealType(id)} style={s.pill(dealType===id,C.acc)}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {(dealType==='flat'||dealType==='casino'||dealType==='versus')&&(
+            <div style={s.field()}>
+              <label style={s.label}>{dealType==='versus'?'Guarantee Floor ($)':'Guarantee ($)'}</label>
+              <input style={s.input()} type="number" value={guarantee} onChange={e=>setGuarantee(e.target.value)} placeholder="2500"/>
+            </div>
+          )}
+          {(dealType==='door'||dealType==='versus')&&<>
+            <div style={s.field()}>
+              <label style={s.label}>Ticket Price ($)</label>
+              <input style={s.input()} type="number" value={ticketPrice} onChange={e=>setTicketPrice(e.target.value)} placeholder="20"/>
+            </div>
+            <div style={s.field()}>
+              <label style={s.label}>Capacity</label>
+              <input style={s.input()} type="number" value={capacity} onChange={e=>setCapacity(e.target.value)} placeholder="300"/>
+            </div>
+            <div style={s.field()}>
+              <label style={s.label}>Your Door % Split</label>
+              <input style={s.input()} type="number" value={doorPct} onChange={e=>setDoorPct(e.target.value)} placeholder="70"/>
+            </div>
+          </>}
+          <div style={s.field()}>
+            <label style={s.label}>Number of Shows</label>
+            <input style={s.input()} type="number" value={showCount} onChange={e=>setShowCount(e.target.value)} placeholder="1"/>
+          </div>
+        </div>
+
+        <div style={{...s.divider}}/>
+        <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.05em'}}>Expenses & Payouts</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {[['Travel ($)',travel,setTravel,'800'],['Hotel ($)',hotel,setHotel,'300'],['Meals/Misc ($)',meals,setMeals,'100'],['Producer Fee/show',producerFee,setProducerFee,'200'],['Phil Fee/show',philFee,setPhilFee,'500']].map(([label,val,setter,ph])=>(
+            <div key={label} style={s.field()}>
+              <label style={s.label}>{label}</label>
+              <input style={s.input()} type="number" value={val} onChange={e=>setter(e.target.value)} placeholder={ph}/>
+            </div>
+          ))}
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px',background:C.surf3,borderRadius:10,marginBottom:14}}>
+          <input type="checkbox" id="pejdeal" checked={pejDeal} onChange={e=>setPejDeal(e.target.checked)} style={{width:16,height:16,accentColor:C.blue}}/>
+          <label htmlFor="pejdeal" style={{fontSize:12,color:C.muted2,cursor:'pointer'}}>Pej closed this deal (deduct 15% commission)</label>
+        </div>
+
+        <button onClick={calculate} style={{...s.btn(C.acc,'#fff',null),width:'100%'}}>Calculate Profitability</button>
+      </div>
+
+      {result && (
+        <div style={{background:`${vColor}0d`,border:`1px solid ${vColor}33`,borderRadius:12,padding:'16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+            <div style={{fontFamily:font.head,fontWeight:900,fontSize:18,color:vColor}}>
+              {result.verdict==='profit'?'✅ PROFIT':result.verdict==='loss'?'❌ LOSS':'⚖️ BREAK EVEN'}
+            </div>
+            <div style={{fontFamily:font.head,fontWeight:900,fontSize:26,color:vColor}}>
+              {result.netProfit>=0?'+':''}${result.netProfit.toLocaleString()}
+            </div>
+          </div>
+          {[
+            ['Gross Revenue',result.grossRevenue,C.green],
+            result.bookingCommission>0&&['Pej Commission (15%)',`-$${result.bookingCommission.toLocaleString()}`,C.blue],
+            ['Total Expenses',`-$${result.totalExpenses.toLocaleString()}`,C.red],
+            ['Producer Fee',`-$${result.producerTake.toLocaleString()}`,C.orange],
+            ['Phil Fee',`-$${result.philTake.toLocaleString()}`,C.yellow],
+            ['Break-Even Point',result.breakEven,C.muted2],
+          ].filter(Boolean).map(([label,val,color])=>(
+            <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:`1px solid ${C.bord}`}}>
+              <span style={{fontSize:12,color:C.muted2}}>{label}</span>
+              <span style={{fontSize:12,fontWeight:700,color,fontFamily:font.head}}>{typeof val==='number'?`$${val.toLocaleString()}`:val}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SOCIAL CONTENT GENERATOR ────────────────────────────────
+function SocialContentGen({ venues=[], tours=[] }) {
+  const [venue, setVenue] = useState('');
+  const [city, setCity] = useState('');
+  const [showDate, setShowDate] = useState('');
+  const [comedian, setComedian] = useState('Phil Medina');
+  const [platform, setPlatform] = useState('instagram');
+  const [tone, setTone] = useState('hype');
+  const [output, setOutput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const confirmed = venues.filter(v=>v.status==='Confirmed');
+
+  async function generate() {
+    if(!venue || !city) return;
+    setLoading(true);
+    setOutput('');
+    const platformGuide = {
+      instagram: 'Instagram caption with 5 relevant hashtags. Use emojis. Max 150 words.',
+      facebook: 'Facebook post, more detailed, conversational. Max 200 words.',
+      twitter: 'Twitter/X post under 280 characters. Punchy and direct.',
+      promo: 'Promotional copy for email blast or website. Professional tone. 100-150 words.',
+    };
+    const toneGuide = {
+      hype: 'High energy, exciting, use caps for emphasis, get people pumped',
+      cool: 'Effortlessly cool, understated confidence, minimal punctuation',
+      funny: 'Playful and funny, like a comedian wrote it themselves',
+      professional: 'Clean and professional, suitable for press or promoters',
+    };
+    const prompt = `Write a ${platform} post for a live comedy show.
+Comedian: ${comedian}
+Venue: ${venue}
+City: ${city}
+Date: ${showDate || 'upcoming date'}
+Platform: ${platformGuide[platform]}
+Tone: ${toneGuide[tone]}
+
+Output ONLY the post text, nothing else. No labels, no explanations.`;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+      const data = await res.json();
+      setOutput(data.content?.[0]?.text||'');
+    } catch(e) { setOutput('Error generating content. Try again.'); }
+    setLoading(false);
+  }
+
+  function copyOutput() {
+    navigator.clipboard?.writeText(output);
+    setCopied(true);
+    setTimeout(()=>setCopied(false),2000);
+  }
+
+  return (
+    <div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:14}}>📱 Social Content Generator</div>
+
+      {confirmed.length > 0 && (
+        <div style={{marginBottom:14}}>
+          <label style={s.label}>Quick Fill from Confirmed Shows</label>
+          <select style={{...s.input(),color:C.txt}} onChange={e=>{const v=confirmed.find(x=>x.id===e.target.value);if(v){setVenue(v.venue);setCity(v.city);setShowDate(v.targetDates||'');}}} defaultValue="">
+            <option value="" disabled>Select a confirmed show...</option>
+            {confirmed.map(v=><option key={v.id} value={v.id}>{v.venue} — {v.city}, {v.state}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {[['Venue',venue,setVenue,'The Improv'],['City',city,setCity,'Chicago'],['Date',showDate,setShowDate,'March 15']].map(([label,val,setter,ph])=>(
+            <div key={label} style={s.field()}>
+              <label style={s.label}>{label}</label>
+              <input style={s.input()} value={val} onChange={e=>setter(e.target.value)} placeholder={ph}/>
+            </div>
+          ))}
+          <div style={s.field()}>
+            <label style={s.label}>Comedian</label>
+            <select style={{...s.input(),color:C.txt}} value={comedian} onChange={e=>setComedian(e.target.value)}>
+              <option>Phil Medina</option>
+              <option>Jason Schuster</option>
+              <option>Pej Ahmadi</option>
+              <option>Mark Gonzales</option>
+            </select>
+          </div>
+        </div>
+        <div style={s.field()}>
+          <label style={s.label}>Platform</label>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[['instagram','Instagram'],['facebook','Facebook'],['twitter','Twitter/X'],['promo','Promo Copy']].map(([id,label])=>(
+              <button key={id} onClick={()=>setPlatform(id)} style={s.pill(platform===id,C.pink)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <div style={s.field()}>
+          <label style={s.label}>Tone</label>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[['hype','🔥 Hype'],['cool','😎 Cool'],['funny','😂 Funny'],['professional','👔 Pro']].map(([id,label])=>(
+              <button key={id} onClick={()=>setTone(id)} style={s.pill(tone===id,C.orange)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <button onClick={generate} disabled={loading||!venue||!city} style={{...s.btn(!loading&&venue&&city?C.pink:'#333','#fff',null),width:'100%'}}>
+          {loading?'✨ Writing...':'✨ Generate Content'}
+        </button>
+      </div>
+
+      {output && (
+        <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,textTransform:'uppercase',letterSpacing:'0.05em'}}>Generated Content</div>
+            <button onClick={copyOutput} style={{...s.btn(copied?C.green:C.surf3,C.txt,C.bord),padding:'6px 12px',fontSize:11}}>
+              {copied?'✅ Copied':'Copy'}
+            </button>
+          </div>
+          <div style={{fontSize:13,color:C.txt,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{output}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── POSTING SCHEDULE GENERATOR ──────────────────────────────
+function PostingSchedule({ venues=[], tours=[] }) {
+  const [selectedVenue, setSelectedVenue] = useState('');
+  const [showDate, setShowDate] = useState('');
+  const [schedule, setSchedule] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const confirmed = venues.filter(v=>v.status==='Confirmed');
+
+  function generateSchedule() {
+    if(!showDate) return;
+    const date = new Date(showDate);
+    const now = new Date();
+    const daysOut = Math.round((date-now)/(1000*60*60*24));
+
+    const posts = [];
+
+    if(daysOut >= 42) posts.push({week:'6 Weeks Out',day:new Date(date.getTime()-42*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Announcement',platform:'Instagram + Facebook',content:'Official show announcement. Venue + date. Link in bio.',icon:'📣',color:C.acc2});
+    if(daysOut >= 28) posts.push({week:'4 Weeks Out',day:new Date(date.getTime()-28*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Comedian Spotlight',platform:'Instagram',content:'Clip or reel of comedian performing. "Coming to [city] soon."',icon:'🎬',color:C.pink});
+    if(daysOut >= 21) posts.push({week:'3 Weeks Out',day:new Date(date.getTime()-21*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Ticket Push',platform:'All Platforms',content:'"Tickets are moving — grab yours before they\'re gone." Include direct ticket link.',icon:'🎟️',color:C.yellow});
+    if(daysOut >= 14) posts.push({week:'2 Weeks Out',day:new Date(date.getTime()-14*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Behind the Scenes',platform:'Stories/Reels',content:'Road content. Hotel, drive day, venue soundcheck photo.',icon:'📸',color:C.orange});
+    if(daysOut >= 7) posts.push({week:'1 Week Out',day:new Date(date.getTime()-7*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Final Push',platform:'Instagram + Facebook',content:'"One week away. Are you coming?" Tag the venue. Create urgency.',icon:'⏰',color:C.red});
+    if(daysOut >= 3) posts.push({week:'3 Days Out',day:new Date(date.getTime()-3*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Last Chance',platform:'All Platforms',content:'"3 days — limited tickets remain." Stories countdown sticker.',icon:'🔥',color:C.red});
+    if(daysOut >= 1) posts.push({week:'Day Before',day:new Date(date.getTime()-86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Day Before Hype',platform:'Stories',content:'"Tomorrow night. See you there." Comedian getting ready content.',icon:'🎤',color:C.green});
+    posts.push({week:'Show Day',day:date.toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Show Day Post',platform:'All Platforms',content:'"TONIGHT. Doors at [time]. Tag us in your posts!"',icon:'🎉',color:C.green});
+    posts.push({week:'Day After',day:new Date(date.getTime()+86400000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),type:'Show Recap',platform:'Instagram',content:'Best moment photo or clip from last night. Thank the venue + audience.',icon:'❤️',color:C.acc2});
+
+    setSchedule({ posts, daysOut, showDate });
+  }
+
+  return (
+    <div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:14}}>📅 Show Posting Schedule</div>
+
+      {confirmed.length > 0 && (
+        <div style={{marginBottom:10}}>
+          <label style={s.label}>Quick Fill from Confirmed Shows</label>
+          <select style={{...s.input(),color:C.txt}} onChange={e=>{const v=confirmed.find(x=>x.id===e.target.value);if(v){setSelectedVenue(v.venue+' — '+v.city);setShowDate(v.targetDates||'');}} } defaultValue="">
+            <option value="" disabled>Select a confirmed show...</option>
+            {confirmed.map(v=><option key={v.id} value={v.id}>{v.venue} — {v.city}, {v.state}</option>)}
+          </select>
+        </div>
+      )}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+        <div style={s.field()}>
+          <label style={s.label}>Show / Venue</label>
+          <input style={s.input()} value={selectedVenue} onChange={e=>setSelectedVenue(e.target.value)} placeholder="The Improv — Chicago"/>
+        </div>
+        <div style={s.field()}>
+          <label style={s.label}>Show Date</label>
+          <input style={s.input()} type="date" value={showDate} onChange={e=>setShowDate(e.target.value)}/>
+        </div>
+      </div>
+      <button onClick={generateSchedule} disabled={!showDate} style={{...s.btn(showDate?C.acc:'#333','#fff',null),width:'100%',marginBottom:16}}>Generate Posting Schedule</button>
+
+      {schedule && (
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:14}}>
+            {schedule.daysOut >= 0 ? `${schedule.daysOut} days until show` : `Show was ${Math.abs(schedule.daysOut)} days ago`}
+          </div>
+          {schedule.posts.map((p,i)=>(
+            <div key={i} style={{background:C.surf2,border:`1px solid ${p.color}22`,borderRadius:12,padding:'12px 14px',marginBottom:8,borderLeft:`3px solid ${p.color}`}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                <div>
+                  <span style={{fontSize:16,marginRight:8}}>{p.icon}</span>
+                  <span style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:p.color}}>{p.week}</span>
+                  <span style={{fontSize:10,color:C.muted,marginLeft:8}}>{p.day}</span>
+                </div>
+                <div style={{...s.badge(p.color),fontSize:9}}>{p.type}</div>
+              </div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:4}}>{p.platform}</div>
+              <div style={{fontSize:12,color:C.txt}}>{p.content}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ROUTING OPTIMIZER ───────────────────────────────────────
+function RoutingOptimizer({ venues=[], tours=[] }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState('');
+  const [targetRegion, setTargetRegion] = useState('');
+  const [targetDates, setTargetDates] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const confirmed = venues.filter(v=>v.status==='Confirmed');
+
+  async function optimizeRouting() {
+    setLoading(true);
+    setResult('');
+    const confirmedList = confirmed.map(v=>`${v.venue} — ${v.city}, ${v.state} (${v.targetDates||'TBD'})`).join('\n') || 'No confirmed dates yet';
+    const prompt = `You are SmartBoss, a comedy touring logistics expert. Analyze this booking situation and provide smart routing advice.
+
+CONFIRMED DATES:
+${confirmedList}
+
+TARGET REGION: ${targetRegion || 'Nationwide US'}
+TARGET DATES: ${targetDates || 'Next 90 days'}
+
+Provide:
+1. ROUTING EFFICIENCY ANALYSIS — Are the confirmed dates geographically smart or are there dead zones?
+2. FILL-IN OPPORTUNITIES — What cities should we target to fill gaps between existing dates?
+3. DEAD ZONE ALERT — List any city corridors that are unbooked and should be targeted
+4. DRIVE DAY CALCULATOR — Flag any jumps over 4 hours that need hotel nights
+5. TOP 5 PRIORITY BOOKING TARGETS — Specific cities to pitch next, in order of priority
+
+Keep it tactical, specific, and actionable. No filler.`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+      const data = await res.json();
+      setResult(data.content?.[0]?.text||'');
+    } catch(e) { setResult('Error. Try again.'); }
+    setLoading(false);
+  }
+
+  return (
+    <div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:6}}>🗺️ Routing Optimizer</div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:14}}>AI analyzes your confirmed dates and finds routing gaps, dead zones, and fill-in targets.</div>
+
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+          <div style={s.field()}>
+            <label style={s.label}>Target Region</label>
+            <input style={s.input()} value={targetRegion} onChange={e=>setTargetRegion(e.target.value)} placeholder="Midwest, Southeast..."/>
+          </div>
+          <div style={s.field()}>
+            <label style={s.label}>Target Dates</label>
+            <input style={s.input()} value={targetDates} onChange={e=>setTargetDates(e.target.value)} placeholder="June–July 2026"/>
+          </div>
+        </div>
+
+        <div style={{background:C.surf3,borderRadius:10,padding:'10px 12px',marginBottom:14}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:8,textTransform:'uppercase',letterSpacing:'0.08em'}}>Confirmed Dates Feeding Into Analysis ({confirmed.length})</div>
+          {confirmed.length === 0 && <div style={{fontSize:11,color:C.muted}}>No confirmed dates yet — analysis will focus on target region recommendations.</div>}
+          {confirmed.slice(0,5).map(v=>(
+            <div key={v.id} style={{fontSize:11,color:C.muted2,padding:'3px 0'}}>{v.venue} — {v.city}, {v.state}</div>
+          ))}
+          {confirmed.length > 5 && <div style={{fontSize:10,color:C.muted}}>+{confirmed.length-5} more...</div>}
+        </div>
+
+        <button onClick={optimizeRouting} disabled={loading} style={{...s.btn(loading?'#333':C.acc,'#fff',null),width:'100%'}}>
+          {loading?'🧠 Analyzing Routing...':'🧠 Optimize My Routing'}
+        </button>
+      </div>
+
+      {result && (
+        <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2}}>SmartBoss Routing Analysis</div>
+            <button onClick={()=>{navigator.clipboard?.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000);}} style={{...s.btn(copied?C.green:C.surf3,C.txt,C.bord),padding:'6px 12px',fontSize:11}}>
+              {copied?'✅ Copied':'Copy'}
+            </button>
+          </div>
+          <div style={{fontSize:12,color:C.txt,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{result}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SHOW MOMENTUM TRACKER ───────────────────────────────────
+function MomentumTracker({ venues=[] }) {
+  const [selectedId, setSelectedId] = useState('');
+  const [ticketsSold, setTicketsSold] = useState('');
+  const [daysToShow, setDaysToShow] = useState('');
+  const [momentum, setMomentum] = useState(null);
+
+  const confirmed = venues.filter(v=>v.status==='Confirmed');
+
+  function calculateMomentum() {
+    const sold = Number(ticketsSold)||0;
+    const days = Number(daysToShow)||0;
+    const venue = confirmed.find(v=>v.id===selectedId);
+    const cap = Number(venue?.capacity)||200;
+    const pctSold = (sold/cap)*100;
+    const avgDailyRate = days > 0 ? sold/Math.max(1,(90-days)) : 0;
+    const projectedTotal = Math.min(cap, sold + avgDailyRate*days);
+    const projectedFill = (projectedTotal/cap)*100;
+
+    let level, label, color, advice;
+    if(pctSold >= 80) { level=5; label='SOLD OUT RISK'; color=C.green; advice='🔥 Almost sold out — stop all paid promotion, focus on waiting list and future dates.'; }
+    else if(pctSold >= 60) { level=4; label='SELLING FAST'; color='#10d488'; advice='📈 Great pace! Light social boost this week. Start planning encore or future date at this venue.'; }
+    else if(pctSold >= 35) { level=3; label='MOVING'; color=C.yellow; advice='⚡ Decent pace. Push venue to promote on their channels. Consider a targeted Facebook/Instagram ad.'; }
+    else if(pctSold >= 15) { level=2; label='SLOW'; color=C.orange; advice='⚠️ Below expected pace. Venue likely not promoting. Email booker, run promo ad, add urgency messaging.'; }
+    else { level=1; label='DEAD'; color=C.red; advice='🚨 Critically low ticket sales. Immediate action: run geo-targeted ad, contact all local media, call the booker today.'; }
+
+    setMomentum({ level, label, color, advice, pctSold: pctSold.toFixed(1), projectedFill: projectedFill.toFixed(1), sold, cap, projectedTotal: Math.round(projectedTotal) });
+  }
+
+  return (
+    <div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:6}}>📈 Show Momentum Tracker</div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Enter current ticket numbers to get a momentum grade and action plan.</div>
+
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+        {confirmed.length > 0 && (
+          <div style={s.field()}>
+            <label style={s.label}>Select Show</label>
+            <select style={{...s.input(),color:C.txt}} value={selectedId} onChange={e=>setSelectedId(e.target.value)}>
+              <option value="">Select a confirmed show...</option>
+              {confirmed.map(v=><option key={v.id} value={v.id}>{v.venue} — {v.city} (cap: {v.capacity||'?'})</option>)}
+            </select>
+          </div>
+        )}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div style={s.field()}>
+            <label style={s.label}>Tickets Sold</label>
+            <input style={s.input()} type="number" value={ticketsSold} onChange={e=>setTicketsSold(e.target.value)} placeholder="150"/>
+          </div>
+          <div style={s.field()}>
+            <label style={s.label}>Days Until Show</label>
+            <input style={s.input()} type="number" value={daysToShow} onChange={e=>setDaysToShow(e.target.value)} placeholder="21"/>
+          </div>
+        </div>
+        <button onClick={calculateMomentum} disabled={!ticketsSold} style={{...s.btn(ticketsSold?C.acc:'#333','#fff',null),width:'100%'}}>Analyze Momentum</button>
+      </div>
+
+      {momentum && (
+        <div style={{background:`${momentum.color}0d`,border:`2px solid ${momentum.color}44`,borderRadius:12,padding:'16px'}}>
+          {/* Gauge */}
+          <div style={{textAlign:'center',marginBottom:16}}>
+            <div style={{fontFamily:font.head,fontWeight:900,fontSize:32,color:momentum.color,letterSpacing:-1}}>{momentum.label}</div>
+            <div style={{fontSize:14,color:C.muted2,marginTop:4}}>{momentum.pctSold}% of capacity sold</div>
+          </div>
+          {/* Bar */}
+          <div style={{height:12,background:C.surf3,borderRadius:6,overflow:'hidden',marginBottom:16}}>
+            <div style={{height:'100%',width:`${Math.min(100,Number(momentum.pctSold))}%`,background:`linear-gradient(90deg,${momentum.color},${momentum.color}88)`,borderRadius:6,transition:'width 0.5s'}}/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
+            {[['Sold',momentum.sold,momentum.color],['Capacity',momentum.cap,C.muted2],['Projected',momentum.projectedTotal,momentum.color]].map(([l,v,c])=>(
+              <div key={l} style={{textAlign:'center',background:C.surf2,borderRadius:8,padding:'10px 6px'}}>
+                <div style={{fontFamily:font.head,fontWeight:900,fontSize:18,color:c}}>{v}</div>
+                <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1}}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:`${momentum.color}12`,border:`1px solid ${momentum.color}30`,borderRadius:10,padding:'12px 14px',fontSize:12,color:C.txt,lineHeight:1.5}}>
+            {momentum.advice}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── DIGITAL MARKETING INTELLIGENCE ─────────────────────────
+function DigitalMarketingIntel({ venues=[] }) {
+  const [city, setCity] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [clubPushAlert, setClubPushAlert] = useState(false);
+
+  const confirmed = venues.filter(v=>v.status==='Confirmed');
+
+  async function getLocalMedia() {
+    if(!city) return;
+    setLoading(true);
+    setResult('');
+    const prompt = `You are a comedy marketing expert. For a stand-up comedy show coming to ${city}, give me a specific Local Media Hit List.
+
+Provide:
+1. LOCAL COMEDY/ENTERTAINMENT BLOGS — 3 specific blogs or sites in ${city} that cover live entertainment or comedy
+2. LOCAL PODCASTS — 3 podcasts based in or focused on ${city} that might feature/promote a comedian
+3. LOCAL RADIO — 2-3 radio stations in ${city} with morning shows that do guest interviews
+4. COMEDY PRESS — 2-3 national comedy-specific press outlets worth pitching (e.g., Comedy Wire, Just For Laughs press)
+5. SOCIAL MEDIA — Best local Facebook groups, community pages, and event boards in ${city} to post in
+6. SUGGESTED EMAIL PITCH — 3-4 sentence pitch template for local press outreach
+
+Be specific with names where you know them. Mark any you're uncertain about.`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+      const data = await res.json();
+      setResult(data.content?.[0]?.text||'');
+    } catch(e) { setResult('Error. Try again.'); }
+    setLoading(false);
+  }
+
+  return (
+    <div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:6}}>🎯 Digital Marketing Intelligence</div>
+
+      {/* Club Isn't Pushing Alert */}
+      <div style={{background:clubPushAlert?`${C.red}12`:C.surf2,border:`1px solid ${clubPushAlert?C.red+'44':C.bord}`,borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:clubPushAlert?10:0}}>
+          <div>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:clubPushAlert?C.red:C.txt}}>🚨 Club Not Pushing Alert</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>Flag a venue that's not promoting your show</div>
+          </div>
+          <button onClick={()=>setClubPushAlert(!clubPushAlert)} style={{...s.btn(clubPushAlert?C.red:C.surf3,clubPushAlert?'#fff':C.txt,C.bord),padding:'6px 12px',fontSize:11}}>
+            {clubPushAlert?'🚨 Active':'Flag'}
+          </button>
+        </div>
+        {clubPushAlert && (
+          <div style={{fontSize:12,color:C.red,lineHeight:1.5}}>
+            Action plan: (1) Email booker today with promo assets and request they post. (2) Run your own targeted Facebook/Instagram ad to the venue's city. (3) Post in local FB events groups. (4) Reach out to local media now. (5) Offer discount code to boost early sales.
+          </div>
+        )}
+      </div>
+
+      {/* Local Media Hit List */}
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+        <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt,marginBottom:12}}>📰 Local Media Hit List</div>
+        <div style={{display:'flex',gap:10,marginBottom:14}}>
+          <div style={{flex:1}}>
+            {confirmed.length > 0 && (
+              <div style={{marginBottom:8}}>
+                <select style={{...s.input(),color:C.txt,fontSize:12}} onChange={e=>{const v=confirmed.find(x=>x.id===e.target.value);if(v)setCity(v.city);}} defaultValue="">
+                  <option value="" disabled>Quick fill from confirmed show...</option>
+                  {confirmed.map(v=><option key={v.id} value={v.id}>{v.city}, {v.state}</option>)}
+                </select>
+              </div>
+            )}
+            <input style={s.input()} value={city} onChange={e=>setCity(e.target.value)} placeholder="Enter city (e.g. Chicago)"/>
+          </div>
+        </div>
+        <button onClick={getLocalMedia} disabled={loading||!city} style={{...s.btn(!loading&&city?C.blue:'#333','#fff',null),width:'100%'}}>
+          {loading?'🔍 Researching...':'🔍 Get Local Media Hit List'}
+        </button>
+      </div>
+
+      {result && (
+        <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.blue}}>Media Hit List — {city}</div>
+            <button onClick={()=>{navigator.clipboard?.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000);}} style={{...s.btn(copied?C.green:C.surf3,C.txt,C.bord),padding:'6px 12px',fontSize:11}}>
+              {copied?'✅ Copied':'Copy'}
+            </button>
+          </div>
+          <div style={{fontSize:12,color:C.txt,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{result}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── VENUE INTELLIGENCE ───────────────────────────────────────
+function VenueIntelligence({ venues=[] }) {
+  const [viTab, setViTab] = useState('pitch-timing');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [compVenue, setCompVenue] = useState('');
+  const [compCity, setCompCity] = useState('');
+  const [competitors, setCompetitors] = useState('');
+  const [loadingComp, setLoadingComp] = useState(false);
+  const [copiedComp, setCopiedComp] = useState(false);
+
+  const now = new Date();
+  const currentMonth = now.toLocaleString('default',{month:'long'});
+
+  // Filter venues by search
+  const filteredVenues = venues.filter(v=>{
+    if(!searchTerm) return true;
+    return (v.venue+v.city+v.state+v.venueType||'').toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  async function checkCompetitors() {
+    if(!compVenue||!compCity) return;
+    setLoadingComp(true);
+    setCompetitors('');
+    const prompt = `You are a comedy industry intelligence expert. Give me a competitor and calendar analysis for this venue:
+
+Venue: ${compVenue}
+City: ${compCity}
+
+Provide:
+1. COMEDIANS WHO PLAY HERE — Name 5-8 comedians at a similar level who regularly perform at this type of venue in ${compCity}. These are our "market comps."
+2. BOOKING PATTERNS — What day of the week and what times of year does this venue type in ${compCity} typically book?
+3. CALENDAR INSIGHT — Are there typically open Fri/Sat slots in the coming 60 days for this venue type in ${compCity}? What should we know before pitching?
+4. OUR COMPETITIVE POSITION — Given Phil Medina is a nationally touring headliner with club credits, how do we position this pitch?
+5. BEST PITCH APPROACH — One specific tactical tip for getting a response from this booker.
+
+Be specific and tactical. No filler.`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,messages:[{role:'user',content:prompt}]})});
+      const data = await res.json();
+      setCompetitors(data.content?.[0]?.text||'');
+    } catch(e) { setCompetitors('Error. Try again.'); }
+    setLoadingComp(false);
+  }
+
+  return (
+    <div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:14}}>🏛️ Venue Intelligence</div>
+
+      <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
+        {[['pitch-timing','⏰ Pitch Timing'],['competitor','🎭 Competitor Intel'],['contact-db','📋 Contact Notes']].map(([id,label])=>(
+          <button key={id} onClick={()=>setViTab(id)} style={s.pill(viTab===id,C.acc)}>{label}</button>
+        ))}
+      </div>
+
+      {/* PITCH TIMING */}
+      {viTab==='pitch-timing' && (
+        <div>
+          <div style={{background:`rgba(247,144,9,0.08)`,border:`1px solid rgba(247,144,9,0.25)`,borderRadius:10,padding:'10px 14px',marginBottom:14}}>
+            <div style={{fontSize:11,color:C.yellow,fontWeight:700}}>📅 Current Month: {currentMonth}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>Pitch timing grades below are based on today's date</div>
+          </div>
+          {Object.entries(BOOKING_SEASONS).map(([type,data])=>{
+            const {isHot,isCold} = getPitchStatus(type);
+            const statusColor = isHot?C.green:isCold?C.red:C.yellow;
+            const statusLabel = isHot?'🔥 PITCH NOW':isCold?'🧊 OFF SEASON':'📬 OKAY TO PITCH';
+            return (
+              <div key={type} style={{background:C.surf2,border:`1px solid ${statusColor}22`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <div style={{fontFamily:font.head,fontWeight:700,fontSize:14,color:C.txt}}>{type}</div>
+                  <div style={{...s.badge(statusColor)}}>{statusLabel}</div>
+                </div>
+                <div style={{fontSize:11,color:C.muted2,marginBottom:6}}>
+                  <span style={{color:C.muted}}>Best window: </span>{data.pitchWindow}
+                </div>
+                <div style={{fontSize:11,color:C.txt,lineHeight:1.5}}>{data.tip}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* COMPETITOR TRACKING */}
+      {viTab==='competitor' && (
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Enter a venue to see which comedians play there and get calendar insights before you pitch.</div>
+          <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+              <div style={s.field()}>
+                <label style={s.label}>Venue Name</label>
+                <input style={s.input()} value={compVenue} onChange={e=>setCompVenue(e.target.value)} placeholder="The Improv"/>
+              </div>
+              <div style={s.field()}>
+                <label style={s.label}>City</label>
+                <input style={s.input()} value={compCity} onChange={e=>setCompCity(e.target.value)} placeholder="Chicago"/>
+              </div>
+            </div>
+            <button onClick={checkCompetitors} disabled={loadingComp||!compVenue||!compCity} style={{...s.btn(!loadingComp&&compVenue&&compCity?C.acc:'#333','#fff',null),width:'100%'}}>
+              {loadingComp?'🔍 Analyzing...':'🔍 Analyze Venue & Competitors'}
+            </button>
+          </div>
+          {competitors && (
+            <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2}}>Intelligence Report</div>
+                <button onClick={()=>{navigator.clipboard?.writeText(competitors);setCopiedComp(true);setTimeout(()=>setCopiedComp(false),2000);}} style={{...s.btn(copiedComp?C.green:C.surf3,C.txt,C.bord),padding:'6px 12px',fontSize:11}}>{copiedComp?'✅ Copied':'Copy'}</button>
+              </div>
+              <div style={{fontSize:12,color:C.txt,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{competitors}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CONTACT DB */}
+      {viTab==='contact-db' && (
+        <div>
+          <div style={{marginBottom:12}}>
+            <input style={s.input()} value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search venues, bookers, cities..."/>
+          </div>
+          {filteredVenues.filter(v=>v.booker||v.notes).length === 0 && (
+            <div style={{textAlign:'center',padding:'30px',color:C.muted,fontSize:12}}>
+              No booker notes yet. Add booker names and notes to venues in your CRM to see them here.
+            </div>
+          )}
+          {filteredVenues.filter(v=>v.booker||v.notes).map(v=>(
+            <div key={v.id} style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'14px 16px',marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                <div>
+                  <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt}}>{v.venue}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{v.city}, {v.state}{v.venueType?` · ${v.venueType}`:''}</div>
+                </div>
+                <div style={{...s.badge(C.blue),fontSize:9}}>{getPitchStatus(v.venueType||'Comedy Club').isHot?'Hot Season':'Regular'}</div>
+              </div>
+              {v.booker && <div style={{fontSize:11,color:C.acc2,marginBottom:4}}>👤 {v.booker}{v.bookerLast?' '+v.bookerLast:''}</div>}
+              {v.email && <div style={{fontSize:11,color:C.muted2,marginBottom:4}}>✉️ {v.email}</div>}
+              {v.notes && <div style={{fontSize:11,color:C.txt,marginTop:6,padding:'8px 10px',background:C.surf3,borderRadius:8,lineHeight:1.5}}>{v.notes}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TEMPLATES TAB (per-user merge fields) ─────────────────────
+function TemplatesTab({ venues=[], currentUserEmail='jschucomedy@gmail.com' }) {
+  const userProfile = USER_PROFILES[currentUserEmail] || USER_PROFILES['jschucomedy@gmail.com'];
+  const isOwner = userProfile.role === 'owner';
+
+  const DEFAULT_TEMPLATES = [
+    {
+      id:'cold_outreach',
+      name:'Cold Outreach — Comedy Club',
+      category:'Cold Lead',
+      locked: false,
+      body:`Subject: Booking Inquiry — Phil Medina (Nationally Touring Headliner)
+
+Hi {{booker_name}},
+
+My name is {{my_name}} from Main Event Comedy Entertainment. I'm reaching out about booking Phil Medina for a weekend engagement at {{venue_name}}.
+
+Phil is a nationally touring headliner with credits including [INSERT CREDITS]. He's the perfect fit for {{venue_name}}'s audience — high-energy, relatable, and proven to sell tickets in markets like {{venue_city}}.
+
+We're targeting {{target_dates}} and are flexible on deal structure. I'd love to send over his full press kit and discuss availability.
+
+Best,
+{{my_signature}}`,
+    },
+    {
+      id:'follow_up',
+      name:'Follow-Up (No Response)',
+      category:'Follow-Up',
+      locked: false,
+      body:`Subject: Following Up — Phil Medina at {{venue_name}}
+
+Hi {{booker_name}},
+
+Just circling back on my previous note about booking Phil Medina at {{venue_name}}.
+
+Phil has some open dates in {{target_dates}} and {{venue_city}} is a priority market for us. Would love to get on your radar for an upcoming weekend.
+
+Happy to send his press kit or jump on a quick call — whatever works best for you.
+
+Thanks,
+{{my_signature}}`,
+    },
+    {
+      id:'university',
+      name:'University / CAB Outreach',
+      category:'University',
+      locked: false,
+      body:`Subject: Campus Comedy Booking — Phil Medina
+
+Hello,
+
+I'm {{my_name}} with Main Event Comedy Entertainment. I'm reaching out about bringing Phil Medina to {{venue_name}} for [SEMESTER].
+
+Phil is a nationally touring comedian with a highly relatable, campus-friendly act. He's performed at universities across the country and knows how to connect with college audiences.
+
+We offer competitive guarantee structures and can work within your programming budget. Would love to discuss availability for {{target_dates}}.
+
+Please let me know if you'd like his full press kit and rider.
+
+Best regards,
+{{my_signature}}`,
+    },
+    {
+      id:'casino',
+      name:'Casino / Showroom Booking',
+      category:'Casino',
+      locked: false,
+      body:`Subject: Entertainment Inquiry — Phil Medina (Headliner)
+
+Hello {{booker_name}},
+
+I'm reaching out on behalf of Phil Medina, a nationally touring stand-up headliner, regarding an engagement at {{venue_name}}.
+
+Phil has extensive experience performing in casino showroom environments and understands how to work diverse, multi-generational audiences. His shows consistently deliver strong reviews and repeat business.
+
+We're looking at {{target_dates}} and are open to discussing your preferred deal structure — flat guarantee, weekend run, or multi-night engagement.
+
+I'd be happy to send over his full rider, press kit, and references from similar venues. Looking forward to connecting.
+
+{{my_signature}}`,
+    },
+    {
+      id:'confirmed_advance',
+      name:'Show Advance Email',
+      category:'Confirmed Show',
+      locked: true,
+      body:`Subject: Advance — Phil Medina @ {{venue_name}} — {{target_dates}}
+
+Hi {{booker_name}},
+
+Looking forward to Phil Medina's upcoming show at {{venue_name}} on {{target_dates}}. Just wanted to touch base on a few logistics:
+
+• Load-in / sound check time?
+• Any promo assets you need from us?
+• Parking and green room access?
+• Final settlement — who do we confirm with night of?
+
+We'll have [TRAVEL/HOTEL] covered on our end. Please let us know if anything else is needed to make the show a success.
+
+Thanks,
+{{my_signature}}`,
+    },
+  ];
+
+  const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
+  const [selectedId, setSelectedId] = useState('cold_outreach');
+  const [editBody, setEditBody] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [filledPreview, setFilledPreview] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Fill fields
+  const [fillBooker, setFillBooker] = useState('');
+  const [fillVenue, setFillVenue] = useState('');
+  const [fillCity, setFillCity] = useState('');
+  const [fillDates, setFillDates] = useState('');
+
+  const selected = templates.find(t=>t.id===selectedId);
+
+  useEffect(()=>{
+    if(selected) setEditBody(selected.body);
+  },[selectedId]);
+
+  function applyMergeFields(text) {
+    return text
+      .replace(/\{\{my_name\}\}/g, userProfile.name)
+      .replace(/\{\{my_email\}\}/g, userProfile.email)
+      .replace(/\{\{my_credits\}\}/g, userProfile.credits)
+      .replace(/\{\{my_signature\}\}/g, userProfile.signature)
+      .replace(/\{\{booker_name\}\}/g, fillBooker||'[Booker Name]')
+      .replace(/\{\{venue_name\}\}/g, fillVenue||'[Venue Name]')
+      .replace(/\{\{venue_city\}\}/g, fillCity||'[City]')
+      .replace(/\{\{target_dates\}\}/g, fillDates||'[Target Dates]');
+  }
+
+  function generatePreview() {
+    setFilledPreview(applyMergeFields(editBody));
+    setShowPreview(true);
+  }
+
+  function copyFilled() {
+    navigator.clipboard?.writeText(filledPreview||applyMergeFields(editBody));
+    setCopied(true);
+    setTimeout(()=>setCopied(false),2000);
+  }
+
+  function saveEdit() {
+    setTemplates(prev=>prev.map(t=>t.id===selectedId?{...t,body:editBody}:t));
+    setEditing(false);
+  }
+
+  const confirmedVenues = venues.filter(v=>v.status==='Confirmed'||v.status==='Negotiating');
+
+  return (
+    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+      {/* User identity badge */}
+      <div style={{background:`${C.acc}0d`,border:`1px solid ${C.acc}22`,borderRadius:12,padding:'12px 14px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+        <div style={{width:36,height:36,borderRadius:10,background:`linear-gradient(135deg,${userProfile.role==='owner'?'#6c5ce7':'#2a7de1'},${userProfile.role==='owner'?'#a29bfe':'#74b9ff'})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>
+          {userProfile.role==='owner'?'👑':'📧'}
+        </div>
+        <div>
+          <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt}}>{userProfile.name}</div>
+          <div style={{fontSize:10,color:C.muted}}>{userProfile.email} · {userProfile.title}</div>
+        </div>
+      </div>
+
+      <div style={{fontSize:11,color:C.muted2,marginBottom:14,lineHeight:1.5,background:C.surf2,borderRadius:10,padding:'10px 12px'}}>
+        <strong style={{color:C.acc2}}>Merge fields auto-fill for {userProfile.displayName}:</strong><br/>
+        <code style={{color:C.green}}>{'{{my_name}}'}</code> → {userProfile.name} &nbsp;·&nbsp;
+        <code style={{color:C.green}}>{'{{my_email}}'}</code> → {userProfile.email}<br/>
+        <code style={{color:C.green}}>{'{{my_signature}}'}</code> → full signature block with your name + title
+      </div>
+
+      <div style={{display:'flex',gap:10}}>
+        {/* Template list */}
+        <div style={{width:140,flexShrink:0}}>
+          <div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Templates</div>
+          {templates.map(t=>(
+            <div key={t.id} onClick={()=>{setSelectedId(t.id);setEditing(false);setShowPreview(false);}} style={{
+              padding:'8px 10px',borderRadius:8,marginBottom:4,cursor:'pointer',
+              background:selectedId===t.id?`${C.acc}18`:C.surf2,
+              border:`1px solid ${selectedId===t.id?C.acc+'44':C.bord}`,
+            }}>
+              <div style={{fontSize:11,fontWeight:700,color:selectedId===t.id?C.acc2:C.txt,lineHeight:1.2}}>{t.name}</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{t.category}</div>
+              {t.locked&&<div style={{fontSize:9,color:C.yellow,marginTop:2}}>🔒 Locked</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* Template editor */}
+        <div style={{flex:1,minWidth:0}}>
+          {selected && (
+            <>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <div style={{fontFamily:font.head,fontWeight:700,fontSize:13,color:C.txt}}>{selected.name}</div>
+                <div style={{display:'flex',gap:6}}>
+                  {!selected.locked&&!editing&&<button onClick={()=>setEditing(true)} style={{...s.btn(C.surf3,C.txt,C.bord),padding:'5px 10px',fontSize:10}}>Edit</button>}
+                  {editing&&<><button onClick={saveEdit} style={{...s.btn(C.green,'#fff',null),padding:'5px 10px',fontSize:10}}>Save</button><button onClick={()=>setEditing(false)} style={{...s.btn(C.surf3,C.txt,C.bord),padding:'5px 10px',fontSize:10}}>Cancel</button></>}
+                </div>
+              </div>
+
+              {/* Quick fill fields */}
+              <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,padding:'12px',marginBottom:10}}>
+                <div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Quick Fill (Optional)</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  {[['Booker Name',fillBooker,setFillBooker,'Dave'],['Venue',fillVenue,setFillVenue,'The Improv'],['City',fillCity,setFillCity,'Chicago'],['Target Dates',fillDates,setFillDates,'June 14–15']].map(([label,val,setter,ph])=>(
+                    <div key={label}>
+                      <div style={{fontSize:9,color:C.muted,marginBottom:3}}>{label}</div>
+                      <input style={{...s.input(),padding:'8px 10px',fontSize:12}} value={val} onChange={e=>setter(e.target.value)} placeholder={ph}/>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {editing ? (
+                <textarea style={{...s.input(),resize:'none',minHeight:320,fontSize:12,lineHeight:1.6,whiteSpace:'pre-wrap'}} value={editBody} onChange={e=>setEditBody(e.target.value)}/>
+              ) : (
+                <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,padding:'12px',marginBottom:10,fontSize:12,color:C.muted2,lineHeight:1.6,whiteSpace:'pre-wrap',minHeight:200}}>{editBody}</div>
+              )}
+
+              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>
+                <button onClick={generatePreview} style={{...s.btn(C.acc,'#fff',null),flex:1}}>👁️ Preview Filled</button>
+                <button onClick={copyFilled} style={{...s.btn(copied?C.green:C.surf2,copied?'#fff':C.txt,C.bord),flex:1}}>{copied?'✅ Copied':'Copy Filled'}</button>
+              </div>
+
+              {showPreview && filledPreview && (
+                <div style={{marginTop:14,background:`${C.green}08`,border:`1px solid ${C.green}22`,borderRadius:10,padding:'14px'}}>
+                  <div style={{fontFamily:font.head,fontWeight:700,fontSize:11,color:C.green,marginBottom:8,textTransform:'uppercase',letterSpacing:'0.08em'}}>Preview — Filled for {userProfile.displayName}</div>
+                  <div style={{fontSize:12,color:C.txt,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{filledPreview}</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PRESS KIT BUILDER ────────────────────────────────────────
+function PressKitBuilder({ venues=[], comedians=[] }) {
+  const [comedian, setComedian] = useState('Phil Medina');
+  const [bio, setBio] = useState('');
+  const [credits, setCredits] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [generated, setGenerated] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const confirmedShows = venues.filter(v=>v.status==='Confirmed').slice(0,6);
+
+  const COMEDIAN_DATA = {
+    'Phil Medina': {
+      bio: 'Phil Medina is a nationally touring stand-up comedian known for his high-energy, relatable performance style. A crowd favorite across comedy clubs, casinos, and universities nationwide.',
+      credits: 'Nationally Touring Headliner · Comedy Clubs · Casinos · Universities',
+      tagline: 'A nationally touring headliner ready to sell out your room.',
+    },
+    'Jason Schuster': {
+      bio: 'Jason Schuster is a stand-up comedian and comedy producer based out of Maryland. Co-founder of Main Event Comedy Entertainment.',
+      credits: 'Comedian · Producer · Tour Manager · Main Event Comedy Entertainment',
+      tagline: 'Comedy that connects. Every room, every time.',
+    },
+  };
+
+  useEffect(()=>{
+    const data = COMEDIAN_DATA[comedian];
+    if(data) { setBio(data.bio); setCredits(data.credits); setTagline(data.tagline); }
+  },[comedian]);
+
+  async function generateBio() {
+    setAiLoading(true);
+    const prompt = `Write a compelling, professional press kit bio for a stand-up comedian named ${comedian}.
+Style: 3 short paragraphs. Professional but warm. Suitable for a comedy booking one-sheet.
+Credits to mention: ${credits}
+Keep it under 150 words total. No generic filler.`;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:prompt}]})});
+      const data = await res.json();
+      setBio(data.content?.[0]?.text||bio);
+    } catch(e){}
+    setAiLoading(false);
+  }
+
+  function printKit() {
+    const printContent = `
+<!DOCTYPE html><html><head><style>
+  body{font-family:Georgia,serif;margin:0;padding:40px;background:#fff;color:#111;max-width:800px;margin:0 auto}
+  .header{border-bottom:3px solid #6c3aed;padding-bottom:20px;margin-bottom:30px}
+  h1{font-size:42px;margin:0;color:#6c3aed;font-family:'Arial Black',sans-serif}
+  .tagline{font-size:16px;color:#555;margin-top:8px;font-style:italic}
+  .section{margin-bottom:24px}
+  h3{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#999;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px}
+  p{font-size:14px;line-height:1.7;color:#333}
+  .show{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+  .credits{font-size:13px;color:#555;line-height:1.8}
+  .footer{margin-top:30px;padding-top:16px;border-top:1px solid #ddd;font-size:12px;color:#999;display:flex;justify-content:space-between}
+</style></head><body>
+  <div class="header">
+    <h1>${comedian}</h1>
+    <div class="tagline">${tagline}</div>
+  </div>
+  <div class="section">
+    <h3>About</h3>
+    <p>${bio}</p>
+  </div>
+  ${credits?`<div class="section"><h3>Credits & Experience</h3><div class="credits">${credits}</div></div>`:''}
+  ${confirmedShows.length>0?`<div class="section"><h3>Upcoming Dates</h3>${confirmedShows.map(v=>`<div class="show"><span>${v.venue} — ${v.city}, ${v.state}</span><span>${v.targetDates||'Date TBD'}</span></div>`).join('')}</div>`:''}
+  <div class="footer">
+    <span>Booking: jason@maineventcomedy.com</span>
+    <span>Main Event Comedy Entertainment</span>
+    <span>maineventcomedy.com</span>
+  </div>
+</body></html>`;
+    const w = window.open('','_blank');
+    w.document.write(printContent);
+    w.document.close();
+    w.print();
+    setGenerated(true);
+  }
+
+  return (
+    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:22,letterSpacing:-0.5,color:C.txt,marginBottom:2}}>Press Kit Builder</div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:16}}>One-click PDF one-sheet per comedian</div>
+
+      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+        <div style={s.field()}>
+          <label style={s.label}>Comedian</label>
+          <select style={{...s.input(),color:C.txt}} value={comedian} onChange={e=>setComedian(e.target.value)}>
+            <option>Phil Medina</option>
+            <option>Jason Schuster</option>
+            <option>Pej Ahmadi</option>
+            <option>Mark Gonzales</option>
+          </select>
+        </div>
+        <div style={s.field()}>
+          <label style={s.label}>Tagline</label>
+          <input style={s.input()} value={tagline} onChange={e=>setTagline(e.target.value)} placeholder="A nationally touring headliner..."/>
+        </div>
+        <div style={s.field()}>
+          <label style={s.label}>Credits & Experience</label>
+          <input style={s.input()} value={credits} onChange={e=>setCredits(e.target.value)} placeholder="Comedy clubs, casinos, universities..."/>
+        </div>
+        <div style={s.field()}>
+          <label style={s.label}>Bio</label>
+          <textarea style={{...s.input(),resize:'none',minHeight:120,fontSize:12,lineHeight:1.6}} value={bio} onChange={e=>setBio(e.target.value)} placeholder="Enter bio or use AI to generate..."/>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={generateBio} disabled={aiLoading} style={{...s.btn(C.acc,'#fff',null),flex:1}}>{aiLoading?'✨ Writing...':'✨ AI Generate Bio'}</button>
+          <button onClick={printKit} style={{...s.btn(C.green,'#fff',null),flex:1}}>🖨️ Generate Press Kit</button>
+        </div>
+        {generated && <div style={{fontSize:11,color:C.green,marginTop:10,textAlign:'center'}}>✅ Press kit opened in print dialog — save as PDF</div>}
+      </div>
+
+      {confirmedShows.length > 0 && (
+        <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'14px 16px'}}>
+          <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:10}}>UPCOMING DATES ON ONE-SHEET ({confirmedShows.length})</div>
+          {confirmedShows.map(v=>(
+            <div key={v.id} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${C.bord}`,fontSize:12}}>
+              <span style={{color:C.txt}}>{v.venue} — {v.city}, {v.state}</span>
+              <span style={{color:C.muted}}>{v.targetDates||'TBD'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function WrappedApp(){ return <ErrorBoundary><App/></ErrorBoundary>; }
