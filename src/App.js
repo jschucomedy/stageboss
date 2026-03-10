@@ -5946,59 +5946,67 @@ function ProfitabilityCalc() {
   const [doorPct, setDoorPct] = useState('70');
   const [ticketPrice, setTicketPrice] = useState('20');
   const [capacity, setCapacity] = useState('');
-  const [pejDeal, setPejDeal] = useState(false);
-  const [producerFee, setProducerFee] = useState('200');
+  const [dealCloser, setDealCloser] = useState('Jason');
+  const [producerPct, setProducerPct] = useState('20');
   const [philFee, setPhilFee] = useState('500');
+  const [jasonFeatureFee, setJasonFeatureFee] = useState('400');
+  const [guestFee, setGuestFee] = useState('100');
+  const [jasonPerforming, setJasonPerforming] = useState(true);
+  const [hasGuest, setHasGuest] = useState(false);
   const [result, setResult] = useState(null);
 
-  function calculate() {
+  function calcGross() {
     const g = Number(guarantee)||0;
-    const t = Number(travel)||0;
-    const h = Number(hotel)||0;
-    const m = Number(meals)||0;
     const sc = Number(showCount)||1;
-    const pf = Number(producerFee)||0;
-    const phil = Number(philFee)||0;
-    const totalExpenses = (t+h+m);
-
-    let grossRevenue = 0;
-    if(dealType==='flat') grossRevenue = g*sc;
-    else if(dealType==='door') {
-      const cap = Number(capacity)||200;
-      const tp = Number(ticketPrice)||20;
-      const dp = Number(doorPct)||70;
-      grossRevenue = cap * tp * (dp/100) * sc;
-    } else if(dealType==='versus') {
-      const doorEst = (Number(capacity)||200)*(Number(ticketPrice)||20)*(Number(doorPct)||70/100);
-      grossRevenue = Math.max(g, doorEst)*sc;
-    } else if(dealType==='casino') {
-      grossRevenue = g*sc;
-    }
-
-    const bookingCommission = pejDeal ? grossRevenue * 0.15 : 0;
-    const afterCommission = grossRevenue - bookingCommission;
-    const producerTake = pf * sc;
-    const philTake = phil * sc;
-    const totalPayouts = producerTake + philTake;
-    const netProfit = afterCommission - totalExpenses - totalPayouts;
-    const breakEven = totalExpenses + totalPayouts + bookingCommission;
-    const verdict = netProfit > 0 ? 'profit' : netProfit === 0 ? 'breakeven' : 'loss';
-
-    setResult({ grossRevenue, bookingCommission, afterCommission, totalExpenses, producerTake, philTake, totalPayouts, netProfit, breakEven, verdict, sc });
+    if(dealType==='flat'||dealType==='casino') return g*sc;
+    if(dealType==='door') return (Number(capacity)||200)*(Number(ticketPrice)||20)*(Number(doorPct)/100)*sc;
+    if(dealType==='versus') return Math.max(g,(Number(capacity)||200)*(Number(ticketPrice)||20)*(Number(doorPct)/100))*sc;
+    return 0;
   }
 
-  const vColor = result?.verdict==='profit'?C.green:result?.verdict==='loss'?C.red:C.yellow;
+  function calculate() {
+    const sc = Number(showCount)||1;
+    const gross = calcGross();
+    // Step 1: Booking commission 15% to deal closer
+    const bookingComm = gross * 0.15;
+    const jasonBooking = dealCloser==='Jason' ? bookingComm : dealCloser==='Jason + Pej' ? bookingComm*0.5 : 0;
+    const pejBooking   = dealCloser==='Pej'   ? bookingComm : dealCloser==='Jason + Pej' ? bookingComm*0.5 : 0;
+    // Step 2: Producer fee % of gross always to Jason
+    const producerTake = gross * (Number(producerPct)/100);
+    // Step 3: Headliner pay
+    const philTake = Number(philFee)*sc;
+    // Step 4: Feature & guest
+    const jasonFeature = jasonPerforming ? Number(jasonFeatureFee)*sc : 0;
+    const guestTake = hasGuest ? Number(guestFee)*sc : 0;
+    // Step 5: Expenses
+    const expenses = (Number(travel)||0)+(Number(hotel)||0)+(Number(meals)||0);
+    // Step 6: Remaining profit split 50/50
+    const totalDeductions = bookingComm + producerTake + philTake + jasonFeature + guestTake + expenses;
+    const remainingProfit = gross - totalDeductions;
+    const jasonProfitShare = remainingProfit > 0 ? remainingProfit * 0.5 : 0;
+    const philProfitShare  = remainingProfit > 0 ? remainingProfit * 0.5 : 0;
+    // Total take-home
+    const jasonTotal = jasonBooking + producerTake + jasonFeature + jasonProfitShare;
+    const philTotal  = philTake + philProfitShare;
+    const verdict = remainingProfit > 0 ? 'profit' : remainingProfit === 0 ? 'breakeven' : 'loss';
+    setResult({ gross, bookingComm, jasonBooking, pejBooking, producerTake, philTake, jasonFeature, guestTake, expenses, remainingProfit, jasonProfitShare, philProfitShare, jasonTotal, philTotal, verdict, sc, dealCloser, producerPct });
+  }
+
+  const gross = calcGross();
+  const vColor = result&&result.verdict==='profit'?C.green:result&&result.verdict==='loss'?C.red:C.yellow;
 
   return (
     <div>
-      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:14}}>💰 Show Profitability Calculator</div>
+      <div style={{fontFamily:font.head,fontWeight:700,fontSize:16,color:C.txt,marginBottom:4}}>💰 Show Profitability Calculator</div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Full Main Event payout waterfall — booking → producer → performers → expenses → profit split</div>
 
       <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
-        <div style={{...s.field()}}>
+
+        <div style={s.field()}>
           <label style={s.label}>Deal Type</label>
           <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
             {[['flat','Flat Guarantee'],['door','Door Deal'],['versus','Versus Deal'],['casino','Casino']].map(([id,label])=>(
-              <button key={id} onClick={()=>setDealType(id)} style={s.pill(dealType===id,C.acc)}>{label}</button>
+              <button key={id} type="button" onClick={()=>setDealType(id)} style={s.pill(dealType===id,C.acc)}>{label}</button>
             ))}
           </div>
         </div>
@@ -6007,22 +6015,13 @@ function ProfitabilityCalc() {
           {(dealType==='flat'||dealType==='casino'||dealType==='versus')&&(
             <div style={s.field()}>
               <label style={s.label}>{dealType==='versus'?'Guarantee Floor ($)':'Guarantee ($)'}</label>
-              <input style={s.input()} type="number" value={guarantee} onChange={e=>setGuarantee(e.target.value)} placeholder="2500"/>
+              <input style={s.input()} type="number" value={guarantee} onChange={e=>setGuarantee(e.target.value)} placeholder="3000"/>
             </div>
           )}
           {(dealType==='door'||dealType==='versus')&&<>
-            <div style={s.field()}>
-              <label style={s.label}>Ticket Price ($)</label>
-              <input style={s.input()} type="number" value={ticketPrice} onChange={e=>setTicketPrice(e.target.value)} placeholder="20"/>
-            </div>
-            <div style={s.field()}>
-              <label style={s.label}>Capacity</label>
-              <input style={s.input()} type="number" value={capacity} onChange={e=>setCapacity(e.target.value)} placeholder="300"/>
-            </div>
-            <div style={s.field()}>
-              <label style={s.label}>Your Door % Split</label>
-              <input style={s.input()} type="number" value={doorPct} onChange={e=>setDoorPct(e.target.value)} placeholder="70"/>
-            </div>
+            <div style={s.field()}><label style={s.label}>Ticket Price ($)</label><input style={s.input()} type="number" value={ticketPrice} onChange={e=>setTicketPrice(e.target.value)} placeholder="20"/></div>
+            <div style={s.field()}><label style={s.label}>Capacity</label><input style={s.input()} type="number" value={capacity} onChange={e=>setCapacity(e.target.value)} placeholder="300"/></div>
+            <div style={s.field()}><label style={s.label}>Your Door % Split</label><input style={s.input()} type="number" value={doorPct} onChange={e=>setDoorPct(e.target.value)} placeholder="70"/></div>
           </>}
           <div style={s.field()}>
             <label style={s.label}>Number of Shows</label>
@@ -6030,55 +6029,130 @@ function ProfitabilityCalc() {
           </div>
         </div>
 
+        {gross > 0 && <div style={{background:`${C.green}12`,border:`1px solid ${C.green}33`,borderRadius:8,padding:'8px 12px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:11,color:C.muted2}}>Estimated Gross Revenue</span>
+          <span style={{fontSize:18,fontWeight:900,color:C.green,fontFamily:font.head}}>${gross.toLocaleString()}</span>
+        </div>}
+
+        <div style={{marginBottom:14}}>
+          <label style={s.label}>Deal Closed By — 15% Booking Commission{gross>0?` ($${Math.round(gross*0.15).toLocaleString()})`:''}</label>
+          <div style={{display:'flex',gap:0,background:C.surf3,borderRadius:10,overflow:'hidden',border:`1px solid ${C.bord}`}}>
+            {[['Jason','👑 Jason','You keep 15%'],['Pej','🤝 Pej','Pej keeps 15%'],['Jason + Pej','👥 Both','7.5% each']].map(([id,label,sub])=>(
+              <div key={id} onClick={()=>setDealCloser(id)} style={{flex:1,padding:'10px 6px',textAlign:'center',cursor:'pointer',background:dealCloser===id?`${C.acc}22`:'transparent',borderRight:`1px solid ${C.bord}`,transition:'all 0.15s',userSelect:'none',WebkitTapHighlightColor:'transparent'}}>
+                <div style={{fontSize:12,fontWeight:700,color:dealCloser===id?C.acc2:C.muted,fontFamily:font.head}}>{label}</div>
+                <div style={{fontSize:9,color:dealCloser===id?C.muted2:C.muted,marginTop:2}}>{sub}</div>
+                {dealCloser===id&&gross>0&&<div style={{fontSize:10,color:C.acc2,marginTop:3,fontWeight:700}}>${Math.round(gross*(id==='Jason + Pej'?0.075:0.15)).toLocaleString()}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={s.field()}>
+          <label style={s.label}>Producer Fee — % of Gross (Jason, every show)</label>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+            {['15','20'].map(p=>(
+              <button key={p} type="button" onClick={()=>setProducerPct(p)} style={s.pill(producerPct===p,C.orange)}>{p}%{gross>0?` — $${Math.round(gross*Number(p)/100).toLocaleString()}`:''}</button>
+            ))}
+            <input style={{...s.input(),width:70,display:'inline-block'}} type="number" value={producerPct} onChange={e=>setProducerPct(e.target.value)} placeholder="20"/>
+          </div>
+        </div>
+
         <div style={{...s.divider}}/>
-        <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.05em'}}>Expenses & Payouts</div>
+        <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.05em'}}>Performer Payouts</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          {[['Travel ($)',travel,setTravel,'800'],['Hotel ($)',hotel,setHotel,'300'],['Meals/Misc ($)',meals,setMeals,'100'],['Producer Fee/show',producerFee,setProducerFee,'200'],['Phil Fee/show',philFee,setPhilFee,'500']].map(([label,val,setter,ph])=>(
+          <div style={s.field()}>
+            <label style={s.label}>Phil Headliner / show ($)</label>
+            <input style={s.input()} type="number" value={philFee} onChange={e=>setPhilFee(e.target.value)} placeholder="500"/>
+          </div>
+          <div style={s.field()}>
+            <label style={s.label}>Jason Feature / show ($)</label>
+            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <input style={{...s.input(),flex:1}} type="number" value={jasonFeatureFee} onChange={e=>setJasonFeatureFee(e.target.value)} placeholder="400" disabled={!jasonPerforming}/>
+              <button type="button" onClick={()=>setJasonPerforming(v=>!v)} style={{...s.pill(jasonPerforming,C.acc2),flexShrink:0,fontSize:10,padding:'6px 10px'}}>{jasonPerforming?'On':'Off'}</button>
+            </div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+          <button type="button" onClick={()=>setHasGuest(v=>!v)} style={s.pill(hasGuest,C.muted2)}>👤 Guest Comedian</button>
+          {hasGuest&&<input style={{...s.input(),flex:1}} type="number" value={guestFee} onChange={e=>setGuestFee(e.target.value)} placeholder="100"/>}
+        </div>
+
+        <div style={{...s.divider}}/>
+        <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.05em'}}>Show Expenses</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+          {[['Travel',travel,setTravel,'800'],['Hotel',hotel,setHotel,'300'],['Meals/Misc',meals,setMeals,'100']].map(([label,val,setter,ph])=>(
             <div key={label} style={s.field()}>
-              <label style={s.label}>{label}</label>
+              <label style={s.label}>{label} ($)</label>
               <input style={s.input()} type="number" value={val} onChange={e=>setter(e.target.value)} placeholder={ph}/>
             </div>
           ))}
         </div>
 
-        <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px',background:C.surf3,borderRadius:10,marginBottom:14}}>
-          <input type="checkbox" id="pejdeal" checked={pejDeal} onChange={e=>setPejDeal(e.target.checked)} style={{width:16,height:16,accentColor:C.blue}}/>
-          <label htmlFor="pejdeal" style={{fontSize:12,color:C.muted2,cursor:'pointer'}}>Pej closed this deal (deduct 15% commission)</label>
-        </div>
-
-        <button onClick={calculate} style={{...s.btn(C.acc,'#fff',null),width:'100%'}}>Calculate Profitability</button>
+        <button type="button" onClick={()=>calculate()} style={{background:C.acc,color:'#fff',border:'none',borderRadius:10,padding:'14px 16px',width:'100%',fontSize:14,fontWeight:700,fontFamily:font.head,cursor:'pointer',letterSpacing:'0.02em',minHeight:50,WebkitTapHighlightColor:'transparent',display:'block',marginTop:6}}>
+          Calculate Full Payout Waterfall
+        </button>
       </div>
 
       {result && (
         <div style={{background:`${vColor}0d`,border:`1px solid ${vColor}33`,borderRadius:12,padding:'16px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div style={{fontFamily:font.head,fontWeight:900,fontSize:18,color:vColor}}>
-              {result.verdict==='profit'?'✅ PROFIT':result.verdict==='loss'?'❌ LOSS':'⚖️ BREAK EVEN'}
+              {result.verdict==='profit'?'✅ PROFITABLE':result.verdict==='loss'?'❌ IN THE RED':'⚖️ BREAK EVEN'}
             </div>
-            <div style={{fontFamily:font.head,fontWeight:900,fontSize:26,color:vColor}}>
-              {result.netProfit>=0?'+':''}${result.netProfit.toLocaleString()}
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:2}}>Remaining Profit</div>
+              <div style={{fontFamily:font.head,fontWeight:900,fontSize:24,color:vColor}}>
+                {result.remainingProfit>=0?'+':''}${Math.round(Math.abs(result.remainingProfit)).toLocaleString()}
+              </div>
             </div>
           </div>
+
+          <div style={{fontFamily:font.head,fontWeight:700,fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>Payment Waterfall</div>
           {[
-            ['Gross Revenue',result.grossRevenue,C.green],
-            result.bookingCommission>0&&['Pej Commission (15%)',`-$${result.bookingCommission.toLocaleString()}`,C.blue],
-            ['Total Expenses',`-$${result.totalExpenses.toLocaleString()}`,C.red],
-            ['Producer Fee',`-$${result.producerTake.toLocaleString()}`,C.orange],
-            ['Phil Fee',`-$${result.philTake.toLocaleString()}`,C.yellow],
-            ['Break-Even Point',result.breakEven,C.muted2],
-          ].filter(Boolean).map(([label,val,color])=>(
-            <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:`1px solid ${C.bord}`}}>
-              <span style={{fontSize:12,color:C.muted2}}>{label}</span>
-              <span style={{fontSize:12,fontWeight:700,color,fontFamily:font.head}}>{typeof val==='number'?`$${val.toLocaleString()}`:val}</span>
+            {label:'1. Gross Revenue', val:result.gross, color:C.green, bold:true},
+            {label:'2. Booking Commission (15%)', val:-result.bookingComm, color:C.blue, bold:true},
+            result.dealCloser==='Jason'&&{label:'   → Jason keeps all', val:result.jasonBooking, color:C.acc2, bold:false},
+            result.dealCloser==='Pej'&&{label:'   → Pej receives', val:result.pejBooking, color:C.muted2, bold:false},
+            result.dealCloser==='Jason + Pej'&&{label:'   → Jason / Pej 7.5% each', val:result.jasonBooking, color:C.muted2, bold:false},
+            {label:`3. Producer Fee (${result.producerPct}%)`, val:-result.producerTake, color:C.orange, bold:true},
+            {label:'4. Phil Headliner Pay', val:-result.philTake, color:C.yellow, bold:true},
+            result.jasonFeature>0&&{label:'5. Jason Feature Pay', val:-result.jasonFeature, color:C.acc2, bold:true},
+            result.guestTake>0&&{label:'   Guest Comedian', val:-result.guestTake, color:C.muted2, bold:false},
+            {label:'6. Show Expenses', val:-result.expenses, color:C.red, bold:true},
+            {label:'7. Remaining Profit', val:result.remainingProfit, color:vColor, bold:true},
+            result.remainingProfit>0&&{label:'   → Jason 50%', val:result.jasonProfitShare, color:C.acc2, bold:false},
+            result.remainingProfit>0&&{label:'   → Phil 50%', val:result.philProfitShare, color:C.yellow, bold:false},
+          ].filter(Boolean).map((row)=>(
+            <div key={row.label} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${C.bord}22`}}>
+              <span style={{fontSize:11,color:row.bold?C.muted2:C.muted,fontWeight:row.bold?600:400}}>{row.label}</span>
+              <span style={{fontSize:11,fontWeight:row.bold?700:500,color:row.color,fontFamily:font.head}}>
+                {row.val>=0?'+':'-'}${Math.round(Math.abs(row.val)).toLocaleString()}
+              </span>
             </div>
           ))}
+
+          <div style={{marginTop:14,display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div style={{background:`${C.acc}12`,border:`1px solid ${C.acc}33`,borderRadius:10,padding:'12px',textAlign:'center'}}>
+              <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Jason Total</div>
+              <div style={{fontSize:22,fontWeight:900,color:C.acc2,fontFamily:font.head}}>${Math.round(result.jasonTotal).toLocaleString()}</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:3}}>booking + producer + feature + profit</div>
+            </div>
+            <div style={{background:`${C.yellow}12`,border:`1px solid ${C.yellow}33`,borderRadius:10,padding:'12px',textAlign:'center'}}>
+              <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Phil Total</div>
+              <div style={{fontSize:22,fontWeight:900,color:C.yellow,fontFamily:font.head}}>${Math.round(result.philTotal).toLocaleString()}</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:3}}>headliner pay + profit share</div>
+            </div>
+          </div>
+          {result.pejBooking>0&&<div style={{marginTop:8,background:`${C.blue}12`,border:`1px solid ${C.blue}33`,borderRadius:10,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:11,color:C.muted2}}>Pej Commission Owed</span>
+            <span style={{fontSize:18,fontWeight:900,color:C.blue,fontFamily:font.head}}>${Math.round(result.pejBooking).toLocaleString()}</span>
+          </div>}
         </div>
       )}
     </div>
   );
 }
 
-// ─── SOCIAL CONTENT GENERATOR ────────────────────────────────
 function SocialContentGen({ venues=[], tours=[] }) {
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('');
@@ -6118,10 +6192,10 @@ Tone: ${toneGuide[tone]}
 
 Output ONLY the post text, nothing else. No labels, no explanations.`;
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
       setOutput(data.content?.[0]?.text||'');
-    } catch(e) { setOutput('Error generating content. Try again.'); }
+    } catch(e) { setOutput('Error: '+e.message+'. Check console for details.'); console.error('API error:',e); }
     setLoading(false);
   }
 
@@ -6311,10 +6385,10 @@ Provide:
 Keep it tactical, specific, and actionable. No filler.`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
       setResult(data.content?.[0]?.text||'');
-    } catch(e) { setResult('Error. Try again.'); }
+    } catch(e) { setResult('Error: '+e.message); console.error('API error:',e); }
     setLoading(false);
   }
 
@@ -6476,10 +6550,10 @@ Provide:
 Be specific with names where you know them. Mark any you're uncertain about.`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
       setResult(data.content?.[0]?.text||'');
-    } catch(e) { setResult('Error. Try again.'); }
+    } catch(e) { setResult('Error: '+e.message); console.error('API error:',e); }
     setLoading(false);
   }
 
@@ -6579,10 +6653,10 @@ Provide:
 Be specific and tactical. No filler.`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,messages:[{role:'user',content:prompt}]})});
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:700,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
       setCompetitors(data.content?.[0]?.text||'');
-    } catch(e) { setCompetitors('Error. Try again.'); }
+    } catch(e) { setCompetitors('Error: '+e.message); }
     setLoadingComp(false);
   }
 
@@ -6991,7 +7065,7 @@ function PressKitBuilder({ venues=[], comedians=[] }) {
     setAiLoading(true);
     const prompt = `Write a compelling, professional press kit bio for a stand-up comedian named ${comedian}.\nStyle: 2-3 short paragraphs. Professional but warm. Suitable for a comedy booking one-sheet.\nCredits to mention: ${credits.join(', ')}\nKeep it under 120 words total. No generic filler.`;
     try{
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:prompt}]})});
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
       setBio(data.content?.[0]?.text||bio);
     }catch(e){}
