@@ -3671,8 +3671,8 @@ function StageBoss({user,onLogout,accessToken}){
         {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
           <AnalyticsTab venues={venues} tours={tours} bestTimeData={bestTimeData} />
         </div>}
-        {tab==='marketing'&&<MarketingTab venues={venues} tours={tours} comedians={comedians} currentUserEmail={session?.email||'jschucomedy@gmail.com'}/>}
-        {tab==='templates'&&<TemplatesTab venues={venues} currentUserEmail={session?.email||'jschucomedy@gmail.com'}/>}
+        {tab==='marketing'&&<MarketingTab venues={venues} tours={tours} comedians={comedians} currentUserEmail={user||'jschucomedy@gmail.com'}/>}
+        {tab==='templates'&&<TemplatesTab venues={venues} currentUserEmail={user||'jschucomedy@gmail.com'}/>}
         {tab==='presskit'&&<PressKitBuilder venues={venues} comedians={comedians}/>}
 
       </div>{/* end content */}
@@ -6927,128 +6927,262 @@ Thanks,
 }
 
 // ─── PRESS KIT BUILDER ────────────────────────────────────────
+// ─── PRESS KIT BUILDER ────────────────────────────────────────
 function PressKitBuilder({ venues=[], comedians=[] }) {
-  const [comedian, setComedian] = useState('Phil Medina');
-  const [bio, setBio] = useState('');
-  const [credits, setCredits] = useState('');
-  const [tagline, setTagline] = useState('');
-  const [generated, setGenerated] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-
-  const confirmedShows = venues.filter(v=>v.status==='Confirmed').slice(0,6);
-
-  const COMEDIAN_DATA = {
+  const COMEDIAN_DEFAULTS = {
     'Phil Medina': {
       bio: 'Phil Medina is a nationally touring stand-up comedian known for his high-energy, relatable performance style. A crowd favorite across comedy clubs, casinos, and universities nationwide.',
-      credits: 'Nationally Touring Headliner · Comedy Clubs · Casinos · Universities',
+      credits: ['Nationally Touring Headliner','Comedy Clubs Nationwide','Casino Showrooms','University Campuses'],
       tagline: 'A nationally touring headliner ready to sell out your room.',
+      photoUrl: '',videoUrl: '',instagram: 'comicphilmedina',website: 'philmedinacomedy.com',bookingEmail: 'jason@maineventcomedy.com',
     },
     'Jason Schuster': {
       bio: 'Jason Schuster is a stand-up comedian and comedy producer based out of Maryland. Co-founder of Main Event Comedy Entertainment.',
-      credits: 'Comedian · Producer · Tour Manager · Main Event Comedy Entertainment',
+      credits: ['Stand-Up Comedian','Comedy Producer','Tour Manager','Main Event Comedy Entertainment'],
       tagline: 'Comedy that connects. Every room, every time.',
+      photoUrl: '',videoUrl: '',instagram: 'jasonschustercomedy',website: 'jasonschustercomedy.com',bookingEmail: 'jason@maineventcomedy.com',
+    },
+    'Pej Ahmadi': {
+      bio: 'Pej Ahmadi is a stand-up comedian and booking specialist with Main Event Comedy Entertainment, bringing sharp observational humor to clubs and colleges across the country.',
+      credits: ['Stand-Up Comedian','Booking & Venue Outreach','Main Event Comedy Entertainment'],
+      tagline: 'Sharp, relatable comedy for every room.',
+      photoUrl: '',videoUrl: '',instagram: 'pejahmadi',website: 'maineventcomedy.com',bookingEmail: 'pej@maineventcomedy.com',
+    },
+    'Mark Gonzales': {
+      bio: 'Mark Gonzales is a Baldwin Park, CA native and stand-up comedian known for his sharp wit and bold stage presence. Performing since 2006, he has headlined clubs from Los Angeles to Las Vegas.',
+      credits: ['Stand-Up Comedian','Headliner — Levity Live Oxnard','Harvard Yard Bar LA','Performing Since 2006'],
+      tagline: '"Comedy is mainstream society\'s high art."',
+      photoUrl: '',videoUrl: '',instagram: 'markgonzalescomedy',website: 'maineventcomedy.com',bookingEmail: 'jason@maineventcomedy.com',
     },
   };
 
+  const [comedian, setComedian] = useState('Phil Medina');
+  const [bio, setBio] = useState(COMEDIAN_DEFAULTS['Phil Medina'].bio);
+  const [credits, setCredits] = useState(COMEDIAN_DEFAULTS['Phil Medina'].credits);
+  const [tagline, setTagline] = useState(COMEDIAN_DEFAULTS['Phil Medina'].tagline);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [instagram, setInstagram] = useState(COMEDIAN_DEFAULTS['Phil Medina'].instagram);
+  const [website, setWebsite] = useState(COMEDIAN_DEFAULTS['Phil Medina'].website);
+  const [bookingEmail, setBookingEmail] = useState(COMEDIAN_DEFAULTS['Phil Medina'].bookingEmail);
+  const [newCredit, setNewCredit] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [generated, setGenerated] = useState(false);
+  const [pkTab, setPkTab] = useState('edit');
+
+  const confirmedShows = venues.filter(v=>v.status==='Confirmed').slice(0,8);
+
   useEffect(()=>{
-    const data = COMEDIAN_DATA[comedian];
-    if(data) { setBio(data.bio); setCredits(data.credits); setTagline(data.tagline); }
+    const d = COMEDIAN_DEFAULTS[comedian];
+    if(d){ setBio(d.bio); setCredits(d.credits); setTagline(d.tagline); setPhotoUrl(d.photoUrl); setVideoUrl(d.videoUrl); setInstagram(d.instagram); setWebsite(d.website); setBookingEmail(d.bookingEmail); }
   },[comedian]);
 
-  async function generateBio() {
+  function addCredit(){ if(newCredit.trim()){ setCredits(prev=>[...prev,newCredit.trim()]); setNewCredit(''); } }
+  function removeCredit(i){ setCredits(prev=>prev.filter((_,idx)=>idx!==i)); }
+
+  function getYouTubeId(url){
+    if(!url) return null;
+    const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
+    return m ? m[1] : null;
+  }
+  const ytId = getYouTubeId(videoUrl);
+
+  async function generateBio(){
     setAiLoading(true);
-    const prompt = `Write a compelling, professional press kit bio for a stand-up comedian named ${comedian}.
-Style: 3 short paragraphs. Professional but warm. Suitable for a comedy booking one-sheet.
-Credits to mention: ${credits}
-Keep it under 150 words total. No generic filler.`;
-    try {
+    const prompt = `Write a compelling, professional press kit bio for a stand-up comedian named ${comedian}.\nStyle: 2-3 short paragraphs. Professional but warm. Suitable for a comedy booking one-sheet.\nCredits to mention: ${credits.join(', ')}\nKeep it under 120 words total. No generic filler.`;
+    try{
       const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:prompt}]})});
       const data = await res.json();
       setBio(data.content?.[0]?.text||bio);
-    } catch(e){}
+    }catch(e){}
     setAiLoading(false);
   }
 
-  function printKit() {
-    const printContent = `
-<!DOCTYPE html><html><head><style>
-  body{font-family:Georgia,serif;margin:0;padding:40px;background:#fff;color:#111;max-width:800px;margin:0 auto}
-  .header{border-bottom:3px solid #6c3aed;padding-bottom:20px;margin-bottom:30px}
-  h1{font-size:42px;margin:0;color:#6c3aed;font-family:'Arial Black',sans-serif}
-  .tagline{font-size:16px;color:#555;margin-top:8px;font-style:italic}
-  .section{margin-bottom:24px}
-  h3{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#999;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px}
-  p{font-size:14px;line-height:1.7;color:#333}
-  .show{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
-  .credits{font-size:13px;color:#555;line-height:1.8}
-  .footer{margin-top:30px;padding-top:16px;border-top:1px solid #ddd;font-size:12px;color:#999;display:flex;justify-content:space-between}
-</style></head><body>
-  <div class="header">
-    <h1>${comedian}</h1>
-    <div class="tagline">${tagline}</div>
-  </div>
-  <div class="section">
-    <h3>About</h3>
-    <p>${bio}</p>
-  </div>
-  ${credits?`<div class="section"><h3>Credits & Experience</h3><div class="credits">${credits}</div></div>`:''}
-  ${confirmedShows.length>0?`<div class="section"><h3>Upcoming Dates</h3>${confirmedShows.map(v=>`<div class="show"><span>${v.venue} — ${v.city}, ${v.state}</span><span>${v.targetDates||'Date TBD'}</span></div>`).join('')}</div>`:''}
-  <div class="footer">
-    <span>Booking: jason@maineventcomedy.com</span>
-    <span>Main Event Comedy Entertainment</span>
-    <span>maineventcomedy.com</span>
-  </div>
-</body></html>`;
+  function generatePrintKit(){
+    const showsHtml = confirmedShows.length > 0
+      ? `<div class="section"><h3>Upcoming Dates</h3>${confirmedShows.map(v=>`<div class="show"><span><strong>${v.venue}</strong> — ${v.city}, ${v.state}</span><span>${v.targetDates||'Date TBD'}</span></div>`).join('')}</div>`
+      : '';
+    const photoHtml = photoUrl ? `<img src="${photoUrl}" alt="${comedian}" style="width:180px;height:220px;object-fit:cover;border-radius:8px;float:right;margin:0 0 20px 24px;border:3px solid #6c3aed"/>` : '';
+    const videoHtml = videoUrl ? `<div class="section"><h3>Video</h3><p><a href="${videoUrl}" style="color:#6c3aed;font-size:14px">▶ Watch Promo Video — ${videoUrl}</a></p></div>` : '';
+    const creditsHtml = credits.length > 0 ? `<div class="section"><h3>Credits & Experience</h3><div class="credits-grid">${credits.map(c=>`<div class="credit-item">✓ ${c}</div>`).join('')}</div></div>` : '';
+    const socialHtml = (instagram||website) ? `<div class="social">${instagram?`<span>📸 @${instagram}</span>`:''}${website?`<span>🌐 ${website}</span>`:''}</div>` : '';
+    const printContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${comedian} — Press Kit</title><style>
+*{box-sizing:border-box}body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:0;background:#fff;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{max-width:780px;margin:0 auto;padding:48px}.top-bar{height:6px;background:linear-gradient(90deg,#6c3aed,#ec4899);margin-bottom:36px;border-radius:3px}
+.header{margin-bottom:28px;overflow:hidden}h1{font-size:48px;margin:0 0 4px;color:#6c3aed;font-family:'Arial Black',Arial,sans-serif;line-height:1;letter-spacing:-1px}
+.tagline{font-size:14px;color:#888;font-style:italic;border-left:3px solid #6c3aed;padding-left:10px;margin:8px 0}.social{display:flex;gap:16px;font-size:11px;color:#aaa;margin-top:6px}
+.section{margin-bottom:24px;clear:both}h3{font-size:10px;text-transform:uppercase;letter-spacing:3px;color:#bbb;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid #eee}
+p{font-size:14px;line-height:1.75;color:#333;margin:0}.show{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+.credits-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px}.credit-item{font-size:13px;color:#444;padding:3px 0}
+.footer{margin-top:28px;padding-top:16px;border-top:2px solid #6c3aed;display:flex;justify-content:space-between;align-items:center}
+.booking-box{background:#f9f7ff;border:1px solid #e0d9f7;border-radius:8px;padding:12px 16px}
+@media print{.page{padding:32px}}
+</style></head><body><div class="page">
+<div class="top-bar"></div>
+<div class="header">${photoHtml}<h1>${comedian}</h1><div class="tagline">${tagline}</div>${socialHtml}</div>
+<div class="section"><h3>About</h3><p>${bio.replace(/\n/g,'<br>')}</p></div>
+${creditsHtml}${videoHtml}${showsHtml}
+<div class="footer"><div class="booking-box"><div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#aaa;margin-bottom:4px">Booking Contact</div><strong style="color:#6c3aed;font-size:13px">${bookingEmail}</strong>${website?`<div style="font-size:11px;color:#999;margin-top:2px">${website}</div>`:''}</div><div style="text-align:right"><div style="font-size:12px;color:#6c3aed;font-weight:700">Main Event Comedy Entertainment</div><div style="font-size:10px;color:#aaa;margin-top:2px">maineventcomedy.com</div></div></div>
+</div></body></html>`;
     const w = window.open('','_blank');
     w.document.write(printContent);
     w.document.close();
-    w.print();
+    setTimeout(()=>w.print(),500);
     setGenerated(true);
   }
 
+  const bioParagraphs = bio.split('\n').filter(p=>p.trim());
+
   return (
     <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
-      <div style={{fontFamily:font.head,fontWeight:700,fontSize:22,letterSpacing:-0.5,color:C.txt,marginBottom:2}}>Press Kit Builder</div>
-      <div style={{fontSize:11,color:C.muted,marginBottom:16}}>One-click PDF one-sheet per comedian</div>
+      <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,color:C.txt,marginBottom:2}}>Press Kit Builder</div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Photo · Video · Bio · Credits · Upcoming Dates → Print as PDF</div>
 
-      <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
-        <div style={s.field()}>
-          <label style={s.label}>Comedian</label>
-          <select style={{...s.input(),color:C.txt}} value={comedian} onChange={e=>setComedian(e.target.value)}>
-            <option>Phil Medina</option>
-            <option>Jason Schuster</option>
-            <option>Pej Ahmadi</option>
-            <option>Mark Gonzales</option>
-          </select>
-        </div>
-        <div style={s.field()}>
-          <label style={s.label}>Tagline</label>
-          <input style={s.input()} value={tagline} onChange={e=>setTagline(e.target.value)} placeholder="A nationally touring headliner..."/>
-        </div>
-        <div style={s.field()}>
-          <label style={s.label}>Credits & Experience</label>
-          <input style={s.input()} value={credits} onChange={e=>setCredits(e.target.value)} placeholder="Comedy clubs, casinos, universities..."/>
-        </div>
-        <div style={s.field()}>
-          <label style={s.label}>Bio</label>
-          <textarea style={{...s.input(),resize:'none',minHeight:120,fontSize:12,lineHeight:1.6}} value={bio} onChange={e=>setBio(e.target.value)} placeholder="Enter bio or use AI to generate..."/>
-        </div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={generateBio} disabled={aiLoading} style={{...s.btn(C.acc,'#fff',null),flex:1}}>{aiLoading?'✨ Writing...':'✨ AI Generate Bio'}</button>
-          <button onClick={printKit} style={{...s.btn(C.green,'#fff',null),flex:1}}>🖨️ Generate Press Kit</button>
-        </div>
-        {generated && <div style={{fontSize:11,color:C.green,marginTop:10,textAlign:'center'}}>✅ Press kit opened in print dialog — save as PDF</div>}
+      <div style={{display:'flex',gap:6,marginBottom:16}}>
+        {[['edit','✏️ Edit'],['preview','👁️ Preview']].map(([id,label])=>(
+          <button key={id} onClick={()=>setPkTab(id)} style={s.pill(pkTab===id,C.acc)}>{label}</button>
+        ))}
       </div>
 
-      {confirmedShows.length > 0 && (
-        <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'14px 16px'}}>
-          <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:10}}>UPCOMING DATES ON ONE-SHEET ({confirmedShows.length})</div>
-          {confirmedShows.map(v=>(
-            <div key={v.id} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${C.bord}`,fontSize:12}}>
-              <span style={{color:C.txt}}>{v.venue} — {v.city}, {v.state}</span>
-              <span style={{color:C.muted}}>{v.targetDates||'TBD'}</span>
+      {pkTab==='edit' && (
+        <div>
+          <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:12}}>
+            <div style={s.field()}>
+              <label style={s.label}>Comedian</label>
+              <select style={{...s.input(),color:C.txt}} value={comedian} onChange={e=>setComedian(e.target.value)}>
+                {Object.keys(COMEDIAN_DEFAULTS).map(n=><option key={n}>{n}</option>)}
+              </select>
             </div>
-          ))}
+            <div style={s.field()}>
+              <label style={s.label}>Tagline</label>
+              <input style={s.input()} value={tagline} onChange={e=>setTagline(e.target.value)} placeholder="A nationally touring headliner..."/>
+            </div>
+          </div>
+
+          <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:12}}>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:12,textTransform:'uppercase',letterSpacing:'0.05em'}}>📸 Photo & Video</div>
+            <div style={s.field()}>
+              <label style={s.label}>Headshot / Photo URL</label>
+              <input style={s.input()} value={photoUrl} onChange={e=>setPhotoUrl(e.target.value)} placeholder="https://example.com/headshot.jpg"/>
+              <div style={{fontSize:10,color:C.muted,marginTop:4}}>Any public image URL — Google Drive (share link), Dropbox, your website, Imgur</div>
+            </div>
+            {photoUrl && (
+              <div style={{marginBottom:12}}>
+                <img src={photoUrl} alt="Preview" style={{width:80,height:96,objectFit:'cover',borderRadius:8,border:`2px solid ${C.acc}`}} onError={e=>e.target.style.display='none'}/>
+                <div style={{fontSize:10,color:C.green,marginTop:4}}>✅ Photo loaded</div>
+              </div>
+            )}
+            <div style={s.field()}>
+              <label style={s.label}>Promo Video URL</label>
+              <input style={s.input()} value={videoUrl} onChange={e=>setVideoUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..."/>
+              <div style={{fontSize:10,color:C.muted,marginTop:4}}>YouTube or Vimeo — embeds in preview, appears as link on PDF</div>
+            </div>
+          </div>
+
+          <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:12}}>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:12,textTransform:'uppercase',letterSpacing:'0.05em'}}>📝 Bio</div>
+            <textarea style={{...s.input(),resize:'none',minHeight:120,fontSize:12,lineHeight:1.6,marginBottom:10}} value={bio} onChange={e=>setBio(e.target.value)} placeholder="Enter bio or use AI..."/>
+            <button onClick={generateBio} disabled={aiLoading} style={{...s.btn(aiLoading?'#333':C.acc,'#fff',null),width:'100%'}}>
+              {aiLoading?'✨ Writing...':'✨ AI Generate Bio'}
+            </button>
+          </div>
+
+          <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:12}}>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:12,textTransform:'uppercase',letterSpacing:'0.05em'}}>🏆 Credits</div>
+            {credits.map((c,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',background:C.surf3,borderRadius:8,marginBottom:6}}>
+                <span style={{flex:1,fontSize:12,color:C.txt}}>✓ {c}</span>
+                <button onClick={()=>removeCredit(i)} style={{background:'none',border:'none',color:C.red,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1}}>✕</button>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:8,marginTop:8}}>
+              <input style={{...s.input(),flex:1}} value={newCredit} onChange={e=>setNewCredit(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCredit()} placeholder="Add credit (e.g. Comedy Store, BET, College Tour...)"/>
+              <button onClick={addCredit} style={{...s.btn(C.acc,'#fff',null),padding:'0 16px',flexShrink:0}}>+</button>
+            </div>
+          </div>
+
+          <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'16px',marginBottom:14}}>
+            <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.muted2,marginBottom:12,textTransform:'uppercase',letterSpacing:'0.05em'}}>🔗 Contact & Social</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              {[['Booking Email',bookingEmail,setBookingEmail,'jason@maineventcomedy.com'],['Website',website,setWebsite,'maineventcomedy.com'],['Instagram Handle',instagram,setInstagram,'comicphilmedina']].map(([label,val,setter,ph])=>(
+                <div key={label} style={s.field()}>
+                  <label style={s.label}>{label}</label>
+                  <input style={s.input()} value={val} onChange={e=>setter(e.target.value)} placeholder={ph}/>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={generatePrintKit} style={{...s.btn(C.green,'#fff',null),width:'100%',fontSize:14,padding:'14px'}}>
+            🖨️ Generate Press Kit PDF
+          </button>
+          {generated && <div style={{fontSize:11,color:C.green,marginTop:10,textAlign:'center'}}>✅ Opened in print dialog — File → Save as PDF</div>}
+        </div>
+      )}
+
+      {pkTab==='preview' && (
+        <div>
+          <div style={{background:'#fff',borderRadius:12,padding:'24px',color:'#111',marginBottom:14,border:`1px solid ${C.bord}`}}>
+            <div style={{height:5,background:'linear-gradient(90deg,#6c3aed,#ec4899)',borderRadius:3,marginBottom:22}}/>
+            <div style={{display:'flex',gap:18,marginBottom:22,alignItems:'flex-start'}}>
+              {photoUrl && <img src={photoUrl} alt={comedian} style={{width:100,height:120,objectFit:'cover',borderRadius:8,border:'3px solid #6c3aed',flexShrink:0}} onError={e=>e.target.style.display='none'}/>}
+              <div>
+                <div style={{fontSize:32,fontWeight:900,color:'#6c3aed',fontFamily:'Arial Black,Arial,sans-serif',lineHeight:1,marginBottom:4}}>{comedian}</div>
+                <div style={{fontSize:12,color:'#888',fontStyle:'italic',borderLeft:'3px solid #6c3aed',paddingLeft:10,marginBottom:8}}>{tagline}</div>
+                <div style={{display:'flex',gap:12,fontSize:11,color:'#999',flexWrap:'wrap'}}>
+                  {instagram&&<span>📸 @{instagram}</span>}
+                  {website&&<span>🌐 {website}</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{marginBottom:18}}>
+              <div style={{fontSize:9,textTransform:'uppercase',letterSpacing:3,color:'#bbb',marginBottom:8,borderBottom:'1px solid #eee',paddingBottom:6}}>About</div>
+              {bioParagraphs.map((p,i)=><p key={i} style={{fontSize:13,lineHeight:1.7,color:'#333',margin:'0 0 8px'}}>{p}</p>)}
+            </div>
+            {credits.length > 0 && (
+              <div style={{marginBottom:18}}>
+                <div style={{fontSize:9,textTransform:'uppercase',letterSpacing:3,color:'#bbb',marginBottom:8,borderBottom:'1px solid #eee',paddingBottom:6}}>Credits</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'3px 14px'}}>
+                  {credits.map((c,i)=><div key={i} style={{fontSize:12,color:'#444'}}>✓ {c}</div>)}
+                </div>
+              </div>
+            )}
+            {videoUrl && (
+              <div style={{marginBottom:18}}>
+                <div style={{fontSize:9,textTransform:'uppercase',letterSpacing:3,color:'#bbb',marginBottom:8,borderBottom:'1px solid #eee',paddingBottom:6}}>Video</div>
+                {ytId
+                  ? <iframe width="100%" height="180" src={`https://www.youtube.com/embed/${ytId}`} frameBorder="0" allowFullScreen style={{borderRadius:8}}/>
+                  : <a href={videoUrl} target="_blank" rel="noreferrer" style={{fontSize:13,color:'#6c3aed'}}>▶ Watch Promo Video</a>
+                }
+              </div>
+            )}
+            {confirmedShows.length > 0 && (
+              <div style={{marginBottom:18}}>
+                <div style={{fontSize:9,textTransform:'uppercase',letterSpacing:3,color:'#bbb',marginBottom:8,borderBottom:'1px solid #eee',paddingBottom:6}}>Upcoming Dates</div>
+                {confirmedShows.map(v=>(
+                  <div key={v.id} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5',fontSize:12,color:'#333'}}>
+                    <span><strong>{v.venue}</strong> — {v.city}, {v.state}</span>
+                    <span style={{color:'#999'}}>{v.targetDates||'TBD'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{marginTop:20,paddingTop:14,borderTop:'2px solid #6c3aed',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+              <div style={{background:'#f9f7ff',border:'1px solid #e0d9f7',borderRadius:8,padding:'10px 14px'}}>
+                <div style={{fontSize:9,textTransform:'uppercase',letterSpacing:2,color:'#bbb',marginBottom:3}}>Booking Contact</div>
+                <div style={{fontSize:13,fontWeight:700,color:'#6c3aed'}}>{bookingEmail}</div>
+                {website&&<div style={{fontSize:10,color:'#999',marginTop:2}}>{website}</div>}
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:12,color:'#6c3aed',fontWeight:700}}>Main Event Comedy Entertainment</div>
+                <div style={{fontSize:10,color:'#bbb'}}>maineventcomedy.com</div>
+              </div>
+            </div>
+          </div>
+          <button onClick={generatePrintKit} style={{...s.btn(C.green,'#fff',null),width:'100%',fontSize:14,padding:'14px'}}>
+            🖨️ Print / Save as PDF
+          </button>
+          {generated && <div style={{fontSize:11,color:C.green,marginTop:10,textAlign:'center'}}>✅ Opened in print dialog — File → Save as PDF</div>}
         </div>
       )}
     </div>
