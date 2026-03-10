@@ -477,6 +477,7 @@ function migrateVenue(v) {
     lastResponseDate: v.lastResponseDate||'',
     merchSales: v.merchSales||[],
     dealClosedBy: v.dealClosedBy||'',
+    calendarUrl: v.calendarUrl||'',
   };
 }
 function migrateData(raw) {
@@ -3775,6 +3776,10 @@ function StageBoss({user,onLogout,accessToken}){
             <input style={{...s.input(11),marginBottom:6}} placeholder="What did they say? (e.g. Interested, send avails)" defaultValue={dv.lastResponse||''} onBlur={e=>upd(dv.id,{lastResponse:e.target.value,lastResponseDate:new Date().toISOString().split('T')[0]})}/>
             {dv.lastResponseDate&&<div style={{fontSize:10,color:C.muted}}>Last updated: {dv.lastResponseDate}</div>}
           </div>}
+
+          {/* CALENDAR AVAILABILITY CHECKER */}
+          <div style={{fontSize:10,color:C.green,fontWeight:700,letterSpacing:'0.1em',margin:'10px 0 8px'}}>📅 CALENDAR AVAILABILITY</div>
+          <VenueCalendarChecker venue={dv} onSaveUrl={(url)=>upd(dv.id,{calendarUrl:url})} toast2={toast2}/>
           <div style={{gap:8,display:'flex',flexWrap:'wrap',marginBottom:12}}>
             <button onClick={()=>{setDetailId(null);setTimeout(()=>setComposeId(dv.id),200);}} style={{...s.btn('linear-gradient(135deg,#7c3aed,#6d28d9)',C.txt,'transparent'),fontWeight:700}}>✉️ Compose Email</button>
             <button onClick={()=>{setDealVenue({...dv});setShowDealBuilder(true);setDetailId(null);}} style={{...s.btn('linear-gradient(135deg,#059669,#047857)',C.txt,'transparent'),fontWeight:700}}>💰 Deal Builder</button>
@@ -7182,7 +7187,122 @@ Thanks,
   );
 }
 
-// ─── PRESS KIT BUILDER ────────────────────────────────────────
+// ─── VENUE CALENDAR CHECKER ────────────────────────────────────
+function VenueCalendarChecker({ venue, onSaveUrl, toast2 }) {
+  const [calUrl, setCalUrl] = useState(venue.calendarUrl||'');
+  const [targetDates, setTargetDates] = useState(venue.targetDates||'');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [urlSaved, setUrlSaved] = useState(!!venue.calendarUrl);
+
+  function saveUrl() {
+    if(!calUrl.trim()) return;
+    onSaveUrl(calUrl.trim());
+    setUrlSaved(true);
+    toast2&&toast2('Calendar URL saved!');
+  }
+
+  async function checkAvailability() {
+    if(!calUrl.trim()) { toast2&&toast2('Enter a calendar URL first'); return; }
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch('/.netlify/functions/check-calendar', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ calendarUrl: calUrl.trim(), targetDates: targetDates.trim(), venueName: venue.venue }),
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch(e) {
+      setResult({ success: false, error: e.message, hint: 'Could not reach the calendar checker. Make sure the Netlify function is deployed.' });
+    }
+    setLoading(false);
+  }
+
+  const statusColors = { LIKELY_AVAILABLE: '#00b894', LIKELY_BOOKED: '#e17055', UNCERTAIN: '#fdcb6e' };
+  const statusIcons = { LIKELY_AVAILABLE: '✅', LIKELY_BOOKED: '🚫', UNCERTAIN: '❓' };
+
+  return (
+    <div style={{marginBottom:12}}>
+      {/* Calendar URL row */}
+      <div style={{display:'flex',gap:8,alignItems:'flex-end',marginBottom:8}}>
+        <div style={{flex:1,...s.field(),marginBottom:0}}>
+          <label style={s.label}>Venue Calendar URL {urlSaved&&<span style={{color:C.green,marginLeft:4}}>✓ saved</span>}</label>
+          <input
+            style={s.input(12)}
+            value={calUrl}
+            onChange={e=>{setCalUrl(e.target.value);setUrlSaved(false);}}
+            placeholder="https://magoobysjokehouse.com/calendar"
+          />
+        </div>
+        {calUrl&&!urlSaved&&<button type="button" onClick={saveUrl} style={{...s.btn(C.surf2,C.green,C.bord),whiteSpace:'nowrap',flexShrink:0,marginBottom:1,fontSize:11}}>💾 Save</button>}
+        {calUrl&&<button type="button" onClick={()=>window.open(calUrl.startsWith('http')?calUrl:'https://'+calUrl,'_blank')} style={{...s.btn(C.surf2,C.blue,C.bord),whiteSpace:'nowrap',flexShrink:0,marginBottom:1,fontSize:11}}>🔗 Open</button>}
+      </div>
+
+      {/* Target dates */}
+      <div style={{display:'flex',gap:8,alignItems:'flex-end',marginBottom:10}}>
+        <div style={{flex:1,...s.field(),marginBottom:0}}>
+          <label style={s.label}>Dates You're Looking to Book</label>
+          <input
+            style={s.input(12)}
+            value={targetDates}
+            onChange={e=>setTargetDates(e.target.value)}
+            placeholder="e.g. June 14-15 or July 2026"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={checkAvailability}
+          disabled={loading||!calUrl.trim()}
+          style={{background:loading||!calUrl?'#333':C.green,color:'#fff',border:'none',borderRadius:10,padding:'10px 14px',fontSize:12,fontWeight:700,fontFamily:font.head,cursor:loading||!calUrl?'default':'pointer',whiteSpace:'nowrap',flexShrink:0,marginBottom:1,minHeight:40,WebkitTapHighlightColor:'transparent'}}
+        >
+          {loading?'🔍 Scanning...':'🔍 Check Dates'}
+        </button>
+      </div>
+
+      {/* Result */}
+      {result && (
+        <div style={{borderRadius:10,overflow:'hidden',marginBottom:8}}>
+          {result.success && result.availability ? (
+            <div style={{background:`${statusColors[result.availability.status]||'#636e72'}15`,border:`1px solid ${statusColors[result.availability.status]||'#636e72'}44`,borderRadius:10,padding:'12px 14px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                <span style={{fontSize:18}}>{statusIcons[result.availability.status]||'❓'}</span>
+                <div>
+                  <div style={{fontFamily:font.head,fontWeight:800,fontSize:13,color:statusColors[result.availability.status]||C.muted2}}>
+                    {result.availability.status==='LIKELY_AVAILABLE'?'DATES LOOK AVAILABLE':result.availability.status==='LIKELY_BOOKED'?'DATES MAY BE TAKEN':'UNCERTAIN — CHECK MANUALLY'}
+                  </div>
+                  <div style={{fontSize:10,color:C.muted}}>Confidence: {result.availability.confidence}</div>
+                </div>
+              </div>
+              <div style={{fontSize:12,color:C.txt,lineHeight:1.5,marginBottom:6}}>{result.availability.summary}</div>
+              <div style={{fontSize:11,color:C.muted2,lineHeight:1.5,marginBottom:6}}>{result.availability.detail}</div>
+              {result.availability.bookedInWindow&&result.availability.bookedInWindow.length>0&&(
+                <div style={{background:`${C.red}15`,borderRadius:8,padding:'6px 10px',marginBottom:6}}>
+                  <div style={{fontSize:10,color:C.red,fontWeight:700,marginBottom:3}}>Dates found on their calendar in your window:</div>
+                  {result.availability.bookedInWindow.map((d,i)=><div key={i} style={{fontSize:11,color:C.muted2}}>→ {d}</div>)}
+                </div>
+              )}
+              <div style={{background:`${C.acc}10`,borderRadius:8,padding:'8px 10px',borderLeft:`3px solid ${C.acc}`}}>
+                <div style={{fontSize:10,color:C.acc2,fontWeight:700,marginBottom:3}}>💡 RECOMMENDATION</div>
+                <div style={{fontSize:11,color:C.txt,lineHeight:1.5}}>{result.availability.recommendation}</div>
+              </div>
+              <div style={{fontSize:10,color:C.muted,marginTop:8}}>Checked: {result.url} · {result.fetchedAt&&new Date(result.fetchedAt).toLocaleTimeString()}</div>
+            </div>
+          ) : (
+            <div style={{background:`${C.red}12`,border:`1px solid ${C.red}33`,borderRadius:10,padding:'12px 14px'}}>
+              <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.red,marginBottom:4}}>⚠️ Could Not Check Calendar</div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:6}}>{result.error}</div>
+              {result.hint&&<div style={{fontSize:11,color:C.muted,fontStyle:'italic'}}>{result.hint}</div>}
+              {calUrl&&<button type="button" onClick={()=>window.open(calUrl.startsWith('http')?calUrl:'https://'+calUrl,'_blank')} style={{...s.btn(C.surf2,C.blue,C.bord),marginTop:8,fontSize:11}}>🔗 Open Calendar Manually</button>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PRESS KIT BUILDER ────────────────────────────────────────
 function PressKitBuilder({ venues=[], comedians=[] }) {
   const COMEDIAN_DEFAULTS = {
