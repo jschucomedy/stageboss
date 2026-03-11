@@ -1305,24 +1305,30 @@ function printExport(type, data) {
 // ── GMAIL OPENER ─────────────────────────────────────────────
 // On iOS: uses googlegmail:// scheme to open Gmail app directly.
 // On desktop: uses https://mail.google.com compose URL.
-function openGmail(to, subject, body) {
+// senderLoginEmail = the user Google login (jschucomedy@gmail.com or pejmana85@gmail.com)
+function openGmail(to, subject, body, senderLoginEmail) {
+  const profile = USER_PROFILES[senderLoginEmail] || USER_PROFILES['jschucomedy@gmail.com'];
+  const authUser = profile.gmailAuthUser || 'jschucomedy%40gmail.com';
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const su = encodeURIComponent(subject);
   const bd = encodeURIComponent(body);
   const toEnc = encodeURIComponent(to);
   if (isMobile) {
-    // Try Gmail app first, fall back to web Gmail if not installed
     const appUrl = `googlegmail://co?to=${toEnc}&subject=${su}&body=${bd}`;
-    const webUrl = `https://mail.google.com/mail/?view=cm&to=${toEnc}&su=${su}&body=${bd}`;
-    // Use a short timeout fallback — if app doesn't open, open web
+    const webUrl = `https://mail.google.com/mail/?authuser=${authUser}&view=cm&to=${toEnc}&su=${su}&body=${bd}`;
     const fallback = setTimeout(() => { window.open(webUrl, '_blank'); }, 1000);
     window.location.href = appUrl;
-    // Clear fallback if app opened (page will blur)
     window.addEventListener('blur', () => clearTimeout(fallback), { once: true });
   } else {
-    const url = `https://mail.google.com/mail/u/0/?authuser=jschucomedy%40gmail.com&view=cm&to=${toEnc}&su=${su}&body=${bd}`;
+    const url = `https://mail.google.com/mail/u/0/?authuser=${authUser}&view=cm&to=${toEnc}&su=${su}&body=${bd}`;
     window.open(url, '_blank');
   }
+}
+
+// Append branded plain-text signature to any email body before opening Gmail
+function withSig(body, senderLoginEmail) {
+  const profile = USER_PROFILES[senderLoginEmail] || USER_PROFILES['jschucomedy@gmail.com'];
+  return body + profile.signature;
 }
 
 // ── DEAL CALCULATOR ──────────────────────────────────────────
@@ -2349,7 +2355,7 @@ function StageBoss({user,onLogout,accessToken}){
   function openAiInGmail(){
     const v=venues.find(x=>x.id===aiVenueId);
     if(!v||!aiResult)return;
-    openGmail(v.email||'', 'Phil Medina - Availability - '+v.venue, aiResult);
+    openGmail(v.email||'', 'Phil Medina - Availability - '+v.venue, withSig(aiResult, user), user);
     // Also copy to clipboard as fallback
     setTimeout(()=>{
       try{navigator.clipboard.writeText('To: '+v.email+'\nSubject: Phil Medina - Availability - '+v.venue+'\n\n'+aiResult);}catch{}
@@ -3912,7 +3918,7 @@ function StageBoss({user,onLogout,accessToken}){
   logTouch(cv.id,'Email','Outreach email sent via Gmail - '+co.templateId);
   upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status});
   toast2('Opening Gmail...');
-  openGmail(cv?.email||'',filledSubject,fullBody);
+  openGmail(cv?.email||'',filledSubject,withSig(fullBody, user), user);
 }} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>📧 Open Gmail</button>}
               <button onClick={()=>copyText(`Subject: ${filledSubject}\n\n${fullBody}`,'Email',toast2)} style={{...s.btn(C.surf2,C.txt,C.bord),flex:'0 0 auto',padding:'12px 14px'}}>Copy</button>
             </div>
@@ -5716,28 +5722,38 @@ function TourEditor({tour,onSave,onCancel,comedians=[]}){
 // Personalized Templates (per-user), Press Kit Builder
 // ============================================================
 
+// ─── MAIN EVENT COMEDY LOGO (base64 SVG — renders in Gmail signature preview) ───
+const MECE_LOGO_B64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NjAgMTYwIiB3aWR0aD0iNTYwIiBoZWlnaHQ9IjE2MCI+CiAgPHJlY3Qgd2lkdGg9IjU2MCIgaGVpZ2h0PSIxNjAiIGZpbGw9IiMwODA4MDgiLz4KICAKICA8IS0tIFJlZCBsZWZ0IGJhciBhY2NlbnQgLS0+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjgiIGhlaWdodD0iMTYwIiBmaWxsPSIjYzgxMDJlIi8+CgogIDwhLS0gTUFJTiB3aGl0ZSwgRVZFTlQgcmVkIC0tPgogIDx0ZXh0IHg9IjMyIiB5PSI5MCIKICAgIGZvbnQtZmFtaWx5PSJJbXBhY3QsIEFyaWFsIEJsYWNrLCBzYW5zLXNlcmlmIgogICAgZm9udC1zaXplPSI4MCIKICAgIGZvbnQtd2VpZ2h0PSI5MDAiCiAgICBmaWxsPSIjZmZmZmZmIgogICAgbGV0dGVyLXNwYWNpbmc9IjIiPk1BSU48L3RleHQ+CgogIDx0ZXh0IHg9IjIzMiIgeT0iOTAiCiAgICBmb250LWZhbWlseT0iSW1wYWN0LCBBcmlhbCBCbGFjaywgc2Fucy1zZXJpZiIKICAgIGZvbnQtc2l6ZT0iODAiCiAgICBmb250LXdlaWdodD0iOTAwIgogICAgZmlsbD0iI2M4MTAyZSIKICAgIGxldHRlci1zcGFjaW5nPSIyIj5FVkVOVDwvdGV4dD4KCiAgPCEtLSBEaXZpZGVyIGxpbmUgLS0+CiAgPHJlY3QgeD0iMzIiIHk9IjEwMiIgd2lkdGg9IjQ5NiIgaGVpZ2h0PSIyIiBmaWxsPSIjYzgxMDJlIi8+CgogIDwhLS0gQ09NRURZIEVOVEVSVEFJTk1FTlQgc3VidGl0bGUgLS0+CiAgPHRleHQgeD0iMzQiIHk9IjEzMiIKICAgIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIKICAgIGZvbnQtc2l6ZT0iMTYiCiAgICBsZXR0ZXItc3BhY2luZz0iNyIKICAgIGZpbGw9IiNmZmZmZmYiCiAgICBvcGFjaXR5PSIwLjciPkNPTUVEWSBFTlRFUlRBSU5NRU5UPC90ZXh0Pgo8L3N2Zz4K';
+
+// Build plain-text signature for Gmail compose URL (mailto only supports plain text)
+function buildPlainSig(profile) {
+  return `\n\n--\n${profile.name}\n${profile.title}\nMain Event Comedy Entertainment\nBaltimore, MD | Los Angeles, CA\n${profile.email}\nwww.maineventcomedy.com`;
+}
+
 const USER_PROFILES = {
   'jschucomedy@gmail.com': {
     name: 'Jason Schuster',
     displayName: 'Jason',
     email: 'jason@maineventcomedy.com',
+    gmailAuthUser: 'jason%40maineventcomedy.com',
     fallbackEmail: 'jschucomedy@gmail.com',
     credits: 'Producer & Touring Manager, Main Event Comedy Entertainment',
-    title: 'Producer / Tour Manager',
+    title: 'Producer | Comedian',
     phone: '',
-    signature: `Jason Schuster\nProducer & Tour Manager\nMain Event Comedy Entertainment\njason@maineventcomedy.com`,
     role: 'owner',
+    get signature() { return buildPlainSig(this); },
   },
   'pejmana85@gmail.com': {
     name: 'Pej Ahmadi',
     displayName: 'Pej',
     email: 'pej@maineventcomedy.com',
+    gmailAuthUser: 'pej%40maineventcomedy.com',
     fallbackEmail: 'pejmana85@gmail.com',
     credits: 'Booking & Venue Outreach, Main Event Comedy Entertainment',
-    title: 'Booking & Venue Outreach',
+    title: 'Comedian',
     phone: '',
-    signature: `Pej Ahmadi\nBooking & Venue Outreach\nMain Event Comedy Entertainment\npej@maineventcomedy.com`,
     role: 'outreach',
+    get signature() { return buildPlainSig(this); },
   },
 };
 
@@ -7117,7 +7133,21 @@ Thanks,
         <strong style={{color:C.acc2}}>Merge fields auto-fill for {userProfile.displayName}:</strong><br/>
         <code style={{color:C.green}}>{'{{my_name}}'}</code> → {userProfile.name} &nbsp;·&nbsp;
         <code style={{color:C.green}}>{'{{my_email}}'}</code> → {userProfile.email}<br/>
-        <code style={{color:C.green}}>{'{{my_signature}}'}</code> → full signature block with your name + title
+        <code style={{color:C.green}}>{'{{my_signature}}'}</code> → branded signature auto-appended to every email
+      </div>
+
+      {/* SIGNATURE PREVIEW */}
+      <div style={{background:'#fff',borderRadius:12,padding:'14px 16px',marginBottom:16,border:'1px solid #e0e0e0'}}>
+        <div style={{fontSize:10,color:'#888',fontWeight:700,letterSpacing:'0.08em',marginBottom:10,fontFamily:'Arial,sans-serif'}}>EMAIL SIGNATURE PREVIEW</div>
+        <img src={MECE_LOGO_B64} alt="Main Event Comedy Entertainment" style={{width:180,height:'auto',display:'block',marginBottom:10}}/>
+        <div style={{borderTop:'2px solid #c8102e',marginBottom:10,width:180}}/>
+        <div style={{fontFamily:'Arial,sans-serif',fontSize:14,fontWeight:700,color:'#111',marginBottom:2}}>{userProfile.name}</div>
+        <div style={{fontFamily:'Arial,sans-serif',fontSize:12,color:'#444',marginBottom:2}}>{userProfile.title}</div>
+        <div style={{fontFamily:'Arial,sans-serif',fontSize:12,color:'#444',marginBottom:2}}>Main Event Comedy Entertainment</div>
+        <div style={{fontFamily:'Arial,sans-serif',fontSize:12,color:'#666',marginBottom:4}}>Baltimore, MD | Los Angeles, CA</div>
+        <div style={{fontFamily:'Arial,sans-serif',fontSize:12,color:'#c8102e',marginBottom:2}}>{userProfile.email}</div>
+        <a href="https://www.maineventcomedy.com" style={{fontFamily:'Arial,sans-serif',fontSize:12,color:'#1a73e8',textDecoration:'none'}}>www.maineventcomedy.com</a>
+        <div style={{marginTop:10,fontSize:10,color:'#aaa',fontFamily:'Arial,sans-serif'}}>✓ Auto-appended to every outreach email</div>
       </div>
 
       <div style={{display:'flex',gap:10}}>
