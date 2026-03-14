@@ -2,7 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
-const BUILD_ID = '2026-03-03-v14';
+const BUILD_ID = '2026-03-14-v12';
+const PHIL_EPK_URL = 'https://drive.google.com/file/d/1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie/view?usp=drive_link';
+const PHIL_EPK_DOWNLOAD = 'https://drive.google.com/uc?export=download&id=1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie';
+function getEpkUrl() {
+  try { return localStorage.getItem('stageboss_epk_url') || PHIL_EPK_URL; } catch(e){ return PHIL_EPK_URL; }
+}
 
 const PRE_LOADED_VENUES = [
   {id:'pre_001',venue:'The Comedy Store',booker:'Potsy Ponciroli',bookerLast:'',city:'Los Angeles',state:'CA',email:'info@thecomedystore.com',instagram:'thecomedystore',phone:'(323) 650-6268',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:2500,doorSplit:0,capacity:450,notes:'8433 W Sunset Blvd, West Hollywood CA 90069. Main Room/Belly Room/Original Room',referralSource:'Directory',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20,status:'Lead',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'},
@@ -1325,10 +1330,12 @@ function openGmail(to, subject, body, senderLoginEmail) {
   }
 }
 
-// Append branded plain-text signature to any email body before opening Gmail
+// Append branded plain-text signature + EPK link to any email body before opening Gmail
 function withSig(body, senderLoginEmail) {
   const profile = USER_PROFILES[senderLoginEmail] || USER_PROFILES['jschucomedy@gmail.com'];
-  return body + profile.signature;
+  const epk = getEpkUrl();
+  const epkLine = epk ? `\n\n📎 Phil's Full Press Kit: ${epk}` : '';
+  return body + epkLine + profile.signature;
 }
 
 // ── DEAL CALCULATOR ──────────────────────────────────────────
@@ -2437,6 +2444,23 @@ function StageBoss({user,onLogout,accessToken}){
   useEffect(()=>{try{localStorage.setItem('sb_venues',JSON.stringify(venues));}catch{}},[venues]);
   useEffect(()=>{try{localStorage.setItem('sb_templates',JSON.stringify(templates));}catch{}},[templates]);
   useEffect(()=>{try{localStorage.setItem('sb_tours',JSON.stringify(tours));}catch{}},[tours]);
+
+  // ── Listen for venues added from SmartBoss Discover mode ──
+  useEffect(()=>{
+    const handler = (e) => {
+      const newVenue = e.detail;
+      if (!newVenue || !newVenue.id) return;
+      setVenues(vs => {
+        if (vs.some(v => v.id === newVenue.id)) return vs;
+        if (vs.some(v => v.venue.toLowerCase() === newVenue.venue.toLowerCase() && v.city.toLowerCase() === newVenue.city.toLowerCase())) return vs;
+        return [newVenue, ...vs];
+      });
+      setToast('✅ ' + newVenue.venue + ' added to pipeline!');
+      setTimeout(()=>setToast(''), 3000);
+    };
+    window.addEventListener('stageboss_add_venue', handler);
+    return () => window.removeEventListener('stageboss_add_venue', handler);
+  }, []);
 
   const toast2=useCallback((msg)=>{setToast(msg);setTimeout(()=>setToast(''),2500);},[]);
   const upd=useCallback((id,fields)=>{
@@ -4746,7 +4770,7 @@ function SmartBossAI({venues=[], tours=[], comedians=[]}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('year'); // 'chat' | 'plan' | 'year'
+  const [mode, setMode] = useState('year'); // 'chat' | 'plan' | 'year' | 'discover' | 'igdm'
   const [planConfig, setPlanConfig] = useState({
     comedian: '', region: 'Nationwide', venueType: 'Comedy Club',
     weeks: '4', startAfter: '', focus: 'Max Revenue',
@@ -4758,6 +4782,25 @@ function SmartBossAI({venues=[], tours=[], comedians=[]}) {
   const [expandedMonth, setExpandedMonth] = useState(null);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // ── EPK URL (stored in localStorage, persists across sessions) ──
+  const [epkUrl, setEpkUrl] = useState(()=>{
+    try { return localStorage.getItem('stageboss_epk_url') || PHIL_EPK_URL; } catch(e){ return PHIL_EPK_URL; }
+  });
+  const [epkUrlEdit, setEpkUrlEdit] = useState('');
+  const [epkUrlSaved, setEpkUrlSaved] = useState(false);
+  function saveEpkUrl(url) {
+    setEpkUrl(url);
+    try { localStorage.setItem('stageboss_epk_url', url); } catch(e){}
+    setEpkUrlSaved(true);
+    setTimeout(()=>setEpkUrlSaved(false), 2000);
+  }
+
+  // ── VENUE DISCOVERY STATE ──
+  const [discoverState, setDiscoverState] = useState({ city:'', state:'', venueType:'Comedy Club', loading:false, results:[], error:'' });
+
+  // ── IG DM STATE ──
+  const [igdmState, setIgdmState] = useState({ venue:'', booker:'', city:'', venueType:'Comedy Club', dates:'', loading:false, result:'' });
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [messages]);
 
@@ -4849,30 +4892,54 @@ function SmartBossAI({venues=[], tours=[], comedians=[]}) {
     };
   }
 
-  const SYSTEM_PROMPT = `You are SmartBoss — the most sophisticated AI touring agent and booking intelligence system ever built for the comedy industry. You work exclusively for Jason Schu, a full-time comedy manager who books non-stop touring for Phil Medina and other comedians.
+  const SYSTEM_PROMPT = `You are SmartBoss — the most advanced AI booking intelligence system ever built for comedy touring. You combine a 20-year veteran touring agent's strategic mind, Clay-level personalization intelligence, and deep knowledge of every US comedy market. You work exclusively for Jason Schuster and Main Event Comedy Entertainment.
 
-Your job is to think like a veteran touring agent with 20 years of experience. You understand:
-- How to build logistically efficient tour routing (minimize dead miles, cluster nearby cities)
-- The comedy touring calendar (avoid Super Bowl weekend, major holidays, college finals, etc.)
-- Which markets are underserved vs oversaturated
-- How to anchor a tour around a big confirmed date and fill in the surrounding markets
-- Regional touring logic (e.g. if you're in Denver, hit Salt Lake City + Albuquerque on the same run)
-- Venue tier strategy: comedy clubs → theaters → casinos as headliner grows
-- College vs club touring differences
-- How to stack a week efficiently: Thurs/Fri/Sat at one club, then Sun/Mon drive to next market
-- Weekend shows pay more; weeknight shows at secondary clubs fill gaps
-- The importance of not over-touring the same market (allow 6-12 month market reset)
+PHIL MEDINA — CREDITS AND SOCIAL PROOF
+Phil Medina is a nationally touring headlining comedian with an electric stage presence.
 
-When analyzing tours and suggesting next steps, you:
-1. Look at ALL existing confirmed shows and find the geographic/date gaps
-2. Recommend cities that make geographic routing sense between confirmed dates
-3. Flag calendar gaps that are long enough to squeeze in 2-3 more shows
-4. Suggest the single best market to hit next based on where they already are
-5. Give specific venue recommendations from the CRM database
-6. Warn about potential conflicts (same market too soon, radius clauses, etc.)
-7. Think about the full year arc — which quarters are booked, which are open
+TOP CREDITS: Netflix Is A Joke Festival · Hulu West Coast Comedy (streaming special) · Laugh Factory LA · Hollywood Improv LA · The Ice House Pasadena · U.S. Military Shows worldwide · Not Your Average Comedy · Nationally touring headliner 2024-2026
 
-You speak like a smart, direct industry insider. No fluff. Be specific with city names, venue names, dates, and dollar amounts. When you suggest a route, lay it out day-by-day.`;
+SOCIAL PROOF BY VENUE TYPE (use automatically based on who you are pitching):
+Comedy Club: "Phil has headlined the Laugh Factory, Hollywood Improv, and Ice House. Proven in rooms like yours — high energy, strong closer, builds his own audience in every market."
+Casino: "Phil performs for diverse multi-generational crowds in high-volume environments. Military show veteran. Casino audiences love him — consistent repeat-business shows."
+University/College: "Campus-friendly, wildly relatable to 18-25 year olds, performed at universities nationwide. Connects immediately and generates real buzz on campus."
+Theater: "Netflix Is A Joke Festival. Hulu streaming special. National touring headliner. Phil is at the stage where theaters are the natural next step — and he sells them."
+Corporate: "Clean-friendly material available. Military show veteran. Knows how to read any room and keep every person laughing."
+
+JASON SCHUSTER: Comedy Store · Jimmy Kimmel's Comedy Club · Hollywood Improv · Kenan Thompson Presents · Feature act + Producer + Tour Manager, Main Event Comedy Entertainment LLC · Baltimore MD and Los Angeles CA
+
+TOURING INTELLIGENCE
+Routing: minimize dead miles · cluster cities · anchor on confirmed dates · fill gaps logically
+Calendar: avoid Super Bowl weekend · major holidays · college finals · summer slowdown for clubs
+Booking windows: colleges Aug-Oct for fall / Jan-Feb for spring · clubs 8-12 weeks out · casinos 60-90 days
+Stacking a week: Thurs/Fri/Sat one club then Sun/Mon drive to next market
+Deal strategy: weekend flat guarantee push · new market door deal to prove draw · return market negotiate up
+Market reset: 6-12 months minimum before returning to same market
+Always ask about radius clauses and note them in venue records
+
+VENUE INTELLIGENCE ENGINE
+When researching any venue before writing outreach:
+1. Identify venue type, capacity tier, typical headliner level for that room
+2. Select the most relevant Phil credits for THAT specific booker and audience
+3. Find the personalization hook — what specifically makes Phil right for their room
+4. Recommend deal structure based on market and Phil's draw there
+5. Flag routing conflicts, radius issues, or timing problems
+
+When writing outreach emails ALWAYS include: subject line + full body ready to send · open with something specific about that venue or market · match Phil's credits to their audience type using the social proof above · include a market-specific hook · suggest specific dates using routing logic · close with one clear ask
+
+INSTAGRAM DM MODE
+When writing IG DMs for venue bookers: opener under 150 characters · warm and direct not salesy · name the venue in line 1 · one strong credit only to tease · end with a soft question that invites reply · tone is comedian-to-comedian not agent-to-booker.
+Example format: "Hey [Name], love what you're building at [Venue]. I manage Phil Medina — just came off Netflix Is A Joke Fest. Eyeing [City] for [Month]. Worth a quick chat?"
+
+VENUE DISCOVERY MODE
+When asked to find new venues in any city/state/region, return a JSON array only — no markdown, no backticks, no explanation text. Each venue object: venue, city, state, venueType, capacity (number), guarantee (estimated number), booker, email, instagram, website, notes. Priority order: Comedy Clubs first then Theaters 200-800 seats then Casinos then Universities.
+
+OUTPUT STYLE
+Direct. Specific. No fluff. Industry insider voice.
+Routes: day-by-day with venues, cities, dates, dollar amounts.
+Emails: full subject line and body, ready to copy-paste.
+DMs: exact message text, ready to copy-paste.
+End every response with 2-3 specific next actions Jason or Pej should take TODAY.`;
 
   async function sendMessage(userMsg) {
     if (!userMsg.trim()) return;
@@ -5093,13 +5160,13 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
             <div style={{fontSize:10, color:'rgba(167,139,250,0.8)', letterSpacing:'0.12em', textTransform:'uppercase'}}>Tour Intelligence Engine</div>
           </div>
           <div style={{marginLeft:'auto', display:'flex', gap:6}}>
-            {['year','chat','plan'].map(m=>(
+            {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM']].map(([m,label])=>(
               <button key={m} onClick={()=>setMode(m)} style={{
                 padding:'6px 12px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
                 border:`1px solid ${mode===m ? '#7c3aed' : 'rgba(124,58,237,0.25)'}`,
                 background: mode===m ? 'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(236,72,153,0.2))' : 'rgba(20,20,35,0.9)',
                 color: mode===m ? '#a78bfa' : 'rgba(200,200,255,0.45)',
-              }}>{m==='chat' ? '💬 Chat' : m==='plan' ? '🗺️ Plan' : '📆 Year'}</button>
+              }}>{label}</button>
             ))}
           </div>
         </div>
@@ -5597,6 +5664,229 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
 
         {planResult?.error && <div style={{textAlign:'center', padding:'30px', color:'#e17055'}}>{planResult.error}</div>}
       </div>}
+
+
+      {/* ── DISCOVER MODE ── */}
+      {mode === 'discover' && <div style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', paddingBottom:80}}>
+        <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px', marginBottom:14}}>
+          <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:16, letterSpacing:0.5, color:C2.acc2, marginBottom:8}}>🔍 VENUE DISCOVERY ENGINE</div>
+          <div style={{fontSize:12, color:C2.muted, marginBottom:14, lineHeight:1.5}}>SmartBoss searches for new venues in any market and adds them directly to your pipeline. Finds comedy clubs, casinos, universities, and theaters not already in your database.</div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10}}>
+            <div>
+              <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>City</div>
+              <input value={discoverState.city} onChange={e=>setDiscoverState(p=>({...p,city:e.target.value}))}
+                placeholder="Charlotte" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+            </div>
+            <div>
+              <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>State</div>
+              <input value={discoverState.state} onChange={e=>setDiscoverState(p=>({...p,state:e.target.value}))}
+                placeholder="NC" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Venue Type</div>
+            <select value={discoverState.venueType} onChange={e=>setDiscoverState(p=>({...p,venueType:e.target.value}))}
+              style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12}}>
+              <option>Comedy Club</option>
+              <option>Theater</option>
+              <option>Casino</option>
+              <option>University/College</option>
+              <option>All Types</option>
+            </select>
+          </div>
+          <button onClick={async()=>{
+            if (!discoverState.city && !discoverState.state) return;
+            setDiscoverState(p=>({...p, loading:true, results:[], error:''}));
+            try {
+              const session = await sbAuthClient.auth.getSession();
+              const token = session?.data?.session?.access_token || '';
+              const prompt = `Find ${discoverState.venueType === 'All Types' ? 'comedy clubs, theaters, casinos, and universities' : discoverState.venueType + ' venues'} in ${discoverState.city || ''}${discoverState.city && discoverState.state ? ', ' : ''}${discoverState.state || ''} that book stand-up comedy headliners. Return ONLY a JSON array. Each object must have exactly these fields: venue (string), city (string), state (string), venueType (string), capacity (number), guarantee (number — estimated typical guarantee), booker (string or empty), email (string or empty), instagram (string or empty), website (string or empty), notes (string). Do not include any venues from this existing list: ${venues.slice(0,50).map(v=>v.venue).join(', ')}. Return 10-20 new venues. JSON array only, no other text.`;
+              const res = await fetch('/.netlify/functions/smartboss', {
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+                body: JSON.stringify({ system: SYSTEM_PROMPT, messages:[{role:'user',content:prompt}], max_tokens:3000 })
+              });
+              const data = await res.json();
+              const raw = data.content?.find(c=>c.type==='text')?.text || '[]';
+              const clean = raw.replace(/```json|```/g,'').trim();
+              let found = [];
+              try { found = JSON.parse(clean); } catch(e) {
+                const match = clean.match(/\[[\s\S]*\]/);
+                if (match) try { found = JSON.parse(match[0]); } catch(e2){}
+              }
+              setDiscoverState(p=>({...p, loading:false, results: Array.isArray(found) ? found : [], error: Array.isArray(found) ? '' : 'Could not parse results — try again'}));
+            } catch(e) {
+              setDiscoverState(p=>({...p, loading:false, error:e.message||'Discovery failed'}));
+            }
+          }} disabled={discoverState.loading} style={{width:'100%', padding:'12px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', background:'linear-gradient(135deg,rgba(124,58,237,0.4),rgba(236,72,153,0.25))', border:'1px solid rgba(124,58,237,0.5)', color:'#a78bfa'}}>
+            {discoverState.loading ? '🔍 Searching...' : `🔍 Discover ${discoverState.venueType} Venues`}
+          </button>
+          {discoverState.error && <div style={{marginTop:8, fontSize:11, color:'#e17055'}}>{discoverState.error}</div>}
+        </div>
+
+        {discoverState.results.length > 0 && <>
+          <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:14, color:C2.acc2, marginBottom:8, letterSpacing:0.5}}>
+            {discoverState.results.length} NEW VENUES FOUND — TAP TO ADD TO PIPELINE
+          </div>
+          {discoverState.results.map((v,i)=>{
+            const alreadyExists = venues.some(existing => existing.venue.toLowerCase() === (v.venue||'').toLowerCase() && existing.city.toLowerCase() === (v.city||'').toLowerCase());
+            return (
+              <div key={i} style={{background:alreadyExists?'rgba(20,20,30,0.4)':C2.surf2, border:`1px solid ${alreadyExists?'rgba(255,255,255,0.05)':C2.bord}`, borderRadius:12, padding:'12px 14px', marginBottom:8, opacity:alreadyExists?0.5:1}}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700, fontSize:13, color:C2.txt}}>{v.venue || 'Unknown Venue'}</div>
+                    <div style={{fontSize:11, color:C2.acc2, marginTop:2}}>{v.city}, {v.state} · {v.venueType} · Cap: {v.capacity||'?'} · Est. ${(v.guarantee||0).toLocaleString()}</div>
+                    {v.email && <div style={{fontSize:10, color:C2.muted, marginTop:2}}>✉ {v.email}</div>}
+                    {v.instagram && <div style={{fontSize:10, color:C2.muted}}>📱 @{v.instagram}</div>}
+                    {v.notes && <div style={{fontSize:10, color:C2.muted, marginTop:2, lineHeight:1.4}}>{v.notes}</div>}
+                  </div>
+                  {alreadyExists ? (
+                    <div style={{fontSize:10, color:C2.muted, padding:'4px 8px', borderRadius:6, background:'rgba(255,255,255,0.05)', flexShrink:0}}>Already in CRM</div>
+                  ) : (
+                    <button onClick={()=>{
+                      const newVenue = {
+                        id: 'disc_' + Date.now() + '_' + i,
+                        venue: v.venue||'', city: v.city||'', state: v.state||'',
+                        venueType: v.venueType||'Comedy Club', capacity: v.capacity||0,
+                        guarantee: v.guarantee||0, booker: v.booker||'', email: v.email||'',
+                        instagram: v.instagram||'', website: v.website||'', notes: v.notes||'',
+                        warmth:'Cold', status:'Lead', dealType:'Flat Guarantee',
+                        contactLog:[], referralSource:'SmartBoss Discovery',
+                        preferredContact:'Email', relationship:'new',
+                        history:'', targetDates:'', phone:'',
+                        doorSplit:0, merchAllowed:true, merchCut:20,
+                        agentCommission:10, managerCommission:15,
+                        lodging:'Hotel', actualWalk:0, estimatedGross:0,
+                        showCount:3, showDates:[], ticketPrice:20,
+                        depositAmount:0, depositDue:'', balanceDue:'',
+                        radiusClause:'', flightDetails:'', bonusTier:'',
+                        agreementType:'Email Agreement', confirmedViaEmailDate:'',
+                        emailThreadURL:'', emailThreadText:'', emailAgreementNotes:'',
+                        termsLocked:false, checklist:null,
+                        expectedPaymentTiming:'Night of show',
+                        paid:false, paidDate:'', settlement:null,
+                        showReport:null, rebookDate:'', package:'Jason + Phil',
+                        contractStatus:'None', depositPaid:false, balancePaid:false,
+                        nextFollowUp:'', bookerLast:'',
+                      };
+                      // venues is passed as prop — need to use the setter from parent
+                      // We'll dispatch a custom event that the parent can listen to
+                      window.dispatchEvent(new CustomEvent('stageboss_add_venue', {detail: newVenue}));
+                      setDiscoverState(p=>({...p, results: p.results.map((r,ri)=>ri===i?{...r,_added:true}:r)}));
+                    }} style={{padding:'6px 12px', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', background:'rgba(0,184,148,0.15)', border:'1px solid rgba(0,184,148,0.4)', color:'#00b894', flexShrink:0}}>
+                      {v._added ? '✅ Added' : '+ Add to CRM'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </>}
+      </div>}
+
+      {/* ── IG DM MODE ── */}
+      {mode === 'igdm' && <div style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', paddingBottom:80}}>
+        <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px', marginBottom:14}}>
+          <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:16, letterSpacing:0.5, color:C2.acc2, marginBottom:4}}>📱 INSTAGRAM DM COMPOSER</div>
+          <div style={{fontSize:11, color:C2.muted, marginBottom:14, lineHeight:1.5}}>SmartBoss writes a personalized IG DM for any venue booker. Same intelligence as email outreach — optimized for mobile, built for conversation. Copy and paste directly into Instagram.</div>
+
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10}}>
+            <div>
+              <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Venue Name</div>
+              <input value={igdmState.venue} onChange={e=>setIgdmState(p=>({...p,venue:e.target.value}))}
+                placeholder="Laugh Factory" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+            </div>
+            <div>
+              <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Booker Name</div>
+              <input value={igdmState.booker} onChange={e=>setIgdmState(p=>({...p,booker:e.target.value}))}
+                placeholder="Dave" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+            </div>
+            <div>
+              <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>City</div>
+              <input value={igdmState.city} onChange={e=>setIgdmState(p=>({...p,city:e.target.value}))}
+                placeholder="Chicago" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+            </div>
+            <div>
+              <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Venue Type</div>
+              <select value={igdmState.venueType} onChange={e=>setIgdmState(p=>({...p,venueType:e.target.value}))}
+                style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12}}>
+                <option>Comedy Club</option>
+                <option>Casino</option>
+                <option>University/College</option>
+                <option>Theater</option>
+                <option>Corporate</option>
+              </select>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Target Dates / Season</div>
+            <input value={igdmState.dates} onChange={e=>setIgdmState(p=>({...p,dates:e.target.value}))}
+              placeholder="July or August weekends" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+          </div>
+
+          <button onClick={async()=>{
+            if (!igdmState.venue) return;
+            setIgdmState(p=>({...p, loading:true, result:''}));
+            try {
+              const session = await sbAuthClient.auth.getSession();
+              const token = session?.data?.session?.access_token || '';
+              const prompt = `Write an Instagram DM to the booker at ${igdmState.venue}${igdmState.booker ? ' (name: '+igdmState.booker+')' : ''} in ${igdmState.city||'their city'}. This is a ${igdmState.venueType}. I want to pitch Phil Medina for a headlining date${igdmState.dates ? ' around '+igdmState.dates : ''}.
+
+Requirements:
+- Under 200 characters total for the opener
+- Warm, direct, comedian-to-comedian tone — not formal or salesy
+- Reference the venue by name in the first line
+- Mention one strong Phil credit (Netflix Is A Joke Fest is the strongest)
+- End with a soft question that invites a reply
+- Make it sound like a real person typed it, not a bot
+- Then write a FOLLOW-UP DM (for if they don't reply in 5-7 days) — separate section
+
+Format your response as:
+OPENER DM:
+[the message]
+
+FOLLOW-UP DM (day 6):
+[the follow-up message]
+
+OPENING LINE ONLY (ultra short, 80 chars max):
+[just the first line]`;
+
+              const res = await fetch('/.netlify/functions/smartboss', {
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+                body: JSON.stringify({ system: SYSTEM_PROMPT, messages:[{role:'user',content:prompt}], max_tokens:600 })
+              });
+              const data = await res.json();
+              const reply = data.content?.find(c=>c.type==='text')?.text || 'No response.';
+              setIgdmState(p=>({...p, loading:false, result:reply}));
+            } catch(e) {
+              setIgdmState(p=>({...p, loading:false, result:`Error: ${e.message}`}));
+            }
+          }} disabled={igdmState.loading} style={{width:'100%', padding:'12px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', background:'linear-gradient(135deg,rgba(124,58,237,0.4),rgba(236,72,153,0.25))', border:'1px solid rgba(124,58,237,0.5)', color:'#a78bfa'}}>
+            {igdmState.loading ? '✍️ Writing DM...' : '📱 Write Instagram DM'}
+          </button>
+        </div>
+
+        {igdmState.result && (
+          <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px'}}>
+            <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:13, color:C2.green, marginBottom:10, letterSpacing:0.5}}>✅ DM READY — COPY AND PASTE INTO INSTAGRAM</div>
+            <div style={{fontSize:12, color:C2.txt, lineHeight:1.8, whiteSpace:'pre-wrap', background:'rgba(10,10,20,0.4)', borderRadius:10, padding:'12px 14px', marginBottom:10}}>{igdmState.result}</div>
+            <div style={{display:'flex', gap:8}}>
+              <button onClick={()=>{navigator.clipboard?.writeText(igdmState.result); alert('Copied to clipboard!');}} style={{flex:1, padding:'10px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,184,148,0.15)', border:'1px solid rgba(0,184,148,0.4)', color:'#00b894'}}>📋 Copy All</button>
+              <button onClick={()=>setIgdmState(p=>({...p, result:''}))} style={{padding:'10px 14px', borderRadius:8, fontSize:12, cursor:'pointer', background:'none', border:`1px solid ${C2.bord}`, color:C2.muted}}>Clear</button>
+            </div>
+            <div style={{marginTop:10, fontSize:10, color:C2.muted, lineHeight:1.5}}>⚡ Pro tip: For automated sending at scale, export to ColdDMs.com ($49/mo). For manual sends, paste directly into Instagram DM. Always warm = higher reply rates.</div>
+          </div>
+        )}
+      </div>}
+
+      {/* ── EPK & SETTINGS PANEL (always visible at bottom of year/chat/plan) ── */}
+      {(mode === 'year' || mode === 'chat' || mode === 'plan') && (
+        <div style={{background:'rgba(0,184,148,0.06)', border:'1px solid rgba(0,184,148,0.2)', borderRadius:10, padding:'8px 14px', marginTop:8, flexShrink:0, display:'flex', alignItems:'center', gap:10}}>
+          <div style={{fontSize:11, color:'#00b894', flex:1}}>📎 <strong>EPK:</strong> {epkUrl ? <a href={epkUrl} target="_blank" rel="noopener noreferrer" style={{color:'#00b894', textDecoration:'underline', fontSize:11}}>Phil Medina Press Kit ↗</a> : 'Not set'} — auto-injected in every email</div>
+          <button onClick={()=>{ const url = window.prompt('Enter new EPK URL:', epkUrl); if(url && url.trim()) saveEpkUrl(url.trim()); }} style={{padding:'4px 10px', borderRadius:6, fontSize:10, cursor:'pointer', background:'none', border:'1px solid rgba(0,184,148,0.3)', color:'rgba(0,184,148,0.7)'}}>Update</button>
+        </div>
+      )}
 
       <style>{`
         @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(0.8)} 50%{opacity:1;transform:scale(1)} }
