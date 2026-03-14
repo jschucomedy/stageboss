@@ -1330,12 +1330,10 @@ function openGmail(to, subject, body, senderLoginEmail) {
   }
 }
 
-// Append branded plain-text signature + EPK link to any email body before opening Gmail
+// Append branded plain-text signature to any email body before opening Gmail
 function withSig(body, senderLoginEmail) {
   const profile = USER_PROFILES[senderLoginEmail] || USER_PROFILES['jschucomedy@gmail.com'];
-  const epk = getEpkUrl();
-  const epkLine = epk ? `\n\n📎 Phil's Full Press Kit: ${epk}` : '';
-  return body + epkLine + profile.signature;
+  return body + profile.signature;
 }
 
 // ── DEAL CALCULATOR ──────────────────────────────────────────
