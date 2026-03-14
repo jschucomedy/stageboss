@@ -1313,7 +1313,7 @@ function printExport(type, data) {
 // senderLoginEmail = the user Google login (jschucomedy@gmail.com or pejmana85@gmail.com)
 function openGmail(to, subject, body, senderLoginEmail) {
   const profile = USER_PROFILES[senderLoginEmail] || USER_PROFILES['jschucomedy@gmail.com'];
-  const authUser = profile.gmailAuthUser || 'jschucomedy%40gmail.com';
+  const authUser = 'jschucomedy%40gmail.com';
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const su = encodeURIComponent(subject);
   const bd = encodeURIComponent(body);
@@ -5879,12 +5879,7 @@ OPENING LINE ONLY (ultra short, 80 chars max):
       </div>}
 
       {/* ── EPK & SETTINGS PANEL (always visible at bottom of year/chat/plan) ── */}
-      {(mode === 'year' || mode === 'chat' || mode === 'plan') && (
-        <div style={{background:'rgba(0,184,148,0.06)', border:'1px solid rgba(0,184,148,0.2)', borderRadius:10, padding:'8px 14px', marginTop:8, flexShrink:0, display:'flex', alignItems:'center', gap:10}}>
-          <div style={{fontSize:11, color:'#00b894', flex:1}}>📎 <strong>EPK:</strong> {epkUrl ? <a href={epkUrl} target="_blank" rel="noopener noreferrer" style={{color:'#00b894', textDecoration:'underline', fontSize:11}}>Phil Medina Press Kit ↗</a> : 'Not set'} — auto-injected in every email</div>
-          <button onClick={()=>{ const url = window.prompt('Enter new EPK URL:', epkUrl); if(url && url.trim()) saveEpkUrl(url.trim()); }} style={{padding:'4px 10px', borderRadius:6, fontSize:10, cursor:'pointer', background:'none', border:'1px solid rgba(0,184,148,0.3)', color:'rgba(0,184,148,0.7)'}}>Update</button>
-        </div>
-      )}
+
 
       <style>{`
         @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(0.8)} 50%{opacity:1;transform:scale(1)} }
@@ -6023,7 +6018,7 @@ const USER_PROFILES = {
     name: 'Jason Schuster',
     displayName: 'Jason',
     email: 'jason@maineventcomedy.com',
-    gmailAuthUser: 'jason%40maineventcomedy.com',
+    gmailAuthUser: 'jschucomedy%40gmail.com',
     fallbackEmail: 'jschucomedy@gmail.com',
     credits: 'Producer & Touring Manager, Main Event Comedy Entertainment',
     title: 'Producer | Comedian',
