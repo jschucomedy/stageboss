@@ -514,27 +514,19 @@ const DEFAULT_TEMPLATES = [
     venueTypes:['Comedy Club','Prestige Club','Bar/Lounge'],
     body:`Hi [BOOKER_FIRST]!
 
-My name is Jason Schuster, and I'm reaching out regarding [DATES] availability with nationally touring headliner Phil Medina. We'd love to perform at [VENUE].
-
-We will be traveling through your region and currently have availability between [DATES].
+My name is Jason Schuster and I help route tour dates for nationally touring headliner Phil Medina. Phil will be touring through your region and we're currently filling the remaining dates on the run. I wanted to check if you have availability between [DATES]. Phil would love to perform at [VENUE].
 
 About Phil Medina
-Phil Medina is a powerhouse headlining comedian who has performed at top clubs including the Laugh Factory, Hollywood Improv, and the Ice House. Known for his electric stage presence, Phil has headlined across the country, entertained U.S. troops, and was featured at the Netflix Is A Joke Festival in Los Angeles. He is also featured on Hulu's West Coast Comedy and Not Your Average Comedy, and continues to build strong national momentum with polished, high-energy performances that connect with wide audiences.
+Phil Medina is a powerhouse headlining comedian who has performed at top clubs including the Laugh Factory, Hollywood Improv, and the Ice House. Known for his electric stage presence, Phil has headlined across the country, entertained U.S. troops, and was featured at the Netflix Is A Joke Festival in Los Angeles. He is also featured on Hulu's West Coast Comedy and Not Your Average Comedy. He is currently selling out shows across the country with high-energy performances that connect with wide audiences.
 
-Phil Medina Instagram: [HEADLINER_IG]
+Phil Medina Instagram: https://www.instagram.com/comicphilmedina
+Phil Medina Tape: https://www.youtube.com/watch?v=IkgRBuSCi0Q
+Phil Medina EPK: https://drive.google.com/file/d/1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie/view?usp=drive_link
+www.philmedinacomedy.com
 
-About Jason Schuster
-Jason Schuster is a bi-coastal touring comedian recognized for his sharp wit, dynamic stage presence, and spot-on impressions. He regularly performs across the country and has appeared at renowned venues including The Comedy Store, Jimmy Kimmel's Comedy Club, and Mic Drop Comedy. Jason is also a regular on social media, where his sketches and impressions reach a wide audience, and he has been featured on Kenan Presents. He performs alongside some of the biggest names in comedy and consistently delivers engaging, high-energy sets.
+Please let me know if you have availability between [DATES]. I would love to connect and see if we can make something happen while routing through!
 
-Jason Schuster Instagram: [MY_IG]
-
-Please let me know if you have availability between [DATES]. I would love to connect and see if we can make something happen while routing through.
-
-Thank you for your time, and I hope we can connect!
-
-Best,
-[MY_NAME]
-jschucomedy@gmail.com`,
+Best,`,
   },
   {
     id:'tmpl_casino',
@@ -1002,7 +994,7 @@ function fillTemplate(template,venue,dates=''){
   const MY_IG='https://www.instagram.com/jschucomedy?igsh=MTg2N3R4dWhkaWc4bw%3D%3D&utm_source=qr';
   return text
     .replace(/\[VENUE\]/g,venue.venue||'your venue')
-    .replace(/\[BOOKER_FIRST\]/g,venue.booker||'there')
+    .replace(/\[BOOKER_FIRST\]/g,(venue.booker||'').split(' ')[0]||'there')
     .replace(/\[CITY\]/g,venue.city||'')
     .replace(/\[STATE\]/g,venue.state||'')
     .replace(/\[DATES\]/g,dates||'[dates TBD]')
