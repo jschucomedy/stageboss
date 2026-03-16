@@ -6458,7 +6458,7 @@ OPENING LINE ONLY (ultra short, 80 chars max):
           <div style={{marginBottom:10}}>
             <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>What the Booker Said (paste their exact message)</div>
             <textarea value={negotiateState.bookerMessage} onChange={e=>setNegotiateState(p=>({...p,bookerMessage:e.target.value}))}
-              placeholder={'e.g. "We usually do door deals, not guarantees. What's Phil's ask?" or "We only have a Wednesday open, not the weekend" or "What kind of numbers does he do?"'}
+              placeholder="e.g. We usually do door deals not guarantees. What is Phil's ask? Or: We only have a Wednesday open, not the weekend." 
               rows={4} style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box', resize:'vertical', fontFamily:'inherit'}}/>
           </div>
           <div style={{marginBottom:12}}>
