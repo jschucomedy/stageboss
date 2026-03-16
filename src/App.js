@@ -6228,12 +6228,10 @@ OPENING LINE ONLY (ultra short, 80 chars max):
               if(seen.has(key)){ dupeCount++; }
               else { seen.add(key); cleaned.push(v); }
             });
-            if(dupeCount === 0){ toast2('No duplicates found — database is clean!'); return; }
-            if(window.confirm('Found '+dupeCount+' duplicate venues. Remove them now?')){
-              setVenues(cleaned);
-              try{ localStorage.setItem('sb_venues', JSON.stringify(cleaned)); }catch(e){}
-              toast2(dupeCount+' duplicates removed — tap Sync to save');
-            }
+            if(dupeCount === 0){ toast2('✅ No duplicates found — database is clean!'); return; }
+            setVenues(cleaned);
+            try{ localStorage.setItem('sb_venues', JSON.stringify(cleaned)); }catch(e){}
+            toast2('🧹 '+dupeCount+' duplicates removed — tap Sync to save');
           }} style={{width:'100%', padding:'10px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(225,112,85,0.1)', border:'1px solid rgba(225,112,85,0.3)', color:'#e17055', marginBottom:10}}>
             🧹 Clean Duplicate Venues
           </button>
