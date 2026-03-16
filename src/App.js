@@ -1449,17 +1449,29 @@ function LoginScreen({onLogin}){
   // Check if this is a password reset callback from Supabase email link
   const[isRecovery,setIsRecovery]=useState(false);const[recoveryPw,setRecoveryPw]=useState('');const[recoveryConfirm,setRecoveryConfirm]=useState('');const[recoverySaving,setRecoverySaving]=useState(false);const[recoveryErr,setRecoveryErr]=useState('');const[recoveryDone,setRecoveryDone]=useState(false);
   useEffect(()=>{
-    // Supabase puts access_token and type=recovery in the URL hash after password reset click
+    // Method 1: Listen for Supabase PASSWORD_RECOVERY event (works on all devices)
+    const {data:{subscription}} = sbAuthClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true);
+      }
+    });
+    // Method 2: Check URL hash for type=recovery (desktop)
     const hash = window.location.hash;
-    if(hash.includes('type=recovery') || hash.includes('type=signup')) {
+    if(hash.includes('type=recovery')) {
       setIsRecovery(true);
-      // Let Supabase process the hash automatically
-      sbAuthClient.auth.onAuthStateChange((event, session) => {
-        if (event === 'PASSWORD_RECOVERY') {
-          setIsRecovery(true);
-        }
-      });
     }
+    // Method 3: Check URL query params (mobile browsers sometimes use this)
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('type') === 'recovery') {
+      setIsRecovery(true);
+    }
+    // Method 4: Check if Supabase already has a recovery session active
+    sbAuthClient.auth.getSession().then(({data:{session}})=>{
+      if(session && window.location.hash.includes('access_token')) {
+        setIsRecovery(true);
+      }
+    });
+    return () => subscription.unsubscribe();
   },[]);
 
   async function saveRecoveryPassword(){
@@ -1528,6 +1540,15 @@ function LoginScreen({onLogin}){
         <div style={s.field(20)}><label style={s.label}>Password</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&attempt()} placeholder="**********" autoCapitalize="none" autoCorrect="off" autoComplete="current-password" style={s.input()}/></div>
         {err&&<div style={{background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:8,padding:'10px 12px',fontSize:12,color:C.red,marginBottom:16}}>{err}</div>}
         <button onClick={attempt} disabled={loading} style={{...s.btn(loading?'#3d3270':C.acc,'#fff',null),width:'100%',opacity:loading?0.7:1}}>{loading?'Signing in...':'Sign In ->'}</button>
+        <div style={{textAlign:'center',marginTop:16}}>
+          <button onClick={async()=>{
+            if(!email.trim()){alert('Enter your email address first, then tap Forgot Password.');return;}
+            try{
+              await sbAuthClient.auth.resetPasswordForEmail(email.trim(),{redirectTo:'https://stageboss.app'});
+              alert('Password reset email sent to '+email+'. Check your inbox and spam folder.');
+            }catch(e){alert('Could not send reset email. Try again.');}
+          }} style={{background:'none',border:'none',color:C.muted,fontSize:12,cursor:'pointer',textDecoration:'underline'}}>Forgot Password?</button>
+        </div>
         </>)}
       </div>
     </div>
