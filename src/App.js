@@ -2567,7 +2567,20 @@ function StageBoss({user,onLogout,accessToken}){
       setTimeout(()=>setToast(''), 3000);
     };
     window.addEventListener('stageboss_add_venue', handler);
-    return () => window.removeEventListener('stageboss_add_venue', handler);
+
+    // Listen for bulk venue replacement (used by Clean Duplicates in SmartBoss)
+    const setHandler = (e) => {
+      const cleaned = e.detail;
+      if(!Array.isArray(cleaned)) return;
+      setVenues(cleaned);
+      try{ localStorage.setItem('sb_venues', JSON.stringify(cleaned)); }catch(e){}
+    };
+    window.addEventListener('stageboss_set_venues', setHandler);
+
+    return () => {
+      window.removeEventListener('stageboss_add_venue', handler);
+      window.removeEventListener('stageboss_set_venues', setHandler);
+    };
   }, []);
 
   const toast2=useCallback((msg)=>{setToast(msg);setTimeout(()=>setToast(''),2500);},[]);
@@ -3816,7 +3829,7 @@ function StageBoss({user,onLogout,accessToken}){
       })()}
 
         {/* == ANALYTICS TAB == */}
-        {tab==='smartboss'&&<SmartBossAI venues={venues} setVenues={setVenues} tours={tours} comedians={comedians} upd={upd}/>}
+        {tab==='smartboss'&&<SmartBossAI venues={venues} setVenues={setVenues} tours={tours} comedians={comedians} upd={upd} toast2={toast2}/>}
         {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
           <AnalyticsTab venues={venues} tours={tours} bestTimeData={bestTimeData} />
         </div>}
@@ -4894,11 +4907,17 @@ function TemplateEditor({template,onSave,onCancel}){
 // SMARTBOSS AI — Tour Intelligence Engine
 // Reads all tours, venues, dates, gaps → AI-powered routing & booking advice
 // ─────────────────────────────────────────────────────────────────────────────
-function SmartBossAI({venues=[], setVenues=()=>{}, tours=[], comedians=[], upd=()=>{}}) {
+function SmartBossAI({venues=[], setVenues=()=>{}, tours=[], comedians=[], upd=()=>{}, toast2=()=>{}}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('year'); // 'chat' | 'plan' | 'year' | 'discover' | 'igdm'
+  const [mode, setMode] = useState('year');
+  const [localToast, setLocalToast] = useState('');
+  const showToast = (msg) => {
+    try { toast2(msg); } catch(e) {}
+    setLocalToast(msg);
+    setTimeout(()=>setLocalToast(''), 3000);
+  };
   const [planConfig, setPlanConfig] = useState({
     comedian: '', region: 'Nationwide', venueType: 'Comedy Club',
     weeks: '4', startAfter: '', focus: 'Max Revenue',
@@ -6220,18 +6239,30 @@ OPENING LINE ONLY (ultra short, 80 chars max):
 
           {/* Clean duplicates button */}
           <button onClick={()=>{
-            const seen = new Set();
-            let dupeCount = 0;
-            const cleaned = [];
-            venues.forEach(v => {
-              const key = (v.venue||'').toLowerCase().trim()+'|'+(v.city||'').toLowerCase().trim();
-              if(seen.has(key)){ dupeCount++; }
-              else { seen.add(key); cleaned.push(v); }
-            });
-            if(dupeCount === 0){ toast2('✅ No duplicates found — database is clean!'); return; }
-            setVenues(cleaned);
-            try{ localStorage.setItem('sb_venues', JSON.stringify(cleaned)); }catch(e){}
-            toast2('🧹 '+dupeCount+' duplicates removed — tap Sync to save');
+            try {
+              const seen = new Set();
+              let dupeCount = 0;
+              const cleaned = [];
+              const vlist = venues || [];
+              for(let i=0; i<vlist.length; i++){
+                const v = vlist[i];
+                const key = ((v.venue||'').toLowerCase().trim())+'|'+((v.city||'').toLowerCase().trim());
+                if(seen.has(key)){ dupeCount++; }
+                else { seen.add(key); cleaned.push(v); }
+              }
+              if(dupeCount === 0){
+                alert('No duplicates found — database is clean!');
+                return;
+              }
+              // Use window event to tell parent to update venues
+              window.dispatchEvent(new CustomEvent('stageboss_set_venues', {detail: cleaned}));
+              // Also try direct setter
+              setVenues(cleaned);
+              try{ localStorage.setItem('sb_venues', JSON.stringify(cleaned)); }catch(e){}
+              alert(dupeCount+' duplicates removed! Tap Sync to save.');
+            } catch(err) {
+              alert('Error: '+err.message);
+            }
           }} style={{width:'100%', padding:'10px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(225,112,85,0.1)', border:'1px solid rgba(225,112,85,0.3)', color:'#e17055', marginBottom:10}}>
             🧹 Clean Duplicate Venues
           </button>
@@ -6260,6 +6291,7 @@ OPENING LINE ONLY (ultra short, 80 chars max):
       {/* ── EPK & SETTINGS PANEL (always visible at bottom of year/chat/plan) ── */}
 
 
+      {localToast&&<div style={{position:'fixed',bottom:80,left:'50%',transform:'translateX(-50%)',background:'rgba(10,10,20,0.95)',border:'1px solid rgba(124,58,237,0.4)',borderRadius:10,padding:'10px 18px',fontSize:12,color:'#f0f0ff',zIndex:999,whiteSpace:'nowrap',pointerEvents:'none'}}>{localToast}</div>}
       <style>{`
         @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(0.8)} 50%{opacity:1;transform:scale(1)} }
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
