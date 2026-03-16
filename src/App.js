@@ -6478,7 +6478,7 @@ OPENING LINE ONLY (ultra short, 80 chars max):
               const res = await fetch('/.netlify/functions/smartboss', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-                body: JSON.stringify({ system: 'You are the world's most experienced comedy booking negotiator. Be specific, practical, and direct.', messages:[{role:'user',content:prompt}], max_tokens:800 })
+                body: JSON.stringify({ system: 'You are the worlds most experienced comedy booking negotiator. Be specific, practical, and direct.', messages:[{role:'user',content:prompt}], max_tokens:800 })
               });
               const data = await res.json();
               const reply = data.content?.find(c=>c.type==='text')?.text || 'No response.';
