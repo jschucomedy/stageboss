@@ -333,11 +333,11 @@ function tourEconomicsScore(tour, confirmedVenues=[]) {
 
   // Recommendations
   const recs = [];
-  if (weekendPct < 60) recs.push('Add more Fri/Sat shows — weekday revenue is 30-40% lower');
-  if (geoEfficiency === 'Low — too spread out') recs.push('Cluster shows within 2-3 states — reduce dead miles');
-  if (costPerShow > 400) recs.push('Hotel costs high — look for venue-provided lodging or Airbnb');
-  if (avgPerShow < 1000) recs.push('Average guarantee is low — target higher-paying venues in this region');
-  if (showCount < 4) recs.push('Add 1-2 more shows — fixed travel costs spread across more revenue');
+  if (weekendPct < 60) recs.push('Only '+weekendPct+'% weekend shows — when adding new dates target Fri/Sat slots');
+  if (geoEfficiency === 'Low — too spread out') recs.push('Shows are spread across many states — add shows in gap cities to maximize travel value');
+  if (costPerShow > 400) recs.push('Hotel costs high — ask venues for lodging, use Airbnb, or find casino comps');
+  if (avgPerShow < 1000) recs.push('Average guarantee $'+Math.round(avgPerShow)+'/show — fill gaps with higher-paying venues');
+  if (showCount < 4) recs.push('Only '+showCount+' shows on this run — adding 1-2 gap dates would cut cost-per-show significantly');
   if (recs.length === 0) recs.push('Tour economics look strong — good routing and deal mix');
 
   return {
@@ -7110,8 +7110,10 @@ OPENING LINE ONLY (ultra short, 80 chars max):
                     const session = await sbAuthClient.auth.getSession();
                     const token = session?.data?.session?.access_token||'';
                     const sortedDates = (tour.dates||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
-                    const tourSummary = 'Tour: '+tour.name+'. Shows: '+sortedDates.map(d=>d.venue+' ('+d.city+', '+d.state+') on '+d.date+' - $'+d.guarantee).join(' | ')+'. Travel budget: $'+(tour.travelBudget||0)+'. Hotel budget: $'+(tour.lodgingBudget||0)+'. Net est: $'+econ.netRevenue+'. Weekend shows: '+econ.weekendPct+'%. Geo efficiency: '+econ.geoEfficiency+'.';
-                    const prompt = 'You are a senior comedy tour manager analyzing tour economics. Here is the tour data:\n\n'+tourSummary+'\n\nProvide a specific, actionable optimization analysis covering:\n\n1. ROUTING EFFICIENCY: Exact geographic sequencing to minimize dead miles\n2. DATE OPTIMIZATION: Which specific dates should be weekends vs weekdays\n3. REVENUE GAPS: Which cities between these stops could add $X to the run\n4. COST REDUCTION: Specific ways to cut travel/hotel costs on this route\n5. SHOW ADDITIONS: 2-3 specific venues to add that would improve economics\n6. RISK FLAGS: Any shows that may underperform and why\n\nBe specific with city names, dollar amounts, and day-of-week recommendations.';
+                    const confirmedShows = sortedDates.filter(d=>d.confirmed||d.status==='Confirmed'||d.guarantee>0);
+                    const openDates = sortedDates.filter(d=>!d.confirmed&&(!d.status||d.status!=='Confirmed')&&!d.guarantee);
+                    const tourSummary = 'Tour: '+tour.name+' ('+tour.startDate+' to '+tour.endDate+'). CONFIRMED LOCKED SHOWS (DO NOT SUGGEST MOVING THESE): '+confirmedShows.map(d=>d.venue+' in '+d.city+', '+d.state+' on '+d.date+' ($'+d.guarantee+' - CONFIRMED/LOCKED)').join(' | ')+(openDates.length>0 ? '. OPEN SLOTS TO FILL: '+openDates.map(d=>d.date).join(', ') : '. No open slots currently.')+'. Travel budget: $'+(tour.travelBudget||0)+'. Hotel budget: $'+(tour.lodgingBudget||0)+'. Net est: $'+econ.netRevenue+'. Weekend shows: '+econ.weekendPct+'%. Geo efficiency: '+econ.geoEfficiency+'.';
+                    const prompt = 'You are a senior comedy tour manager. CRITICAL RULE: All confirmed shows listed are already BOOKED AND LOCKED — do NOT suggest moving, changing, or canceling any of them. The dates, venues, and cities are final.\n\nTour data:\n'+tourSummary+'\n\nGiven these LOCKED confirmed shows, provide optimization analysis covering ONLY what can still be changed:\n\n1. REVENUE GAPS: Which open calendar dates between the confirmed shows could have a show added? Name specific cities and venues with estimated guarantees.\n2. SHOW ADDITIONS: 2-3 specific NEW venues to add in the gaps between confirmed dates — with city, venue name, and estimated guarantee.\n3. COST REDUCTION: Specific ways to cut travel/hotel costs on the existing confirmed route without changing any dates.\n4. ROUTING LOGIC: The most efficient way to travel between the confirmed shows in the order they are already booked.\n5. RISK FLAGS: Any confirmed shows that may face challenges (low guarantee, difficult routing) and how to mitigate without canceling.\n\nDo NOT suggest moving confirmed dates. Only suggest additions and cost savings.';
                     const res = await fetch('/.netlify/functions/smartboss', {
                       method:'POST',
                       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
