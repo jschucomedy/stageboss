@@ -3816,7 +3816,7 @@ function StageBoss({user,onLogout,accessToken}){
       })()}
 
         {/* == ANALYTICS TAB == */}
-        {tab==='smartboss'&&<SmartBossAI venues={venues} tours={tours} comedians={comedians} upd={upd}/>}
+        {tab==='smartboss'&&<SmartBossAI venues={venues} setVenues={setVenues} tours={tours} comedians={comedians} upd={upd}/>}
         {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
           <AnalyticsTab venues={venues} tours={tours} bestTimeData={bestTimeData} />
         </div>}
@@ -4894,7 +4894,7 @@ function TemplateEditor({template,onSave,onCancel}){
 // SMARTBOSS AI — Tour Intelligence Engine
 // Reads all tours, venues, dates, gaps → AI-powered routing & booking advice
 // ─────────────────────────────────────────────────────────────────────────────
-function SmartBossAI({venues=[], tours=[], comedians=[], upd=()=>{}}) {
+function SmartBossAI({venues=[], setVenues=()=>{}, tours=[], comedians=[], upd=()=>{}}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -6221,25 +6221,18 @@ OPENING LINE ONLY (ultra short, 80 chars max):
           {/* Clean duplicates button */}
           <button onClick={()=>{
             const seen = new Set();
-            const dupes = [];
+            let dupeCount = 0;
+            const cleaned = [];
             venues.forEach(v => {
               const key = (v.venue||'').toLowerCase().trim()+'|'+(v.city||'').toLowerCase().trim();
-              if(seen.has(key)) dupes.push(v.id);
-              else seen.add(key);
+              if(seen.has(key)){ dupeCount++; }
+              else { seen.add(key); cleaned.push(v); }
             });
-            if(dupes.length === 0){ toast2('No duplicates found'); return; }
-            if(window.confirm('Remove '+dupes.length+' duplicate venue entries? This cannot be undone.')){ 
-              dupes.forEach(id => { try{ document.dispatchEvent(new CustomEvent('sb_remove_venue',{detail:id})); }catch(e){} });
-              setVenues(vs => {
-                const seen2 = new Set();
-                return vs.filter(v => {
-                  const key = (v.venue||'').toLowerCase().trim()+'|'+(v.city||'').toLowerCase().trim();
-                  if(seen2.has(key)) return false;
-                  seen2.add(key);
-                  return true;
-                });
-              });
-              toast2('Duplicates removed — tap Sync to save');
+            if(dupeCount === 0){ toast2('No duplicates found — database is clean!'); return; }
+            if(window.confirm('Found '+dupeCount+' duplicate venues. Remove them now?')){
+              setVenues(cleaned);
+              try{ localStorage.setItem('sb_venues', JSON.stringify(cleaned)); }catch(e){}
+              toast2(dupeCount+' duplicates removed — tap Sync to save');
             }
           }} style={{width:'100%', padding:'10px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(225,112,85,0.1)', border:'1px solid rgba(225,112,85,0.3)', color:'#e17055', marginBottom:10}}>
             🧹 Clean Duplicate Venues
