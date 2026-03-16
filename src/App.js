@@ -3,6 +3,144 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
 const BUILD_ID = '2026-03-14-v12';
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 1 — REVENUE BRAIN + ADAPTIVE FOLLOW-UP ENGINE
+// ═══════════════════════════════════════════════════════════════
+
+// Revenue Brain: scores every venue by expected revenue impact
+function revenueBrainScore(v, allVenues=[]) {
+  let score = 0;
+  const log = v.contactLog || [];
+  const touches = log.length;
+  const lastTouch = log.length > 0 ? new Date(log[log.length-1].date) : null;
+  const daysSinceLast = lastTouch ? Math.floor((Date.now()-lastTouch)/(1000*60*60*24)) : 999;
+  const guarantee = parseFloat(v.guarantee) || 0;
+
+  // Revenue potential (0-40 pts)
+  if (guarantee >= 3000) score += 40;
+  else if (guarantee >= 2000) score += 30;
+  else if (guarantee >= 1500) score += 22;
+  else if (guarantee >= 1000) score += 15;
+  else if (guarantee >= 500) score += 8;
+  else score += 4; // unknown — assume something
+
+  // Pipeline stage (0-30 pts) — closer to close = more points
+  const stageScore = {
+    'Negotiating': 30, 'Responded': 25, 'Contacted': 15,
+    'Lead': 8, 'Hold': 12, 'Follow-Up': 18
+  };
+  score += stageScore[v.status] || 5;
+
+  // Warmth (0-20 pts)
+  const warmthScore = {'Established':20,'Hot':18,'Warm':12,'Cold':3};
+  score += warmthScore[v.warmth] || 3;
+
+  // Follow-up urgency (0-25 pts) — overdue = high priority
+  if (v.nextFollowUp) {
+    const daysOverdue = Math.floor((Date.now()-new Date(v.nextFollowUp))/(1000*60*60*24));
+    if (daysOverdue > 0) score += Math.min(25, 10 + daysOverdue * 2);
+  }
+
+  // Behavior signals (adaptive)
+  // Opened multiple times but no reply = needs different subject line
+  if (touches >= 2 && v.status === 'Contacted') score += 10; // stalled — push harder
+  // Never contacted — fresh opportunity
+  if (touches === 0 && v.warmth !== 'Cold') score += 8;
+  // Hot lead going cold — penalize decay
+  if (daysSinceLast > 14 && ['Responded','Negotiating'].includes(v.status)) score += 20;
+
+  // Venue type value multiplier
+  const typeBonus = {
+    'Casino': 15, 'Theater': 12, 'Prestige Club': 10,
+    'Comedy Club': 8, 'College': 6, 'Corporate': 12
+  };
+  score += typeBonus[v.venueType] || 5;
+
+  // Bounce penalty
+  if (v.bounce) score = 0;
+  // Completed/Lost — skip
+  if (['Completed','Lost','Confirmed'].includes(v.status)) score = 0;
+
+  return Math.round(score);
+}
+
+// Adaptive Follow-Up: picks the RIGHT template based on behavior, not just touch count
+function adaptiveTemplate(v, templates=[]) {
+  const log = v.contactLog || [];
+  const touches = log.length;
+  const lastMethod = log.length > 0 ? (log[log.length-1].method||'').toLowerCase() : '';
+  const status = v.status || 'Lead';
+  const venueType = v.venueType || 'Comedy Club';
+  const daysSinceLast = log.length > 0
+    ? Math.floor((Date.now()-new Date(log[log.length-1].date))/(1000*60*60*24))
+    : 999;
+
+  // Decision tree — behavior based
+  if (touches === 0) {
+    // First touch — match to venue type
+    if (venueType === 'Casino') return templates.find(t=>t.id==='tmpl_casino') || templates[0];
+    if (venueType === 'College') return templates.find(t=>t.id==='tmpl_college') || templates[0];
+    return templates.find(t=>t.id==='tmpl_jason_phil_standard') || templates[0];
+  }
+
+  if (status === 'Responded' || status === 'Negotiating') {
+    // They replied — use existing relationship template
+    return templates.find(t=>t.id==='tmpl_existing') || templates[0];
+  }
+
+  if (touches === 1) {
+    if (daysSinceLast >= 12) {
+      // Sent once, 12+ days no reply — friendly nudge
+      return templates.find(t=>t.id==='tmpl_followup_1') || templates[0];
+    }
+    return templates.find(t=>t.id==='tmpl_followup_1') || templates[0];
+  }
+
+  if (touches === 2) {
+    // Two touches no reply — be firmer, different subject
+    return templates.find(t=>t.id==='tmpl_followup_2') || templates[0];
+  }
+
+  if (touches >= 3) {
+    // Three+ touches — final attempt
+    return templates.find(t=>t.id==='tmpl_followup_3') || templates[0];
+  }
+
+  return templates[0];
+}
+
+// Behavior tag for display in Today dashboard
+function behaviorTag(v) {
+  const log = v.contactLog || [];
+  const touches = log.length;
+  const daysSinceLast = log.length > 0
+    ? Math.floor((Date.now()-new Date(log[log.length-1].date))/(1000*60*60*24))
+    : 999;
+  const status = v.status || 'Lead';
+
+  if (status === 'Negotiating') return {label:'🔥 Negotiating', color:'#ff6b35'};
+  if (status === 'Responded') return {label:'💬 Replied — follow up', color:'#00b894'};
+  if (touches === 0) return {label:'📧 Never contacted', color:'#a78bfa'};
+  if (daysSinceLast > 21 && touches >= 2) return {label:'⚠️ Going cold', color:'#ffd700'};
+  if (daysSinceLast > 14) return {label:'⏰ Overdue', color:'#e17055'};
+  if (touches >= 3) return {label:'📌 Final touch', color:'#888'};
+  if (touches === 1) return {label:'👋 Touch 2 due', color:'#74b9ff'};
+  if (touches === 2) return {label:'📋 Touch 3 due', color:'#fd79a8'};
+  return {label:'Follow up', color:'#888'};
+}
+
+// Channel recommendation — should you email, call, or DM?
+function recommendChannel(v) {
+  const log = v.contactLog || [];
+  const touches = log.length;
+  const status = v.status;
+  const preferred = v.preferredContact || 'Email';
+  if (status === 'Negotiating') return {channel:'📞 Call', reason:'Deal in progress — call closes faster'};
+  if (touches >= 2 && status === 'Contacted') return {channel:'📱 DM', reason:'Email ignored — try Instagram'};
+  if (v.instagram && touches >= 1) return {channel:'📧 Email + DM', reason:'Double tap for response'};
+  return {channel:'📧 Email', reason:'Standard first touch'};
+}
 const PHIL_EPK_URL = 'https://drive.google.com/file/d/1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie/view?usp=drive_link';
 const PHIL_EPK_DOWNLOAD = 'https://drive.google.com/uc?export=download&id=1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie';
 function getEpkUrl() {
@@ -2414,15 +2552,10 @@ function StageBoss({user,onLogout,accessToken}){
     const touchHistory = (v.contactLog || []).slice(-5);
     const touchNum = touchHistory.length + 1;
 
-    // Pick best template if none selected
+    // Use Adaptive Follow-Up Engine to pick the best template
     let tmpl = templateId ? templates.find(t => t.id === templateId) : null;
     if (!tmpl) {
-      if (touchNum === 2) tmpl = templates.find(t => t.id === 'tmpl_followup_1');
-      else if (touchNum === 3) tmpl = templates.find(t => t.id === 'tmpl_followup_2');
-      else if (touchNum >= 4) tmpl = templates.find(t => t.id === 'tmpl_followup_3');
-      else if (v.venueType === 'Casino') tmpl = templates.find(t => t.id === 'tmpl_casino');
-      else if (v.venueType === 'College') tmpl = templates.find(t => t.id === 'tmpl_college');
-      else tmpl = templates.find(t => t.id === 'tmpl_jason_phil_standard');
+      tmpl = adaptiveTemplate(v, templates);
     }
 
     const token1 = await getToken();
@@ -3255,32 +3388,45 @@ function StageBoss({user,onLogout,accessToken}){
           {(()=>{
             const today=new Date();
             today.setHours(0,0,0,0);
-            const priorityScore=(v)=>{
-              let score=0;
-              if(v.nextFollowUp&&new Date(v.nextFollowUp)<=today) score+=100;
-              const w={'Hot':40,'Warm':20,'Established':30,'Cold':5};
-              score+=w[v.warmth]||0;
-              const p={'Negotiating':35,'Responded':30,'Follow-Up':25,'Contacted':15,'Lead':5,'Hold':10};
-              score+=p[v.status]||0;
-              return score;
-            };
-            const due=venues.filter(v=>v.status!=='Completed'&&v.status!=='Lost'&&(
-              !v.nextFollowUp||(new Date(v.nextFollowUp)<=new Date())
-            )).sort((a,b)=>priorityScore(b)-priorityScore(a)).slice(0,5);
+            const due=venues
+              .filter(v=>!['Completed','Lost','Confirmed'].includes(v.status)&&!v.bounce)
+              .map(v=>({...v, _score: revenueBrainScore(v, venues)}))
+              .filter(v=>v._score>0)
+              .sort((a,b)=>b._score-a._score)
+              .slice(0,10);
             if(!due.length) return null;
+            // Revenue at risk — sum of Negotiating + Responded guarantees
+            const revenueAtRisk = due
+              .filter(v=>['Negotiating','Responded'].includes(v.status))
+              .reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
             return <div style={{marginBottom:16}}>
-              <div style={{fontSize:10,color:C.orange,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700,marginBottom:10}}>⚡ Contact Today · {due.length}</div>
+              {revenueAtRisk>0&&<div style={{background:'rgba(255,215,0,0.07)',border:'1px solid rgba(255,215,0,0.2)',borderRadius:10,padding:'10px 14px',marginBottom:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div style={{fontSize:11,color:'#ffd700',fontWeight:700}}>💰 Revenue at risk</div>
+                <div style={{fontSize:16,fontWeight:900,fontFamily:font.head,color:'#ffd700'}}>${revenueAtRisk.toLocaleString()}</div>
+              </div>}
+              <div style={{fontSize:10,color:C.orange,letterSpacing:'0.1em',textTransform:'uppercase',fontWeight:700,marginBottom:10}}>🧠 Revenue Brain — Top {due.length} Priorities</div>
               {due.map(v=>{
                 const touches=(v.contactLog||[]).length;
-                const tmpl=touches>0?DEFAULT_TEMPLATES.find(t=>t.id==='tmpl_followup_1'):DEFAULT_TEMPLATES[0];
-                return <div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${PIPE_COLORS[v.status]||C.acc}`,borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+                const tmpl=adaptiveTemplate(v,templates);
+                const tag=behaviorTag(v);
+                const ch=recommendChannel(v);
+                return <div key={v.id} style={{background:C.surf,border:`1px solid ${C.bord}`,borderLeft:`3px solid ${tag.color}`,borderRadius:12,padding:'12px 14px',marginBottom:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:13}}>{v.venue}</div>
-                      <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {v.status} · Touch #{touches+1}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
+                        <div style={{fontWeight:700,fontSize:13}}>{v.venue}</div>
+                        <span style={{fontSize:10,color:tag.color,fontWeight:700,background:tag.color+'18',padding:'2px 7px',borderRadius:6,whiteSpace:'nowrap'}}>{tag.label}</span>
+                      </div>
+                      <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {v.warmth} · Touch #{touches+1}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
+                        <span style={{fontSize:10,color:C.muted,background:C.surf2,padding:'2px 7px',borderRadius:6}}>{ch.channel}</span>
+                        <span style={{fontSize:10,color:C.muted}}>{ch.reason}</span>
+                        {(parseFloat(v.guarantee)||0)>0&&<span style={{fontSize:11,color:C.green,fontWeight:700}}>${(parseFloat(v.guarantee)||0).toLocaleString()}</span>}
+                        <span style={{fontSize:10,color:C.muted,marginLeft:'auto'}}>Score: {v._score}</span>
+                      </div>
                     </div>
-                    <div style={{display:'flex',gap:6,flexShrink:0}}>
-                      <button onClick={()=>{setComposeId(v.id);}} style={{...s.btn(C.acc,C.txt,'transparent'),fontSize:11,padding:'5px 10px',fontWeight:700}}>✉️ Compose</button>
+                    <div style={{display:'flex',gap:6,flexShrink:0,flexDirection:'column',alignItems:'flex-end'}}>
+                      <button onClick={()=>{setComposeId(v.id);}} style={{...s.btn(C.acc,C.txt,'transparent'),fontSize:11,padding:'5px 10px',fontWeight:700,whiteSpace:'nowrap'}}>✉️ Send</button>
                       <button onClick={()=>setDetailId(v.id)} style={{...s.btn(C.surf2,C.muted3,C.bord2),fontSize:11,padding:'5px 10px'}}>View</button>
                     </div>
                   </div>
@@ -4948,6 +5094,9 @@ function SmartBossAI({venues=[], setVenues=()=>{}, tours=[], comedians=[], upd=(
 
   // ── IG DM STATE ──
   const [igdmState, setIgdmState] = useState({ venue:'', booker:'', city:'', venueType:'Comedy Club', dates:'', loading:false, result:'' });
+  const [negotiateState, setNegotiateState] = useState({
+    venue:'', venueType:'Comedy Club', bookerMessage:'', ourAsk:'', loading:false, result:''
+  });
 
   // ── VENUE ENRICHMENT ENGINE STATE ──
   const [enrichState, setEnrichState] = useState({
@@ -5438,7 +5587,7 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
             <div style={{fontSize:10, color:'rgba(167,139,250,0.8)', letterSpacing:'0.12em', textTransform:'uppercase'}}>Tour Intelligence Engine</div>
           </div>
           <div style={{marginLeft:'auto', display:'flex', gap:6}}>
-            {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM'],['enrich','⚡ Enrich']].map(([m,label])=>(
+            {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM'],['enrich','⚡ Enrich'],['negotiate','🤝 Negotiate']].map(([m,label])=>(
               <button key={m} onClick={()=>setMode(m)} style={{
                 padding:'6px 12px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
                 border:`1px solid ${mode===m ? '#7c3aed' : 'rgba(124,58,237,0.25)'}`,
@@ -6284,6 +6433,72 @@ OPENING LINE ONLY (ultra short, 80 chars max):
             {enrichState.log.map((entry, i)=>(
               <div key={i} style={{fontSize:10, color:C2.muted, borderBottom:'1px solid rgba(255,255,255,0.03)', padding:'4px 0', lineHeight:1.5}}>{entry}</div>
             ))}
+          </div>
+        )}
+      </div>}
+
+      {/* ── NEGOTIATION COPILOT ── */}
+      {mode === 'negotiate' && <div style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', paddingBottom:80}}>
+        <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px', marginBottom:14}}>
+          <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:16, letterSpacing:0.5, color:'#ff6b35', marginBottom:4}}>🤝 NEGOTIATION COPILOT</div>
+          <div style={{fontSize:11, color:C2.muted, marginBottom:14, lineHeight:1.6}}>Paste what the booker said. SmartBoss generates the ideal response, fallback offer, walk-away line, and negotiation strategy — all grounded in that venue type and your deal goals.</div>
+
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Venue Name</div>
+            <input value={negotiateState.venue} onChange={e=>setNegotiateState(p=>({...p,venue:e.target.value}))}
+              placeholder="Funny Bone Columbus" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+          </div>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Venue Type</div>
+            <select value={negotiateState.venueType} onChange={e=>setNegotiateState(p=>({...p,venueType:e.target.value}))}
+              style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12}}>
+              <option>Comedy Club</option><option>Casino</option><option>University/College</option><option>Theater</option><option>Corporate</option>
+            </select>
+          </div>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>What the Booker Said (paste their exact message)</div>
+            <textarea value={negotiateState.bookerMessage} onChange={e=>setNegotiateState(p=>({...p,bookerMessage:e.target.value}))}
+              placeholder={'e.g. "We usually do door deals, not guarantees. What's Phil's ask?" or "We only have a Wednesday open, not the weekend" or "What kind of numbers does he do?"'}
+              rows={4} style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box', resize:'vertical', fontFamily:'inherit'}}/>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:10, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4}}>Our Current Ask (optional)</div>
+            <input value={negotiateState.ourAsk} onChange={e=>setNegotiateState(p=>({...p,ourAsk:e.target.value}))}
+              placeholder="$2,000 flat guarantee, Friday-Saturday weekend" style={{width:'100%', background:'rgba(10,10,20,0.6)', border:`1px solid ${C2.bord}`, borderRadius:8, padding:'8px 10px', color:C2.txt, fontSize:12, boxSizing:'border-box'}}/>
+          </div>
+
+          <button onClick={async()=>{
+            if(!negotiateState.bookerMessage.trim()){ showToast('Paste the booker message first'); return; }
+            setNegotiateState(p=>({...p, loading:true, result:''}));
+            try {
+              const session = await sbAuthClient.auth.getSession();
+              const token = session?.data?.session?.access_token||'';
+              const prompt = 'You are a senior comedy booking agent and negotiation expert. A booker just responded to our pitch for Phil Medina at '+negotiateState.venue+' ('+negotiateState.venueType+').'+(negotiateState.ourAsk ? ' Our ask was: '+negotiateState.ourAsk+'.' : '')+' Here is what the booker said:\n\n"'+negotiateState.bookerMessage+'"\n\nPhil Medina credits: Netflix Is A Joke Festival, Hulu West Coast Comedy, Laugh Factory, Hollywood Improv, Ice House, nationally touring headliner.\n\nProvide a complete negotiation response in this exact format:\n\nIDEAL RESPONSE (send this):\n[write the exact email response to send — warm, professional, moves deal forward]\n\nFALLBACK OFFER (if they push back):\n[alternative deal structure or concession you can make]\n\nNEGOTIATION STRATEGY:\n[2-3 sentences on the psychology and approach for this specific situation]\n\nWALK-AWAY LINE:\n[exact words to say if deal falls apart — keeps relationship warm]\n\nTARGET OUTCOME:\n[what a successful close looks like here and realistic range]';
+
+              const res = await fetch('/.netlify/functions/smartboss', {
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+                body: JSON.stringify({ system: 'You are the world's most experienced comedy booking negotiator. Be specific, practical, and direct.', messages:[{role:'user',content:prompt}], max_tokens:800 })
+              });
+              const data = await res.json();
+              const reply = data.content?.find(c=>c.type==='text')?.text || 'No response.';
+              setNegotiateState(p=>({...p, loading:false, result:reply}));
+            } catch(e) {
+              setNegotiateState(p=>({...p, loading:false, result:'Error: '+e.message}));
+            }
+          }} disabled={negotiateState.loading} style={{width:'100%', padding:'12px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', background:'linear-gradient(135deg,rgba(255,107,53,0.4),rgba(255,215,0,0.2))', border:'1px solid rgba(255,107,53,0.5)', color:'#ff6b35'}}>
+            {negotiateState.loading ? '🤝 Analyzing deal...' : '🤝 Generate Negotiation Response'}
+          </button>
+        </div>
+
+        {negotiateState.result && (
+          <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px'}}>
+            <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:13, color:'#ff6b35', marginBottom:10, letterSpacing:0.5}}>✅ NEGOTIATION PLAYBOOK READY</div>
+            <div style={{fontSize:12, color:C2.txt, lineHeight:1.9, whiteSpace:'pre-wrap', background:'rgba(10,10,20,0.4)', borderRadius:10, padding:'12px 14px', marginBottom:10}}>{negotiateState.result}</div>
+            <div style={{display:'flex', gap:8}}>
+              <button onClick={()=>{navigator.clipboard?.writeText(negotiateState.result); showToast('Copied!');}} style={{flex:1, padding:'10px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(255,107,53,0.15)', border:'1px solid rgba(255,107,53,0.4)', color:'#ff6b35'}}>📋 Copy All</button>
+              <button onClick={()=>setNegotiateState(p=>({...p, result:'', bookerMessage:''}))} style={{padding:'10px 14px', borderRadius:8, fontSize:12, cursor:'pointer', background:'none', border:`1px solid ${C2.bord}`, color:C2.muted}}>Clear</button>
+            </div>
           </div>
         )}
       </div>}
