@@ -282,6 +282,190 @@ function createRelationshipProfile() {
     lastUpdated: '',
   };
 }
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 3A — TOUR ECONOMICS OPTIMIZER
+// Scores tour legs by profitability, not just route
+// ═══════════════════════════════════════════════════════════════
+
+function tourEconomicsScore(tour, confirmedVenues=[]) {
+  if (!tour || !tour.dates || tour.dates.length === 0) return null;
+
+  const dates = tour.dates || [];
+  const totalGuarantee = dates.reduce((a,d) => a + (parseFloat(d.guarantee)||0), 0);
+  const totalExpenses = (parseFloat(tour.travelBudget)||0) + (parseFloat(tour.lodgingBudget)||0) + (parseFloat(tour.miscBudget)||0);
+  const netRevenue = totalGuarantee * 0.75 - totalExpenses;
+  const showCount = dates.length;
+  const avgPerShow = showCount > 0 ? totalGuarantee / showCount : 0;
+
+  // Geographic efficiency — are shows clustered or scattered?
+  const states = [...new Set(dates.map(d => d.state || '').filter(Boolean))];
+  const geoEfficiency = states.length <= 3 ? 'High' : states.length <= 5 ? 'Medium' : 'Low — too spread out';
+
+  // Day of week value
+  const weekendShows = dates.filter(d => {
+    if (!d.date) return false;
+    const day = new Date(d.date + 'T12:00:00').getDay();
+    return day === 5 || day === 6; // Fri/Sat
+  }).length;
+  const weekendPct = showCount > 0 ? Math.round(weekendShows/showCount*100) : 0;
+
+  // Revenue per day on road
+  let tourDays = 1;
+  if (tour.startDate && tour.endDate) {
+    tourDays = Math.max(1, Math.floor((new Date(tour.endDate) - new Date(tour.startDate))/(1000*60*60*24)));
+  }
+  const revenuePerDay = tourDays > 0 ? Math.round(totalGuarantee / tourDays) : 0;
+
+  // Cost per show
+  const costPerShow = showCount > 0 ? Math.round(totalExpenses / showCount) : 0;
+
+  // Profit margin
+  const profitMargin = totalGuarantee > 0 ? Math.round((netRevenue / totalGuarantee) * 100) : 0;
+
+  // Risk score — lower is better
+  let riskScore = 0;
+  if (avgPerShow < 800) riskScore += 30; // low guarantees
+  if (geoEfficiency === 'Low — too spread out') riskScore += 25; // bad routing
+  if (weekendPct < 50) riskScore += 20; // too many weekdays
+  if (totalExpenses > totalGuarantee * 0.4) riskScore += 15; // high expense ratio
+  if (showCount < 3) riskScore += 10; // not enough shows to justify travel
+
+  // Recommendations
+  const recs = [];
+  if (weekendPct < 60) recs.push('Add more Fri/Sat shows — weekday revenue is 30-40% lower');
+  if (geoEfficiency === 'Low — too spread out') recs.push('Cluster shows within 2-3 states — reduce dead miles');
+  if (costPerShow > 400) recs.push('Hotel costs high — look for venue-provided lodging or Airbnb');
+  if (avgPerShow < 1000) recs.push('Average guarantee is low — target higher-paying venues in this region');
+  if (showCount < 4) recs.push('Add 1-2 more shows — fixed travel costs spread across more revenue');
+  if (recs.length === 0) recs.push('Tour economics look strong — good routing and deal mix');
+
+  return {
+    totalGuarantee, totalExpenses, netRevenue, showCount,
+    avgPerShow: Math.round(avgPerShow), geoEfficiency,
+    weekendPct, revenuePerDay, costPerShow, profitMargin,
+    riskScore: Math.min(100, riskScore), recommendations: recs,
+    grade: netRevenue > 5000 ? 'A' : netRevenue > 2000 ? 'B' : netRevenue > 0 ? 'C' : 'D',
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 3B — DYNAMIC ASSET PERSONALIZATION ENGINE
+// Picks the right assets for each venue type and lead temperature
+// ═══════════════════════════════════════════════════════════════
+
+function getPersonalizedAssets(v) {
+  const venueType = v.venueType || 'Comedy Club';
+  const warmth = v.warmth || 'Cold';
+  const touches = (v.contactLog || []).length;
+  const guarantee = parseFloat(v.guarantee) || 0;
+
+  const assets = {
+    headline_credit: '',
+    primary_clip: '',
+    social_proof: '',
+    subject_line_angle: '',
+    cta: '',
+    epk_version: 'standard',
+  };
+
+  // Headline credit by venue type
+  if (venueType === 'Casino') {
+    assets.headline_credit = 'Netflix Is A Joke Festival · Military Shows Veteran';
+    assets.social_proof = 'Phil performs for diverse multi-generational crowds — perfect for casino audiences';
+    assets.subject_line_angle = 'Comedy Night Revenue Opportunity';
+  } else if (venueType === 'College') {
+    assets.headline_credit = 'Netflix Is A Joke Festival · Hulu West Coast Comedy';
+    assets.social_proof = 'Campus-friendly, wildly relatable to 18-25 year olds — generates real buzz';
+    assets.subject_line_angle = 'Campus Comedy Event — Spring Dates Available';
+  } else if (venueType === 'Theater') {
+    assets.headline_credit = 'Netflix Is A Joke Festival · Hulu Streaming Special';
+    assets.social_proof = 'National touring headliner ready for theater-scale production';
+    assets.subject_line_angle = 'Phil Medina — Headlining Comedy Night';
+  } else if (venueType === 'Corporate') {
+    assets.headline_credit = 'U.S. Military Shows · Netflix Is A Joke Festival';
+    assets.social_proof = 'Clean, crowd-safe comedy for all demographics — zero controversy';
+    assets.subject_line_angle = 'Corporate Entertainment — Nationally Touring Headliner';
+  } else {
+    // Comedy Club default
+    assets.headline_credit = 'Laugh Factory · Hollywood Improv · Netflix Is A Joke Festival';
+    assets.social_proof = 'High-energy closer, builds his own audience in every market';
+    assets.subject_line_angle = 'Phil Medina — ' + (guarantee >= 2000 ? 'Headlining Dates' : 'Available for Your Room');
+  }
+
+  // CTA by temperature
+  if (warmth === 'Established' || touches >= 3) {
+    assets.cta = 'Ready to lock in dates — what works on your calendar?';
+  } else if (warmth === 'Warm' || touches === 1) {
+    assets.cta = 'Can I send over his availability for those weeks?';
+  } else {
+    assets.cta = 'Would love to connect and see if the dates work for your schedule.';
+  }
+
+  // Primary clip recommendation
+  if (venueType === 'Casino' || venueType === 'Corporate') {
+    assets.primary_clip = 'Military show performance clip — shows diverse crowd appeal';
+  } else if (venueType === 'College') {
+    assets.primary_clip = 'Campus performance clip — young audience response';
+  } else {
+    assets.primary_clip = 'Club performance clip — Laugh Factory or Hollywood Improv set';
+  }
+
+  return assets;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 3C — PREDICTIVE MARKET RECOMMENDATIONS
+// Tells you which markets to hit next based on data
+// ═══════════════════════════════════════════════════════════════
+
+function predictiveMarkets(venues, tours) {
+  // Find underserved high-value states
+  const confirmedStates = new Set(
+    venues.filter(v => v.status === 'Confirmed' || v.status === 'Completed')
+      .map(v => v.state)
+  );
+
+  // High-value comedy states with no confirmed shows
+  const priorityStates = [
+    {state:'TX', markets:['Austin','Dallas','Houston','San Antonio'], reason:'Large comedy market, high guarantees'},
+    {state:'FL', markets:['Miami','Tampa','Orlando','Jacksonville'], reason:'Year-round touring, strong casino circuit'},
+    {state:'IL', markets:['Chicago','Naperville','Schaumburg'], reason:'Strong club circuit, 3 Zanies locations'},
+    {state:'GA', markets:['Atlanta','Savannah','Athens'], reason:'Growing comedy scene, strong college market'},
+    {state:'TN', markets:['Nashville','Memphis','Knoxville'], reason:'Music city audiences love comedy, good guarantees'},
+    {state:'NC', markets:['Charlotte','Raleigh','Greensboro'], reason:'Fast-growing markets, underserved by national tours'},
+    {state:'OH', markets:['Columbus','Cleveland','Cincinnati'], reason:'Strong Midwest circuit, casino density'},
+    {state:'PA', markets:['Philadelphia','Pittsburgh','Allentown'], reason:'Dense population, multiple venues per city'},
+    {state:'AZ', markets:['Phoenix','Tucson','Scottsdale'], reason:'Casino circuit + growing club scene'},
+    {state:'CO', markets:['Denver','Boulder','Colorado Springs'], reason:'Strong comedy culture, high income demographics'},
+  ];
+
+  const gaps = priorityStates.filter(p => !confirmedStates.has(p.state));
+
+  // Rebook opportunities — Completed shows with high rebook likelihood
+  const rebookOpps = venues.filter(v =>
+    v.status === 'Completed' &&
+    v.showReport &&
+    (v.showReport.rebookLikelihood >= 4 || v.warmth === 'Established')
+  );
+
+  // Hot markets — cities with 2+ warm venues not yet confirmed
+  const cityMap = {};
+  venues.filter(v => v.warmth === 'Warm' || v.warmth === 'Hot')
+    .filter(v => !['Confirmed','Completed'].includes(v.status))
+    .forEach(v => {
+      const key = (v.city||'') + ', ' + (v.state||'');
+      if (!cityMap[key]) cityMap[key] = {city:v.city, state:v.state, count:0, totalValue:0};
+      cityMap[key].count++;
+      cityMap[key].totalValue += parseFloat(v.guarantee)||0;
+    });
+  const hotMarkets = Object.values(cityMap)
+    .filter(m => m.count >= 2)
+    .sort((a,b) => b.totalValue - a.totalValue)
+    .slice(0,5);
+
+  return { gaps: gaps.slice(0,5), rebookOpps, hotMarkets };
+}
 const PHIL_EPK_URL = 'https://drive.google.com/file/d/1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie/view?usp=drive_link';
 const PHIL_EPK_DOWNLOAD = 'https://drive.google.com/uc?export=download&id=1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie';
 function getEpkUrl() {
@@ -3576,6 +3760,45 @@ function StageBoss({user,onLogout,accessToken}){
             </div>;
           })()}
 
+          {/* PREDICTIVE MARKETS */}
+          {(()=>{
+            const {gaps, rebookOpps, hotMarkets} = predictiveMarkets(venues, tours);
+            return <div style={{marginBottom:16}}>
+              {rebookOpps.length > 0 && <div style={{background:'rgba(0,184,148,0.07)',border:'1px solid rgba(0,184,148,0.2)',borderRadius:12,padding:'12px 14px',marginBottom:10}}>
+                <div style={{fontSize:10,color:C.green,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>🔄 Rebook Opportunities — {rebookOpps.length}</div>
+                {rebookOpps.slice(0,3).map(v=>(
+                  <div key={v.id} onClick={()=>setDetailId(v.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid rgba(0,184,148,0.1)',cursor:'pointer'}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600}}>{v.venue}</div>
+                      <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · Show report filed</div>
+                    </div>
+                    <span style={{fontSize:11,color:C.green,fontWeight:700}}>Rebook →</span>
+                  </div>
+                ))}
+              </div>}
+              {hotMarkets.length > 0 && <div style={{background:'rgba(253,121,168,0.06)',border:'1px solid rgba(253,121,168,0.2)',borderRadius:12,padding:'12px 14px',marginBottom:10}}>
+                <div style={{fontSize:10,color:'#fd79a8',fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>🔥 Hot Markets — Multiple Warm Venues</div>
+                {hotMarkets.map((m,i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid rgba(253,121,168,0.1)'}}>
+                    <div style={{fontSize:12,fontWeight:600}}>{m.city}, {m.state}</div>
+                    <div style={{fontSize:11,color:'#fd79a8'}}>{m.count} warm venues · ${m.totalValue.toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>}
+              {gaps.length > 0 && <div style={{background:'rgba(124,58,237,0.06)',border:'1px solid rgba(124,58,237,0.2)',borderRadius:12,padding:'12px 14px',marginBottom:10}}>
+                <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>🗺️ Untapped Markets — No Shows Yet</div>
+                {gaps.map((g,i)=>(
+                  <div key={i} style={{padding:'6px 0',borderBottom:'1px solid rgba(124,58,237,0.1)'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <div style={{fontSize:12,fontWeight:600}}>{g.state} — {g.markets.slice(0,2).join(', ')}</div>
+                    </div>
+                    <div style={{fontSize:10,color:C.muted,marginTop:1}}>{g.reason}</div>
+                  </div>
+                ))}
+              </div>}
+            </div>;
+          })()}
+
           {/* STAT CARDS */}
           <div style={{...s.grid2,marginBottom:16}}>
             {[
@@ -3820,9 +4043,30 @@ function StageBoss({user,onLogout,accessToken}){
                   <span style={{fontSize:10,color:C.muted}}>{isExpanded?'[collapse]':'[tap to expand]'}</span>
                 </div>
               </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
-                {[['Gross',formatCurrency(totalGuarantee),C.green],['Expenses',formatCurrency(totalExpenses),C.red],['Net Est.',formatCurrency(netRevenue),netRevenue>=0?C.green:C.red]].map(([l,v,color])=><div key={l} style={{background:C.surf2,borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>{l}</div><div style={{fontSize:13,fontFamily:font.head,fontWeight:700,color}}>{v}</div></div>)}
-              </div>
+              {(()=>{
+                const econ = tourEconomicsScore(tour);
+                if(!econ) return null;
+                return <>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:8}}>
+                    {[
+                      ['Gross',formatCurrency(econ.totalGuarantee),C.green],
+                      ['Net Est.',formatCurrency(econ.netRevenue),econ.netRevenue>=0?C.green:C.red],
+                      ['$/Show',formatCurrency(econ.avgPerShow),C.acc2],
+                      ['Grade',econ.grade,econ.grade==='A'?C.green:econ.grade==='B'?C.yellow:econ.grade==='C'?C.orange:C.red],
+                    ].map(([l,v2,color])=><div key={l} style={{background:C.surf2,borderRadius:8,padding:'8px 6px',textAlign:'center'}}><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>{l}</div><div style={{fontSize:13,fontFamily:font.head,fontWeight:700,color}}>{v2}</div></div>)}
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:8}}>
+                    {[
+                      ['Weekend %',econ.weekendPct+'%',econ.weekendPct>=60?C.green:C.yellow],
+                      ['Geo',econ.geoEfficiency,econ.geoEfficiency==='High'?C.green:econ.geoEfficiency==='Medium'?C.yellow:C.red],
+                      ['Margin',econ.profitMargin+'%',econ.profitMargin>=30?C.green:econ.profitMargin>=10?C.yellow:C.red],
+                    ].map(([l,v2,color])=><div key={l} style={{background:C.surf2,borderRadius:8,padding:'6px 8px'}}><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:1}}>{l}</div><div style={{fontSize:11,fontWeight:700,color}}>{v2}</div></div>)}
+                  </div>
+                  {econ.recommendations.slice(0,2).map((rec,i)=>(
+                    <div key={i} style={{fontSize:10,color:C.muted,padding:'4px 8px',background:C.surf2,borderRadius:6,marginBottom:4,borderLeft:'2px solid '+C.acc}}>💡 {rec}</div>
+                  ))}
+                </>;
+              })()}
               <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap'}}>
                 <button onClick={e=>{e.stopPropagation();setEditTourId(tour.id);setTourOpen(true);}} style={{...s.btn(C.surf2,C.txt,C.bord),flex:1,fontSize:11,padding:'6px 8px'}}>Edit</button>
                 <button onClick={e=>{e.stopPropagation();setTourBreakdownId(tour.id);}} style={{...s.btn('rgba(108,92,231,0.1)',C.acc2,'rgba(108,92,231,0.3)'),flex:1,fontSize:11,padding:'6px 8px'}}>Breakdown</button>
@@ -4286,6 +4530,19 @@ function StageBoss({user,onLogout,accessToken}){
           </div>
 
           {/* EMAIL THREAD TRACKING */}
+          {/* ── DYNAMIC ASSET PERSONALIZATION ── */}
+          {(()=>{
+            const assets = getPersonalizedAssets(dv);
+            return <div style={{background:'rgba(255,107,53,0.05)',border:'1px solid rgba(255,107,53,0.15)',borderRadius:10,padding:'10px 14px',marginBottom:12}}>
+              <div style={{fontSize:10,color:'#ff6b35',fontWeight:700,letterSpacing:'0.1em',marginBottom:8}}>🎯 PERSONALIZED PITCH ASSETS</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:4}}><strong style={{color:C.txt}}>Lead with:</strong> {assets.headline_credit}</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:4}}><strong style={{color:C.txt}}>Social proof:</strong> {assets.social_proof}</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:4}}><strong style={{color:C.txt}}>Best clip:</strong> {assets.primary_clip}</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:4}}><strong style={{color:C.txt}}>Subject angle:</strong> {assets.subject_line_angle}</div>
+              <div style={{fontSize:11,color:'#ff6b35',fontWeight:600}}><strong style={{color:C.txt}}>CTA:</strong> {assets.cta}</div>
+            </div>;
+          })()}
+
           <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',margin:'10px 0 8px'}}>🧵 EMAIL THREAD</div>
           <div style={{display:'flex',gap:8,alignItems:'flex-end',marginBottom:8}}>
             <div style={{flex:1,...s.field(),marginBottom:0}}><label style={s.label}>Gmail Thread URL</label><input style={s.input(12)} defaultValue={dv.emailThreadURL||''} placeholder="Paste Gmail thread link here..." onBlur={e=>upd(dv.id,{emailThreadURL:e.target.value})}/></div>
@@ -5398,6 +5655,7 @@ function SmartBossAI({venues=[], setVenues=()=>{}, tours=[], comedians=[], upd=(
   const [negotiateState, setNegotiateState] = useState({
     venue:'', venueType:'Comedy Club', bookerMessage:'', ourAsk:'', loading:false, result:''
   });
+  const [optimizeState, setOptimizeState] = useState({ loading:false, result:'', tourId:'' });
 
   // ── VENUE ENRICHMENT ENGINE STATE ──
   const [enrichState, setEnrichState] = useState({
@@ -5888,7 +6146,7 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
             <div style={{fontSize:10, color:'rgba(167,139,250,0.8)', letterSpacing:'0.12em', textTransform:'uppercase'}}>Tour Intelligence Engine</div>
           </div>
           <div style={{marginLeft:'auto', display:'flex', gap:6}}>
-            {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM'],['enrich','⚡ Enrich'],['negotiate','🤝 Negotiate']].map(([m,label])=>(
+            {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM'],['enrich','⚡ Enrich'],['negotiate','🤝 Negotiate'],['optimize','📈 Optimize']].map(([m,label])=>(
               <button key={m} onClick={()=>setMode(m)} style={{
                 padding:'6px 12px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
                 border:`1px solid ${mode===m ? '#7c3aed' : 'rgba(124,58,237,0.25)'}`,
@@ -6802,6 +7060,106 @@ OPENING LINE ONLY (ultra short, 80 chars max):
             </div>
           </div>
         )}
+      </div>}
+
+      {/* ── TOUR ECONOMICS OPTIMIZER ── */}
+      {mode === 'optimize' && <div style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', paddingBottom:80}}>
+
+        {/* Tour Economics Cards */}
+        {tours.length === 0 ? (
+          <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'24px', textAlign:'center', color:C2.muted}}>
+            No tours found. Create a tour in the Tours tab first.
+          </div>
+        ) : (
+          tours.map(tour => {
+            const econ = tourEconomicsScore(tour);
+            if (!econ) return null;
+            return (
+              <div key={tour.id} style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px', marginBottom:14}}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+                  <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:15, letterSpacing:0.5, color:C2.txt}}>{tour.name}</div>
+                  <span style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:24, color:econ.grade==='A'?'#00b894':econ.grade==='B'?'#ffd700':econ.grade==='C'?'#e17055':'#ff4757', fontWeight:900}}>{econ.grade}</span>
+                </div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:10}}>
+                  {[
+                    ['Revenue', '$'+econ.totalGuarantee.toLocaleString(), '#00b894'],
+                    ['Net Est.', '$'+econ.netRevenue.toLocaleString(), econ.netRevenue>=0?'#00b894':'#e17055'],
+                    ['$/Show', '$'+econ.avgPerShow.toLocaleString(), '#a78bfa'],
+                    ['Weekend %', econ.weekendPct+'%', econ.weekendPct>=60?'#00b894':'#ffd700'],
+                    ['Margin', econ.profitMargin+'%', econ.profitMargin>=30?'#00b894':econ.profitMargin>=10?'#ffd700':'#e17055'],
+                    ['Risk', econ.riskScore+'/100', econ.riskScore<=30?'#00b894':econ.riskScore<=60?'#ffd700':'#e17055'],
+                  ].map(([l,v,color])=>(
+                    <div key={l} style={{background:'rgba(10,10,20,0.5)', borderRadius:8, padding:'8px 10px'}}>
+                      <div style={{fontSize:9, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:2}}>{l}</div>
+                      <div style={{fontSize:13, fontWeight:700, color}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{fontSize:10, color:C2.muted, marginBottom:8}}>Routing: {econ.geoEfficiency}</div>
+                {econ.recommendations.map((rec,i)=>(
+                  <div key={i} style={{fontSize:11, color:C2.muted, padding:'6px 10px', background:'rgba(124,58,237,0.08)', borderRadius:8, marginBottom:4, borderLeft:'2px solid rgba(124,58,237,0.4)'}}>
+                    💡 {rec}
+                  </div>
+                ))}
+                <button onClick={async()=>{
+                  setOptimizeState(p=>({...p, loading:true, result:'', tourId:tour.id}));
+                  try {
+                    const session = await sbAuthClient.auth.getSession();
+                    const token = session?.data?.session?.access_token||'';
+                    const sortedDates = (tour.dates||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+                    const tourSummary = 'Tour: '+tour.name+'. Shows: '+sortedDates.map(d=>d.venue+' ('+d.city+', '+d.state+') on '+d.date+' - $'+d.guarantee).join(' | ')+'. Travel budget: $'+(tour.travelBudget||0)+'. Hotel budget: $'+(tour.lodgingBudget||0)+'. Net est: $'+econ.netRevenue+'. Weekend shows: '+econ.weekendPct+'%. Geo efficiency: '+econ.geoEfficiency+'.';
+                    const prompt = 'You are a senior comedy tour manager analyzing tour economics. Here is the tour data:\n\n'+tourSummary+'\n\nProvide a specific, actionable optimization analysis covering:\n\n1. ROUTING EFFICIENCY: Exact geographic sequencing to minimize dead miles\n2. DATE OPTIMIZATION: Which specific dates should be weekends vs weekdays\n3. REVENUE GAPS: Which cities between these stops could add $X to the run\n4. COST REDUCTION: Specific ways to cut travel/hotel costs on this route\n5. SHOW ADDITIONS: 2-3 specific venues to add that would improve economics\n6. RISK FLAGS: Any shows that may underperform and why\n\nBe specific with city names, dollar amounts, and day-of-week recommendations.';
+                    const res = await fetch('/.netlify/functions/smartboss', {
+                      method:'POST',
+                      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+                      body: JSON.stringify({system:'You are the worlds best comedy tour economist. Give specific, data-driven recommendations.', messages:[{role:'user',content:prompt}], max_tokens:1000})
+                    });
+                    const data = await res.json();
+                    const reply = data.content?.find(c=>c.type==='text')?.text || 'No response.';
+                    setOptimizeState(p=>({...p, loading:false, result:reply, tourId:tour.id}));
+                  } catch(e) {
+                    setOptimizeState(p=>({...p, loading:false, result:'Error: '+e.message}));
+                  }
+                }} disabled={optimizeState.loading && optimizeState.tourId===tour.id}
+                  style={{width:'100%', padding:'10px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', background:'linear-gradient(135deg,rgba(0,184,148,0.2),rgba(124,58,237,0.15))', border:'1px solid rgba(0,184,148,0.3)', color:'#00b894', marginTop:8}}>
+                  {optimizeState.loading && optimizeState.tourId===tour.id ? '📈 Analyzing...' : '📈 AI Optimize This Tour'}
+                </button>
+                {optimizeState.result && optimizeState.tourId===tour.id && (
+                  <div style={{marginTop:10, background:'rgba(10,10,20,0.4)', borderRadius:10, padding:'12px 14px', fontSize:12, color:C2.txt, lineHeight:1.8, whiteSpace:'pre-wrap'}}>
+                    {optimizeState.result}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+
+        {/* Predictive Markets in Optimize tab */}
+        {(()=>{
+          const {gaps, hotMarkets} = predictiveMarkets(venues, tours);
+          return <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px', marginBottom:14}}>
+            <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:15, letterSpacing:0.5, color:'#a78bfa', marginBottom:12}}>🗺️ MARKET INTELLIGENCE</div>
+            {hotMarkets.length > 0 && <>
+              <div style={{fontSize:10, color:'#fd79a8', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8}}>Hot Markets — Multiple Warm Venues</div>
+              {hotMarkets.map((m,i)=>(
+                <div key={i} style={{display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.05)', fontSize:12}}>
+                  <span style={{color:C2.txt, fontWeight:600}}>{m.city}, {m.state}</span>
+                  <span style={{color:'#fd79a8'}}>{m.count} venues · ${m.totalValue.toLocaleString()}</span>
+                </div>
+              ))}
+              <div style={{marginTop:12}}/>
+            </>}
+            {gaps.length > 0 && <>
+              <div style={{fontSize:10, color:'#a78bfa', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8}}>Untapped States — No Shows Yet</div>
+              {gaps.map((g,i)=>(
+                <div key={i} style={{padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+                  <div style={{fontSize:12, color:C2.txt, fontWeight:600}}>{g.state} — {g.markets.slice(0,3).join(', ')}</div>
+                  <div style={{fontSize:10, color:C2.muted, marginTop:1}}>{g.reason}</div>
+                </div>
+              ))}
+            </>}
+          </div>;
+        })()}
       </div>}
 
       {/* ── EPK & SETTINGS PANEL (always visible at bottom of year/chat/plan) ── */}
