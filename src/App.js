@@ -4992,28 +4992,11 @@ function SmartBossAI({venues=[], tours=[], comedians=[], upd=()=>{}}) {
       if(!enrichRunningRef.current) break;
 
       const batch = needsEnrich.slice(i, i + BATCH);
-      const batchPrompt = `Research these ${batch.length} comedy venues and return ONLY a JSON array. For each venue, only provide data you are confident about. Return null for any field you are unsure of.
-
-Venues to research:
-${batch.map((v,idx) => `${idx+1}. ${v.venue}, ${v.city}, ${v.state} ${v.email ? '(email: '+v.email+' — DO NOT CHANGE)' : '(no email yet)'}`).join('
-')}
-
-Return a JSON array with exactly ${batch.length} objects in the same order. Each object:
-{
-  "booker": "booker first name or null",
-  "bookerLast": "booker last name or null", 
-  "email": "booking email or null — ONLY provide if venue has no email yet",
-  "phone": "phone number or null",
-  "instagram": "instagram handle without @ or null",
-  "capacity": room capacity as number or null,
-  "guarantee": typical headliner guarantee as number or null,
-  "address": "street address or null",
-  "website": "website URL or null",
-  "warmth": "Warm or Cold based on booking activity",
-  "notes": "2-3 sentences: recent headliners, venue vibe, audience, why Phil Medina fits — or null if unknown"
-}
-
-JSON array only. No markdown. No backticks. No explanation.`;
+      const venueList = batch.map((v,idx) => {
+          const emailNote = v.email ? '(email: '+v.email+' - DO NOT CHANGE)' : '(no email yet)';
+          return (idx+1)+'. '+v.venue+', '+v.city+', '+v.state+' '+emailNote;
+        }).join('\n');
+        const batchPrompt = 'Research these '+batch.length+' comedy venues and return ONLY a JSON array. For each venue, only provide data you are confident about. Return null for any field you are unsure of.\n\nVenues to research:\n'+venueList+'\n\nReturn a JSON array with exactly '+batch.length+' objects in the same order. Each object:\n{\n  "booker": "booker first name or null",\n  "bookerLast": "booker last name or null",\n  "email": "booking email or null - ONLY provide if venue has no email yet",\n  "phone": "phone number or null",\n  "instagram": "instagram handle without @ or null",\n  "capacity": "room capacity as number or null",\n  "guarantee": "typical headliner guarantee as number or null",\n  "address": "street address or null",\n  "website": "website URL or null",\n  "warmth": "Warm or Cold based on booking activity",\n  "notes": "2-3 sentences about recent headliners, venue vibe, audience, why Phil Medina fits - or null if unknown"\n}\n\nJSON array only. No markdown. No backticks. No explanation.';
 
       try {
         const res = await fetch('/.netlify/functions/smartboss', {
