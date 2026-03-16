@@ -7061,49 +7061,6 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
               <option>All Types</option>
             </select>
           </div>
-          {/* MASS DISCOVERY — all 50 states */}
-          <div style={{background:'rgba(124,58,237,0.08)',border:'1px solid rgba(124,58,237,0.2)',borderRadius:10,padding:'10px 14px',marginBottom:10}}>
-            <div style={{fontSize:11,color:'#a78bfa',fontWeight:700,marginBottom:4}}>🌎 Mass Discovery — All Markets</div>
-            <div style={{fontSize:10,color:C2.muted,marginBottom:8,lineHeight:1.5}}>Discover venues across multiple markets simultaneously. Leave city blank and enter a state, or leave both blank to run nationally by venue type.</div>
-            <button onClick={async()=>{
-              setDiscoverState(p=>({...p, loading:true, results:[], error:''}));
-              const session = await sbAuthClient.auth.getSession();
-              const token = session?.data?.session?.access_token||'';
-              const venueTypeStr = discoverState.venueType === 'All Types' ? 'comedy clubs and entertainment venues' : discoverState.venueType + ' venues';
-              // Run 3 separate regions sequentially to avoid timeout
-              const regions = discoverState.state ? [discoverState.state+' (multiple cities)'] : [
-                'New York, Chicago, Los Angeles, Atlanta, Dallas',
-                'Houston, Philadelphia, Phoenix, Denver, Nashville',
-                'Seattle, Miami, Boston, Detroit, Minneapolis'
-              ];
-              let allFound = [];
-              for (let r = 0; r < regions.length; r++) {
-                const prompt = 'Find 8-10 '+venueTypeStr+' that book stand-up comedy headliners in or near these cities: '+regions[r]+'. Return JSON array only, no markdown: [{venue,city,state,venueType,capacity,guarantee,booker,email,phone,instagram,website,address,notes,warmth}]';
-                try {
-                  const res = await fetch('/.netlify/functions/smartboss', {
-                    method:'POST',
-                    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-                    body: JSON.stringify({system:'Comedy venue database. Return only valid JSON arrays with real venues.',messages:[{role:'user',content:prompt}],max_tokens:1500})
-                  });
-                  if(!res.ok) continue;
-                  const data = await res.json();
-                  const raw = data.content?.find(c=>c.type==='text')?.text||'[]';
-                  const clean = raw.replace(/```json|```/g,'').trim();
-                  let found = [];
-                  try{found=JSON.parse(clean);}catch(e){const m=clean.match(/\[[\s\S]*\]/);if(m)try{found=JSON.parse(m[0]);}catch(e2){}}
-                  if(Array.isArray(found)) allFound = [...allFound, ...found];
-                  // Update results progressively as each batch comes in
-                  setDiscoverState(p=>({...p, results: allFound, error:''}));
-                } catch(e) { continue; }
-                // Small delay between batches
-                if(r < regions.length-1) await new Promise(res=>setTimeout(res,500));
-              }
-              setDiscoverState(p=>({...p, loading:false, results:allFound, error:allFound.length>0?'':'No results found — try again'}));
-            }} disabled={discoverState.loading} style={{width:'100%',padding:'10px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',background:'rgba(124,58,237,0.2)',border:'1px solid rgba(124,58,237,0.4)',color:'#a78bfa'}}>
-              {discoverState.loading ? '🌎 Scanning... results appear as batches complete' : '🌎 Mass Discover — Top Markets (3 regions)'}
-            </button>
-          </div>
-
           <button onClick={async()=>{
             if (!discoverState.city && !discoverState.state) return;
             setDiscoverState(p=>({...p, loading:true, results:[], error:''}));
