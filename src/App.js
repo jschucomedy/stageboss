@@ -2214,28 +2214,7 @@ function StageBoss({user,onLogout,accessToken}){
     try{
       const session = await sbAuthClient.auth.getSession();
       const token = session?.data?.session?.access_token||'';
-      const prompt = `Research this comedy venue and return ONLY a JSON object with these exact fields (no markdown, no backticks):
-{
-  "booker": "booker first name if known, else empty string",
-  "bookerLast": "booker last name if known, else empty string",
-  "email": "booking email address",
-  "phone": "phone number",
-  "instagram": "instagram handle without @",
-  "capacity": estimated room capacity as a number,
-  "guarantee": estimated typical headliner guarantee as a number,
-  "address": "street address",
-  "zip": "zip code",
-  "warmth": "Warm",
-  "notes": "2-3 sentences: recent headliners they've booked, venue vibe, what kind of acts they book, anything useful for a pitch",
-  "website": "website URL"
-}
-
-Venue: ${nv.venue}
-City: ${nv.city||''}
-State: ${nv.state||''}
-Website: ${nvWebsite||'unknown'}
-
-Return ONLY the JSON object. No other text.`;
+      const prompt = 'Research this comedy venue and return ONLY a JSON object with these exact fields (no markdown, no backticks):\n{\n  "booker": "booker first name if known",\n  "bookerLast": "booker last name if known",\n  "email": "booking email address",\n  "phone": "phone number",\n  "instagram": "instagram handle without @",\n  "capacity": "estimated room capacity as a number",\n  "guarantee": "estimated typical headliner guarantee as a number",\n  "address": "street address",\n  "zip": "zip code",\n  "warmth": "Warm or Cold",\n  "notes": "2-3 sentences: recent headliners, venue vibe, what acts they book, pitch angle for Phil Medina",\n  "website": "website URL"\n}\n\nVenue: '+nv.venue+'\nCity: '+(nv.city||'')+'\nState: '+(nv.state||'')+'\nWebsite: '+(nvWebsite||'unknown')+'\n\nReturn ONLY the JSON object. No other text.';
 
       const res = await fetch('/.netlify/functions/smartboss',{
         method:'POST',
@@ -4968,9 +4947,16 @@ function SmartBossAI({venues=[], tours=[], comedians=[], upd=()=>{}}) {
     // 2. Only fill MISSING fields — never overwrite existing data
     // 3. Skip venues that are fully enriched already
     const needsEnrich = venuesList.filter(v => {
+      // Enrich if missing ANY useful field
+      const missingBooker = !v.booker || v.booker.trim() === '';
+      const missingPhone = !v.phone || v.phone.trim() === '';
+      const missingNotes = !v.notes || v.notes.length < 20;
+      const missingInstagram = !v.instagram || v.instagram.trim() === '';
+      const missingAddress = !v.address || v.address.trim() === '';
+      const missingEmail = !v.email || v.email.trim() === '';
       const hasEmailContact = (v.contactLog||[]).length > 0 && !v.bounce;
-      const missingData = !v.booker || !v.phone || !v.notes || v.notes.length < 20;
-      return missingData;
+      // Include if missing booker OR phone OR notes OR (missing email and no contact sent)
+      return missingBooker || missingPhone || missingNotes || missingInstagram || (!hasEmailContact && missingEmail);
     });
 
     setEnrichState(p=>({...p, running:true, paused:false, done:false,
@@ -5966,7 +5952,10 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
             try {
               const session = await sbAuthClient.auth.getSession();
               const token = session?.data?.session?.access_token || '';
-              const prompt = `Find ${discoverState.venueType === 'All Types' ? 'comedy clubs, theaters, casinos, and universities' : discoverState.venueType + ' venues'} in ${discoverState.city || ''}${discoverState.city && discoverState.state ? ', ' : ''}${discoverState.state || ''} that book stand-up comedy headliners. Return ONLY a JSON array with no markdown or backticks. Each object must have exactly these fields: venue (string), city (string), state (string), venueType (string), capacity (number — actual room capacity), guarantee (number — estimated typical headliner flat guarantee in dollars), booker (string — booker name if known), email (string — booking email if known), phone (string — phone number if known), instagram (string — instagram handle without @), website (string — full website URL), address (string — street address), notes (string — 2-3 sentences about recent headliners they book, venue vibe, audience type, and why Phil Medina would be a good fit), warmth (string — either Warm or Cold based on how active they are booking). Do not include any venues from this existing list: ${venues.slice(0,50).map(v=>v.venue).join(', ')}. Return 10-20 new venues. JSON array only, no other text.`;
+              const venueTypeStr = discoverState.venueType === 'All Types' ? 'comedy clubs, theaters, casinos, and universities' : discoverState.venueType + ' venues';
+              const locationStr = (discoverState.city || '') + (discoverState.city && discoverState.state ? ', ' : '') + (discoverState.state || '');
+              const excludeList = venues.slice(0,50).map(function(v){return v.venue;}).join(', ');
+              const prompt = 'Find '+venueTypeStr+' in '+locationStr+' that book stand-up comedy headliners. Return ONLY a JSON array with no markdown or backticks. Each object must have exactly these fields: venue (string), city (string), state (string), venueType (string), capacity (number), guarantee (number - estimated typical headliner guarantee in dollars), booker (string), email (string), phone (string), instagram (string - handle without @), website (string - full URL), address (string), notes (string - 2-3 sentences about recent headliners, venue vibe, audience type, why Phil Medina would be a good fit), warmth (string - Warm or Cold). Do not include any of these existing venues: '+excludeList+'. Return 10-20 new venues. JSON array only, no other text.';
               const res = await fetch('/.netlify/functions/smartboss', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
