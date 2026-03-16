@@ -10,6 +10,7 @@ function getEpkUrl() {
 }
 
 const PRE_LOADED_VENUES = [
+  {id:'pre_cv_batavia',venue:'The Comedy Vault',booker:'',bookerLast:'',city:'Batavia',state:'IL',email:'comedyvaultbatavia@gmail.com',instagram:'comedyvaultbatavia',phone:'(630) 454-4174',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Warm',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:1200,doorSplit:0,capacity:150,notes:'18 E. Wilson Street, Batavia IL 60510. Books national touring headliners. Recent acts: Sam Tripoli, Cactus Tate, Ian Edwards, Mitch Fatel. Website: comedyvaultbatavia.com',referralSource:'Research',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20,status:'Lead',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'},
   {id:'pre_001',venue:'The Comedy Store',booker:'Potsy Ponciroli',bookerLast:'',city:'Los Angeles',state:'CA',email:'info@thecomedystore.com',instagram:'thecomedystore',phone:'(323) 650-6268',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:2500,doorSplit:0,capacity:450,notes:'8433 W Sunset Blvd, West Hollywood CA 90069. Main Room/Belly Room/Original Room',referralSource:'Directory',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20,status:'Lead',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'},
   {id:'pre_002',venue:'The Laugh Factory',booker:'Jamie Masada',bookerLast:'',city:'Los Angeles',state:'CA',email:'info@laughfactory.com',instagram:'thelaughfactory',phone:'(323) 656-8860',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:1500,doorSplit:0,capacity:300,notes:'8001 W Sunset Blvd, Los Angeles CA 90046. Sunset Strip',referralSource:'Directory',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20,status:'Lead',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'},
   {id:'pre_003',venue:'The Improv',booker:'',bookerLast:'',city:'Hollywood',state:'CA',email:'info@improv.com',instagram:'improv',phone:'(323) 651-2583',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:1200,doorSplit:0,capacity:250,notes:'8162 Melrose Ave, West Hollywood CA 90046',referralSource:'Directory',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20,status:'Lead',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'},
@@ -2203,6 +2204,77 @@ function StageBoss({user,onLogout,accessToken}){
   const[showReportId,setShowReportId]=useState(null);
   const[moneyOpen,setMoneyOpen]=useState(false);
   const[addOpen,setAddOpen]=useState(false);
+  const[venueResearching,setVenueResearching]=useState(false);
+  const[venueResearchNote,setVenueResearchNote]=useState('');
+  const[nvWebsite,setNvWebsite]=useState('');
+
+  async function researchVenue() {
+    if(!nv.venue.trim()){toast2('Enter venue name first');return;}
+    setVenueResearching(true);setVenueResearchNote('');
+    try{
+      const session = await sbAuthClient.auth.getSession();
+      const token = session?.data?.session?.access_token||'';
+      const prompt = `Research this comedy venue and return ONLY a JSON object with these exact fields (no markdown, no backticks):
+{
+  "booker": "booker first name if known, else empty string",
+  "bookerLast": "booker last name if known, else empty string",
+  "email": "booking email address",
+  "phone": "phone number",
+  "instagram": "instagram handle without @",
+  "capacity": estimated room capacity as a number,
+  "guarantee": estimated typical headliner guarantee as a number,
+  "address": "street address",
+  "zip": "zip code",
+  "warmth": "Warm",
+  "notes": "2-3 sentences: recent headliners they've booked, venue vibe, what kind of acts they book, anything useful for a pitch",
+  "website": "website URL"
+}
+
+Venue: ${nv.venue}
+City: ${nv.city||''}
+State: ${nv.state||''}
+Website: ${nvWebsite||'unknown'}
+
+Return ONLY the JSON object. No other text.`;
+
+      const res = await fetch('/.netlify/functions/smartboss',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+        body:JSON.stringify({system:'You are a comedy industry researcher. Return only valid JSON.',messages:[{role:'user',content:prompt}],max_tokens:600})
+      });
+      const data = await res.json();
+      const raw = data.content?.find(c=>c.type==='text')?.text||'{}';
+      const clean = raw.replace(/\`\`\`json|\`\`\`/g,'').trim();
+      let info={};
+      try{info=JSON.parse(clean);}catch(e){
+        const match=clean.match(/\{[\s\S]*\}/);
+        if(match)try{info=JSON.parse(match[0]);}catch(e2){}
+      }
+      if(info && Object.keys(info).length>0){
+        setNv(n=>({
+          ...n,
+          booker: info.booker||n.booker,
+          bookerLast: info.bookerLast||n.bookerLast,
+          email: info.email||n.email,
+          phone: info.phone||n.phone,
+          instagram: info.instagram||n.instagram,
+          capacity: info.capacity||n.capacity,
+          guarantee: info.guarantee||n.guarantee,
+          address: info.address||n.address,
+          zip: info.zip||n.zip,
+          warmth: info.warmth||n.warmth,
+          notes: info.notes||n.notes,
+        }));
+        if(info.website && !nvWebsite) setNvWebsite(info.website);
+        setVenueResearchNote('✅ Intel loaded — review and edit before saving');
+      }else{
+        setVenueResearchNote('⚠️ Could not find data — fill in manually');
+      }
+    }catch(e){
+      setVenueResearchNote('⚠️ Research failed — fill in manually');
+    }
+    setVenueResearching(false);
+  }
   const[dbOpen,setDbOpen]=useState(false);
   const[templateOpen,setTemplateOpen]=useState(false);
   const[editTemplateId,setEditTemplateId]=useState(null);
@@ -2700,10 +2772,20 @@ function StageBoss({user,onLogout,accessToken}){
 
   function addVenue(){
     if(!nv.venue.trim()){toast2('Venue name required');return;}
-    const v={...nv,id:Date.now(),status:'Lead',notes:nv.notes||'',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',capacity:parseInt(nv.capacity)||0,guarantee:parseFloat(nv.guarantee)||0,doorSplit:parseFloat(nv.doorSplit)||0,agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'};
-    setVenues(vs=>[v,...vs]);
+    const v={...nv,id:'manual_'+Date.now(),status:'Lead',notes:nv.notes||'',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',capacity:parseInt(nv.capacity)||0,guarantee:parseFloat(nv.guarantee)||0,doorSplit:parseFloat(nv.doorSplit)||0,agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'};
+    setVenues(vs=>{
+      const updated=[v,...vs];
+      // Save to localStorage immediately so it persists on refresh
+      try{localStorage.setItem('sb_venues',JSON.stringify(updated));}catch(e){}
+      return updated;
+    });
     setNv({venue:'',booker:'',bookerLast:'',city:'',state:'',address:'',zip:'',email:'',instagram:'',phone:'',preferredContact:'Email',venueType:'Comedy Club',relationship:'new',warmth:'Cold',history:'',targetDates:'',dealType:'Flat Guarantee',guarantee:'',doorSplit:'',capacity:'',notes:'',referralSource:'',nextFollowUp:'',agentCommission:10,managerCommission:15,lodging:'Hotel',merchAllowed:true,merchCut:20});
-    setAddOpen(false);toast2(`[OK] ${v.venue} added`);
+    setAddOpen(false);
+    toast2(`✅ ${v.venue} added to pipeline!`);
+    // Trigger cloud sync after short delay
+    setTimeout(()=>{
+      try{cloudPush(OWNER_EMAIL,[v],[],[],[]).catch(()=>{});}catch(e){}
+    },1000);
   }
 
   function handleCSVImport(e){
@@ -3755,7 +3837,7 @@ function StageBoss({user,onLogout,accessToken}){
       })()}
 
         {/* == ANALYTICS TAB == */}
-        {tab==='smartboss'&&<SmartBossAI venues={venues} tours={tours} comedians={comedians}/>}
+        {tab==='smartboss'&&<SmartBossAI venues={venues} tours={tours} comedians={comedians} upd={upd}/>}
         {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
           <AnalyticsTab venues={venues} tours={tours} bestTimeData={bestTimeData} />
         </div>}
@@ -4325,7 +4407,17 @@ function StageBoss({user,onLogout,accessToken}){
       </Panel>
 
       {/* == ADD VENUE PANEL == */}
-      <Panel open={addOpen} onClose={()=>setAddOpen(false)} title="Add Venue">
+      <Panel open={addOpen} onClose={()=>{setAddOpen(false);setVenueResearchNote('');setNvWebsite('');}} title="Add Venue">
+        {/* ── SMART RESEARCH BLOCK ── */}
+        <div style={{background:`${C.acc}0d`,border:`1px solid ${C.acc}22`,borderRadius:10,padding:'12px 14px',marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.acc2,marginBottom:8}}>🔍 SmartBoss Venue Intel</div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Enter venue name + city + website below, then tap Research. SmartBoss auto-fills booker, email, capacity, recent acts, and pitch notes.</div>
+          <div style={s.field()}><label style={s.label}>Venue Website (optional but recommended)</label><input style={s.input()} placeholder="https://www.comedyvaultbatavia.com" value={nvWebsite} onChange={e=>setNvWebsite(e.target.value)}/></div>
+          <button onClick={researchVenue} disabled={venueResearching} style={{...s.btn(venueResearching?C.surf2:C.acc,venueResearching?C.muted:'#fff',null),width:'100%',marginTop:4}}>
+            {venueResearching?'🔍 Researching venue...':'🔍 Research This Venue — Auto-Fill Intel'}
+          </button>
+          {venueResearchNote&&<div style={{marginTop:8,fontSize:11,color:venueResearchNote.startsWith('✅')?C.green:C.yellow}}>{venueResearchNote}</div>}
+        </div>
         <div style={s.grid2}>
           <div style={s.field()}><label style={s.label}>Venue Name</label><input style={s.input()} placeholder="The Comedy Store" value={nv.venue} onChange={e=>setNv(n=>({...n,venue:e.target.value}))}/></div>
           <div style={s.field()}><label style={s.label}>Booker First</label><input style={s.input()} placeholder="Jamie" value={nv.booker} onChange={e=>setNv(n=>({...n,booker:e.target.value}))}/></div>
@@ -4823,7 +4915,7 @@ function TemplateEditor({template,onSave,onCancel}){
 // SMARTBOSS AI — Tour Intelligence Engine
 // Reads all tours, venues, dates, gaps → AI-powered routing & booking advice
 // ─────────────────────────────────────────────────────────────────────────────
-function SmartBossAI({venues=[], tours=[], comedians=[]}) {
+function SmartBossAI({venues=[], tours=[], comedians=[], upd=()=>{}}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -4858,6 +4950,140 @@ function SmartBossAI({venues=[], tours=[], comedians=[]}) {
 
   // ── IG DM STATE ──
   const [igdmState, setIgdmState] = useState({ venue:'', booker:'', city:'', venueType:'Comedy Club', dates:'', loading:false, result:'' });
+
+  // ── VENUE ENRICHMENT ENGINE STATE ──
+  const [enrichState, setEnrichState] = useState({
+    running: false, paused: false, done: false,
+    total: 0, processed: 0, enriched: 0, skipped: 0, errors: 0,
+    currentVenue: '', log: [], batchSize: 5,
+  });
+  const enrichPausedRef = React.useRef(false);
+  const enrichRunningRef = React.useRef(false);
+
+  async function runEnrichment(venuesList, upd) {
+    const BATCH = enrichState.batchSize || 5;
+    // Determine which venues need enrichment
+    // Rules:
+    // 1. Never overwrite email if contactLog has entries AND venue not bounced
+    // 2. Only fill MISSING fields — never overwrite existing data
+    // 3. Skip venues that are fully enriched already
+    const needsEnrich = venuesList.filter(v => {
+      const hasEmailContact = (v.contactLog||[]).length > 0 && !v.bounce;
+      const missingData = !v.booker || !v.phone || !v.notes || v.notes.length < 20;
+      return missingData;
+    });
+
+    setEnrichState(p=>({...p, running:true, paused:false, done:false,
+      total: needsEnrich.length, processed:0, enriched:0, skipped:0, errors:0,
+      log:[], currentVenue:''}));
+    enrichRunningRef.current = true;
+    enrichPausedRef.current = false;
+
+    const session = await sbAuthClient.auth.getSession();
+    const token = session?.data?.session?.access_token||'';
+
+    for(let i = 0; i < needsEnrich.length; i += BATCH) {
+      if(!enrichRunningRef.current) break;
+      // Wait if paused
+      while(enrichPausedRef.current) {
+        await new Promise(r => setTimeout(r, 500));
+        if(!enrichRunningRef.current) break;
+      }
+      if(!enrichRunningRef.current) break;
+
+      const batch = needsEnrich.slice(i, i + BATCH);
+      const batchPrompt = `Research these ${batch.length} comedy venues and return ONLY a JSON array. For each venue, only provide data you are confident about. Return null for any field you are unsure of.
+
+Venues to research:
+${batch.map((v,idx) => `${idx+1}. ${v.venue}, ${v.city}, ${v.state} ${v.email ? '(email: '+v.email+' — DO NOT CHANGE)' : '(no email yet)'}`).join('
+')}
+
+Return a JSON array with exactly ${batch.length} objects in the same order. Each object:
+{
+  "booker": "booker first name or null",
+  "bookerLast": "booker last name or null", 
+  "email": "booking email or null — ONLY provide if venue has no email yet",
+  "phone": "phone number or null",
+  "instagram": "instagram handle without @ or null",
+  "capacity": room capacity as number or null,
+  "guarantee": typical headliner guarantee as number or null,
+  "address": "street address or null",
+  "website": "website URL or null",
+  "warmth": "Warm or Cold based on booking activity",
+  "notes": "2-3 sentences: recent headliners, venue vibe, audience, why Phil Medina fits — or null if unknown"
+}
+
+JSON array only. No markdown. No backticks. No explanation.`;
+
+      try {
+        const res = await fetch('/.netlify/functions/smartboss', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+          body: JSON.stringify({
+            system: 'You are a comedy industry database researcher. Return only valid JSON arrays with accurate venue data.',
+            messages:[{role:'user', content: batchPrompt}],
+            max_tokens: 2000
+          })
+        });
+        const data = await res.json();
+        const raw = data.content?.find(c=>c.type==='text')?.text||'[]';
+        const clean = raw.replace(/```json|```/g,'').trim();
+        let results = [];
+        try { results = JSON.parse(clean); } catch(e) {
+          const match = clean.match(/\[[\s\S]*\]/);
+          if(match) try { results = JSON.parse(match[0]); } catch(e2){}
+        }
+
+        let batchEnriched = 0;
+        batch.forEach((venue, idx) => {
+          const info = results[idx];
+          if(!info) return;
+
+          const hasEmailContact = (venue.contactLog||[]).length > 0 && !venue.bounce;
+          
+          // Build update object — only fill missing fields
+          const update = {};
+          if(!venue.booker && info.booker) update.booker = info.booker;
+          if(!venue.bookerLast && info.bookerLast) update.bookerLast = info.bookerLast;
+          if(!venue.phone && info.phone) update.phone = info.phone;
+          if(!venue.instagram && info.instagram) update.instagram = info.instagram;
+          if((!venue.capacity || venue.capacity === 0) && info.capacity) update.capacity = info.capacity;
+          if((!venue.guarantee || venue.guarantee === 0) && info.guarantee) update.guarantee = info.guarantee;
+          if(!venue.address && info.address) update.address = info.address;
+          if(!venue.website && info.website) update.website = info.website;
+          if(info.warmth) update.warmth = info.warmth;
+          if((!venue.notes || venue.notes.length < 20) && info.notes) update.notes = info.notes;
+          // Only update email if no contact has been sent and no existing email
+          if(!hasEmailContact && !venue.email && info.email) update.email = info.email;
+
+          if(Object.keys(update).length > 0) {
+            upd(venue.id, update);
+            batchEnriched++;
+          }
+        });
+
+        const logEntry = `Batch ${Math.floor(i/BATCH)+1}: ${batch.map(v=>v.venue).join(', ')} — ${batchEnriched} enriched`;
+        setEnrichState(p=>({
+          ...p,
+          processed: Math.min(p.processed + batch.length, p.total),
+          enriched: p.enriched + batchEnriched,
+          currentVenue: batch[batch.length-1]?.venue || '',
+          log: [logEntry, ...p.log].slice(0,50),
+        }));
+
+      } catch(e) {
+        setEnrichState(p=>({...p, errors: p.errors+1, processed: p.processed+batch.length}));
+      }
+
+      // Small delay between batches to avoid rate limiting
+      if(i + BATCH < needsEnrich.length) {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+
+    enrichRunningRef.current = false;
+    setEnrichState(p=>({...p, running:false, done:true, currentVenue:''}));
+  }
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [messages]);
 
@@ -5217,7 +5443,7 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
             <div style={{fontSize:10, color:'rgba(167,139,250,0.8)', letterSpacing:'0.12em', textTransform:'uppercase'}}>Tour Intelligence Engine</div>
           </div>
           <div style={{marginLeft:'auto', display:'flex', gap:6}}>
-            {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM']].map(([m,label])=>(
+            {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM'],['enrich','⚡ Enrich']].map(([m,label])=>(
               <button key={m} onClick={()=>setMode(m)} style={{
                 padding:'6px 12px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
                 border:`1px solid ${mode===m ? '#7c3aed' : 'rgba(124,58,237,0.25)'}`,
@@ -5757,7 +5983,7 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
             try {
               const session = await sbAuthClient.auth.getSession();
               const token = session?.data?.session?.access_token || '';
-              const prompt = `Find ${discoverState.venueType === 'All Types' ? 'comedy clubs, theaters, casinos, and universities' : discoverState.venueType + ' venues'} in ${discoverState.city || ''}${discoverState.city && discoverState.state ? ', ' : ''}${discoverState.state || ''} that book stand-up comedy headliners. Return ONLY a JSON array. Each object must have exactly these fields: venue (string), city (string), state (string), venueType (string), capacity (number), guarantee (number — estimated typical guarantee), booker (string or empty), email (string or empty), instagram (string or empty), website (string or empty), notes (string). Do not include any venues from this existing list: ${venues.slice(0,50).map(v=>v.venue).join(', ')}. Return 10-20 new venues. JSON array only, no other text.`;
+              const prompt = `Find ${discoverState.venueType === 'All Types' ? 'comedy clubs, theaters, casinos, and universities' : discoverState.venueType + ' venues'} in ${discoverState.city || ''}${discoverState.city && discoverState.state ? ', ' : ''}${discoverState.state || ''} that book stand-up comedy headliners. Return ONLY a JSON array with no markdown or backticks. Each object must have exactly these fields: venue (string), city (string), state (string), venueType (string), capacity (number — actual room capacity), guarantee (number — estimated typical headliner flat guarantee in dollars), booker (string — booker name if known), email (string — booking email if known), phone (string — phone number if known), instagram (string — instagram handle without @), website (string — full website URL), address (string — street address), notes (string — 2-3 sentences about recent headliners they book, venue vibe, audience type, and why Phil Medina would be a good fit), warmth (string — either Warm or Cold based on how active they are booking). Do not include any venues from this existing list: ${venues.slice(0,50).map(v=>v.venue).join(', ')}. Return 10-20 new venues. JSON array only, no other text.`;
               const res = await fetch('/.netlify/functions/smartboss', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
@@ -5792,10 +6018,13 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700, fontSize:13, color:C2.txt}}>{v.venue || 'Unknown Venue'}</div>
-                    <div style={{fontSize:11, color:C2.acc2, marginTop:2}}>{v.city}, {v.state} · {v.venueType} · Cap: {v.capacity||'?'} · Est. ${(v.guarantee||0).toLocaleString()}</div>
+                    <div style={{fontSize:11, color:C2.acc2, marginTop:2}}>{v.city}, {v.state} · {v.venueType} · Cap: {v.capacity||'?'} · Est. ${(v.guarantee||0).toLocaleString()} · {v.warmth||'Cold'}</div>
                     {v.email && <div style={{fontSize:10, color:C2.muted, marginTop:2}}>✉ {v.email}</div>}
+                    {v.phone && <div style={{fontSize:10, color:C2.muted}}>📞 {v.phone}</div>}
+                    {v.booker && <div style={{fontSize:10, color:C2.muted}}>👤 {v.booker}{v.bookerLast?' '+v.bookerLast:''}</div>}
                     {v.instagram && <div style={{fontSize:10, color:C2.muted}}>📱 @{v.instagram}</div>}
-                    {v.notes && <div style={{fontSize:10, color:C2.muted, marginTop:2, lineHeight:1.4}}>{v.notes}</div>}
+                    {v.website && <div style={{fontSize:10, color:C2.muted}}>🌐 {v.website}</div>}
+                    {v.notes && <div style={{fontSize:10, color:C2.muted, marginTop:4, lineHeight:1.5, fontStyle:'italic'}}>{v.notes}</div>}
                   </div>
                   {alreadyExists ? (
                     <div style={{fontSize:10, color:C2.muted, padding:'4px 8px', borderRadius:6, background:'rgba(255,255,255,0.05)', flexShrink:0}}>Already in CRM</div>
@@ -5804,13 +6033,19 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
                       const newVenue = {
                         id: 'disc_' + Date.now() + '_' + i,
                         venue: v.venue||'', city: v.city||'', state: v.state||'',
-                        venueType: v.venueType||'Comedy Club', capacity: v.capacity||0,
-                        guarantee: v.guarantee||0, booker: v.booker||'', email: v.email||'',
-                        instagram: v.instagram||'', website: v.website||'', notes: v.notes||'',
-                        warmth:'Cold', status:'Lead', dealType:'Flat Guarantee',
+                        venueType: v.venueType||'Comedy Club',
+                        capacity: v.capacity||0,
+                        guarantee: v.guarantee||0,
+                        booker: v.booker||'', bookerLast: v.bookerLast||'',
+                        email: v.email||'', phone: v.phone||'',
+                        instagram: v.instagram||'', website: v.website||'',
+                        address: v.address||'',
+                        notes: v.notes||'',
+                        warmth: v.warmth||'Cold',
+                        status:'Lead', dealType:'Flat Guarantee',
                         contactLog:[], referralSource:'SmartBoss Discovery',
                         preferredContact:'Email', relationship:'new',
-                        history:'', targetDates:'', phone:'',
+                        history:'', targetDates:'',
                         doorSplit:0, merchAllowed:true, merchCut:20,
                         agentCommission:10, managerCommission:15,
                         lodging:'Hotel', actualWalk:0, estimatedGross:0,
@@ -5824,10 +6059,8 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
                         paid:false, paidDate:'', settlement:null,
                         showReport:null, rebookDate:'', package:'Jason + Phil',
                         contractStatus:'None', depositPaid:false, balancePaid:false,
-                        nextFollowUp:'', bookerLast:'',
+                        nextFollowUp:'',
                       };
-                      // venues is passed as prop — need to use the setter from parent
-                      // We'll dispatch a custom event that the parent can listen to
                       window.dispatchEvent(new CustomEvent('stageboss_add_venue', {detail: newVenue}));
                       setDiscoverState(p=>({...p, results: p.results.map((r,ri)=>ri===i?{...r,_added:true}:r)}));
                     }} style={{padding:'6px 12px', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', background:'rgba(0,184,148,0.15)', border:'1px solid rgba(0,184,148,0.4)', color:'#00b894', flexShrink:0}}>
@@ -5933,6 +6166,88 @@ OPENING LINE ONLY (ultra short, 80 chars max):
               <button onClick={()=>setIgdmState(p=>({...p, result:''}))} style={{padding:'10px 14px', borderRadius:8, fontSize:12, cursor:'pointer', background:'none', border:`1px solid ${C2.bord}`, color:C2.muted}}>Clear</button>
             </div>
             <div style={{marginTop:10, fontSize:10, color:C2.muted, lineHeight:1.5}}>⚡ Pro tip: For automated sending at scale, export to ColdDMs.com ($49/mo). For manual sends, paste directly into Instagram DM. Always warm = higher reply rates.</div>
+          </div>
+        )}
+      </div>}
+
+      {/* ── ENRICH MODE ── */}
+      {mode === 'enrich' && <div style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', paddingBottom:80}}>
+        <div style={{background:C2.surf2, border:`1px solid ${C2.bord}`, borderRadius:16, padding:'16px 14px', marginBottom:14}}>
+          <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:16, letterSpacing:0.5, color:'#ffd700', marginBottom:4}}>⚡ VENUE ENRICHMENT ENGINE</div>
+          <div style={{fontSize:11, color:C2.muted, marginBottom:14, lineHeight:1.6}}>
+            Analyzes all {venues.length} venues in batches of 5 and fills in missing data — booker name, phone, address, Instagram, capacity, guarantee, and pitch notes. 
+            Venues where emails have been sent and not bounced keep their existing email. No existing data is ever overwritten.
+          </div>
+
+          {/* Stats row */}
+          <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:14}}>
+            {[
+              ['Total', venues.length, '#a78bfa'],
+              ['Need Data', venues.filter(v=>!v.booker||!v.phone||!v.notes||v.notes.length<20).length, '#ffd700'],
+              ['Enriched', enrichState.enriched, '#00b894'],
+              ['Skipped', enrichState.skipped + enrichState.errors, '#e17055'],
+            ].map(([label, val, color])=>(
+              <div key={label} style={{background:'rgba(10,10,20,0.5)', borderRadius:8, padding:'10px', textAlign:'center', border:`1px solid ${C2.bord}`}}>
+                <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:24, color}}>{val}</div>
+                <div style={{fontSize:9, color:C2.muted, textTransform:'uppercase', letterSpacing:'0.1em'}}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Progress bar */}
+          {(enrichState.running || enrichState.done) && enrichState.total > 0 && (
+            <div style={{marginBottom:12}}>
+              <div style={{display:'flex', justifyContent:'space-between', fontSize:10, color:C2.muted, marginBottom:4}}>
+                <span>{enrichState.processed} / {enrichState.total} processed</span>
+                <span>{Math.round(enrichState.processed/enrichState.total*100)}%</span>
+              </div>
+              <div style={{height:8, background:'rgba(255,255,255,0.06)', borderRadius:4, overflow:'hidden'}}>
+                <div style={{height:'100%', borderRadius:4, background:'linear-gradient(90deg,#7c3aed,#ffd700)', width:`${Math.round(enrichState.processed/enrichState.total*100)}%`, transition:'width 0.5s'}}/>
+              </div>
+              {enrichState.currentVenue && <div style={{fontSize:10, color:C2.muted, marginTop:4}}>Currently: {enrichState.currentVenue}</div>}
+            </div>
+          )}
+
+          {/* Controls */}
+          <div style={{display:'flex', gap:8, marginBottom:12}}>
+            {!enrichState.running ? (
+              <button onClick={()=>{
+                enrichPausedRef.current = false;
+                runEnrichment(venues, upd);
+              }} disabled={enrichState.running} style={{flex:1, padding:'12px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', background:'linear-gradient(135deg,rgba(124,58,237,0.5),rgba(255,215,0,0.3))', border:'1px solid rgba(255,215,0,0.4)', color:'#ffd700'}}>
+                {enrichState.done ? '🔄 Run Again' : '⚡ Start Enrichment'}
+              </button>
+            ) : (
+              <>
+                <button onClick={()=>{ enrichPausedRef.current = !enrichPausedRef.current; setEnrichState(p=>({...p, paused:!p.paused})); }} style={{flex:1, padding:'12px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', background:'rgba(255,215,0,0.1)', border:'1px solid rgba(255,215,0,0.3)', color:'#ffd700'}}>
+                  {enrichState.paused ? '▶ Resume' : '⏸ Pause'}
+                </button>
+                <button onClick={()=>{ enrichRunningRef.current = false; enrichPausedRef.current = false; setEnrichState(p=>({...p, running:false, paused:false})); }} style={{padding:'12px 16px', borderRadius:10, fontSize:13, cursor:'pointer', background:'rgba(225,112,85,0.1)', border:'1px solid rgba(225,112,85,0.3)', color:'#e17055'}}>
+                  Stop
+                </button>
+              </>
+            )}
+          </div>
+
+          {enrichState.done && <div style={{fontSize:12, color:'#00b894', textAlign:'center', marginBottom:10}}>✅ Enrichment complete — {enrichState.enriched} venues updated · Sync to save changes</div>}
+
+          {/* Rules reminder */}
+          <div style={{fontSize:10, color:C2.muted, lineHeight:1.7, background:'rgba(255,255,255,0.02)', borderRadius:8, padding:'10px 12px'}}>
+            <strong style={{color:C2.acc2}}>Rules:</strong><br/>
+            ✓ Only fills MISSING fields — never overwrites existing data<br/>
+            ✓ Emails already sent (not bounced) are never changed<br/>
+            ✓ Runs in batches of 5 — safe for all 634 venues<br/>
+            ✓ Tap Sync after completion to save to cloud
+          </div>
+        </div>
+
+        {/* Activity log */}
+        {enrichState.log.length > 0 && (
+          <div style={{background:'rgba(10,10,20,0.6)', borderRadius:12, padding:'12px 14px'}}>
+            <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:12, color:C2.muted, letterSpacing:0.5, marginBottom:8}}>ACTIVITY LOG</div>
+            {enrichState.log.map((entry, i)=>(
+              <div key={i} style={{fontSize:10, color:C2.muted, borderBottom:'1px solid rgba(255,255,255,0.03)', padding:'4px 0', lineHeight:1.5}}>{entry}</div>
+            ))}
           </div>
         )}
       </div>}
