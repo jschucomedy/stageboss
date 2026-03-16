@@ -2,7 +2,21 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
-const BUILD_ID = '2026-03-14-v12';
+const BUILD_ID = '2026-03-14-v13';
+
+// ── PWA SERVICE WORKER REGISTRATION ──────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+// PWA install prompt capture
+let deferredPWAPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPWAPrompt = e;
+});
 
 // ═══════════════════════════════════════════════════════════════
 // PHASE 1 — REVENUE BRAIN + ADAPTIVE FOLLOW-UP ENGINE
@@ -468,6 +482,271 @@ function predictiveMarkets(venues, tours) {
 }
 const PHIL_EPK_URL = 'https://drive.google.com/file/d/1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie/view?usp=drive_link';
 const PHIL_EPK_DOWNLOAD = 'https://drive.google.com/uc?export=download&id=1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie';
+// ═══════════════════════════════════════════════════════════════
+// v13 — AUTONOMOUS OUTREACH ENGINE
+// Self-running follow-up sequences — no manual triggering needed
+// ═══════════════════════════════════════════════════════════════
+
+const SEQUENCE_DAYS = [1, 6, 12, 18];
+
+function getNextSequenceDate(fromDate, currentDay) {
+  const days = SEQUENCE_DAYS;
+  const nextDay = days.find(d => d > currentDay);
+  if (!nextDay) return null; // sequence complete
+  const base = new Date(fromDate + 'T12:00:00');
+  const target = new Date(base.getTime() + nextDay * 24 * 60 * 60 * 1000);
+  return target.toISOString().split('T')[0];
+}
+
+function getSequenceLabel(v) {
+  const s = v.sequenceStatus || 'none';
+  const d = v.sequenceDay || 0;
+  if (s === 'none' || d === 0) return {label:'Not started', color:'#888', day:0};
+  if (s === 'paused') return {label:'Paused — replied', color:'#00b894', day:d};
+  if (s === 'complete') return {label:'Sequence complete', color:'#636e72', day:d};
+  const overdue = v.nextSequenceDate && new Date(v.nextSequenceDate) <= new Date();
+  return {
+    label: overdue ? 'Day '+d+' overdue' : 'Day '+d+' — due '+v.nextSequenceDate,
+    color: overdue ? '#e17055' : '#a78bfa',
+    day: d,
+    overdue,
+  };
+}
+
+// Called when an email is sent — starts or advances the sequence
+function advanceSequence(venue, upd) {
+  const today = new Date().toISOString().split('T')[0];
+  const currentDay = venue.sequenceDay || 0;
+  const nextDate = getNextSequenceDate(today, currentDay);
+  const nextDay = SEQUENCE_DAYS.find(d => d > currentDay) || 0;
+
+  upd(venue.id, {
+    sequenceStatus: nextDate ? 'active' : 'complete',
+    sequenceDay: nextDay || currentDay,
+    lastEmailSentDate: today,
+    nextSequenceDate: nextDate || '',
+    nextFollowUp: nextDate || venue.nextFollowUp,
+  });
+}
+
+// Called when a booker replies — pause the sequence
+function pauseSequence(venue, upd) {
+  upd(venue.id, {
+    sequenceStatus: 'paused',
+    nextSequenceDate: '',
+    nextFollowUp: '',
+  });
+}
+
+// Close probability model — data-driven estimate
+function closeProbabilityScore(v) {
+  const log = v.contactLog || [];
+  const touches = log.length;
+  const status = v.status || 'Lead';
+  const warmth = v.warmth || 'Cold';
+  const venueType = v.venueType || 'Comedy Club';
+  const daysSinceLast = log.length > 0
+    ? Math.floor((Date.now() - new Date(log[log.length-1].date)) / (1000*60*60*24))
+    : 999;
+
+  let prob = 5; // baseline
+
+  // Status-based probability
+  const statusProb = {
+    'Negotiating': 65, 'Responded': 35, 'Contacted': 12,
+    'Lead': 5, 'Hold': 20, 'Follow-Up': 15,
+    'Confirmed': 100, 'Completed': 0, 'Lost': 0,
+  };
+  prob = statusProb[status] || 5;
+
+  // Warmth modifier
+  if (warmth === 'Hot') prob = Math.min(90, prob + 20);
+  else if (warmth === 'Warm') prob = Math.min(80, prob + 10);
+  else if (warmth === 'Established') prob = Math.min(85, prob + 25);
+  else if (warmth === 'Cold') prob = Math.max(2, prob - 5);
+
+  // Decay if going cold
+  if (daysSinceLast > 30 && status === 'Responded') prob = Math.max(10, prob - 20);
+  if (daysSinceLast > 60) prob = Math.max(2, prob - 15);
+
+  // Trust level boost
+  if (v.trustLevel === 'Strong') prob = Math.min(90, prob + 15);
+  if (v.trustLevel === 'Trusted') prob = Math.min(85, prob + 10);
+
+  // Post-show rebook — very high probability
+  if (v.showReport && (v.showReport.rebookLikelihood || 0) >= 4) prob = Math.max(prob, 75);
+
+  // Venue type historical close rates
+  const typeRate = {'Casino':0.25, 'Comedy Club':0.35, 'College':0.40, 'Theater':0.20, 'Corporate':0.30};
+  const rate = typeRate[venueType] || 0.25;
+  if (status === 'Lead' || status === 'Contacted') prob = Math.round(prob * (1 + rate * 0.5));
+
+  return Math.min(100, Math.max(0, Math.round(prob)));
+}
+
+// Seasonal booking window intelligence
+function getSeasonalWindow(venueType) {
+  const windows = {
+    'Casino': 'Best booking: Jan-Mar for summer, Jul-Sep for holiday season. 3-6 month lead time.',
+    'Comedy Club': 'Best booking: Aug-Oct for spring run, Feb-Apr for fall. 4-8 week lead time.',
+    'College': 'CAB books Sep-Nov for spring semester, Feb-Apr for fall. 2-3 month lead time.',
+    'Theater': 'Best booking: Sep-Nov for winter season. 2-4 month lead time. Weekends only.',
+    'Corporate': 'Best booking: Oct-Dec for holiday events, Mar-May for Q2 events. 1-3 months.',
+    'Bar/Lounge': 'Open year round. 2-3 week lead time. Door deals preferred.',
+    'Festival': 'Apply Jan-Mar for summer festivals. Decisions made 6-12 months out.',
+  };
+  return windows[venueType] || 'Follow standard outreach cadence.';
+}
+
+// Re-engagement detection — venues gone cold
+function needsReEngagement(v) {
+  const log = v.contactLog || [];
+  if (log.length === 0) return false;
+  const daysSinceLast = Math.floor((Date.now() - new Date(log[log.length-1].date)) / (1000*60*60*24));
+  const status = v.status || 'Lead';
+  // 90+ days cold on a warm venue = re-engage
+  return daysSinceLast >= 90 && ['Warm','Hot','Established'].includes(v.warmth)
+    && !['Confirmed','Completed','Lost'].includes(status);
+}
+
+// Routing cluster detection — groups venues by geography
+function detectRoutingClusters(venues) {
+  const clusters = {};
+  venues.forEach(v => {
+    if (!v.state) return;
+    const region = getRegion(v.state);
+    if (!clusters[region]) clusters[region] = [];
+    clusters[region].push(v);
+  });
+
+  const hotClusters = Object.entries(clusters)
+    .filter(([, vs]) => {
+      const warm = vs.filter(v => ['Warm','Hot','Established'].includes(v.warmth)
+        && !['Confirmed','Completed','Lost'].includes(v.status));
+      return warm.length >= 3;
+    })
+    .map(([region, vs]) => {
+      const warm = vs.filter(v => ['Warm','Hot','Established'].includes(v.warmth)
+        && !['Confirmed','Completed','Lost'].includes(v.status));
+      const totalValue = warm.reduce((a,v) => a + (parseFloat(v.guarantee)||0), 0);
+      return { region, count: warm.length, totalValue, venues: warm.slice(0,5) };
+    })
+    .sort((a,b) => b.totalValue - a.totalValue);
+
+  return hotClusters;
+}
+
+function getRegion(state) {
+  const regions = {
+    'ME':'New England','NH':'New England','VT':'New England','MA':'New England','RI':'New England','CT':'New England',
+    'NY':'Northeast','NJ':'Northeast','PA':'Northeast','DE':'Northeast','MD':'Northeast',
+    'VA':'Mid-Atlantic','WV':'Mid-Atlantic','NC':'Southeast','SC':'Southeast','GA':'Southeast','FL':'Southeast',
+    'TN':'Southeast','AL':'Southeast','MS':'Southeast','KY':'Southeast',
+    'OH':'Midwest','IN':'Midwest','IL':'Midwest','MI':'Midwest','WI':'Midwest','MN':'Midwest','IA':'Midwest','MO':'Midwest',
+    'ND':'Great Plains','SD':'Great Plains','NE':'Great Plains','KS':'Great Plains',
+    'TX':'South Central','OK':'South Central','AR':'South Central','LA':'South Central',
+    'MT':'Mountain West','ID':'Mountain West','WY':'Mountain West','CO':'Mountain West','UT':'Mountain West','NV':'Mountain West','AZ':'Mountain West','NM':'Mountain West',
+    'WA':'Pacific Northwest','OR':'Pacific Northwest',
+    'CA':'California','AK':'Alaska','HI':'Hawaii',
+  };
+  return regions[state] || state;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// v13 — CONTRACT PDF GENERATOR
+// One-tap from confirmed deal to professional booking agreement
+// ═══════════════════════════════════════════════════════════════
+
+function generateContractHTML(venue, tour) {
+  const today = new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
+  const guarantee = parseFloat(venue.guarantee) || 0;
+  const deposit = parseFloat(venue.depositAmount) || Math.round(guarantee * 0.25);
+  const balance = guarantee - deposit;
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Booking Agreement — ${venue.venue}</title>
+<style>
+  body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:0 40px;color:#1a1a1a;line-height:1.7;font-size:14px}
+  h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px;letter-spacing:0.02em}
+  .subtitle{text-align:center;color:#666;font-size:13px;margin-bottom:32px}
+  .divider{border:none;border-top:1px solid #ddd;margin:24px 0}
+  .section-title{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#888;font-family:Arial,sans-serif;margin-bottom:8px;font-weight:600}
+  .field-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid #eee;font-size:13px}
+  .field-label{color:#666;min-width:180px;font-family:Arial,sans-serif}
+  .field-value{font-weight:600;text-align:right}
+  .terms{font-size:12px;color:#444;line-height:1.8;margin-top:8px}
+  .sig-row{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px}
+  .sig-box{border-top:1px solid #333;padding-top:8px;font-size:12px;color:#666}
+  .highlight{background:#f9f9f9;border-left:3px solid #333;padding:12px 16px;margin:16px 0;font-size:13px}
+  @media print{body{margin:20px;padding:0 20px}}
+</style></head><body>
+<h1>BOOKING AGREEMENT</h1>
+<div class="subtitle">Main Event Comedy Entertainment LLC &mdash; ${today}</div>
+<hr class="divider">
+
+<div class="section-title">Parties</div>
+<div class="field-row"><span class="field-label">Talent Management</span><span class="field-value">Main Event Comedy Entertainment LLC</span></div>
+<div class="field-row"><span class="field-label">Contact</span><span class="field-value">Jason Schuster — jason@maineventcomedy.com</span></div>
+<div class="field-row"><span class="field-label">Venue / Purchaser</span><span class="field-value">${venue.venue}</span></div>
+<div class="field-row"><span class="field-label">Venue Location</span><span class="field-value">${venue.city}, ${venue.state}</span></div>
+${venue.booker ? '<div class="field-row"><span class="field-label">Booker Contact</span><span class="field-value">'+venue.booker+(venue.bookerLast?' '+venue.bookerLast:'')+'</span></div>' : ''}
+${venue.email ? '<div class="field-row"><span class="field-label">Booker Email</span><span class="field-value">'+venue.email+'</span></div>' : ''}
+
+<hr class="divider">
+<div class="section-title">Performance Details</div>
+<div class="field-row"><span class="field-label">Performer</span><span class="field-value">Phil Medina</span></div>
+<div class="field-row"><span class="field-label">Package</span><span class="field-value">${venue.package || 'Phil Medina — Headliner'}</span></div>
+<div class="field-row"><span class="field-label">Show Date(s)</span><span class="field-value">${venue.showDate || venue.targetDates || '[DATE TBD]'}</span></div>
+<div class="field-row"><span class="field-label">Number of Shows</span><span class="field-value">${venue.showCount || 1}</span></div>
+<div class="field-row"><span class="field-label">Venue Capacity</span><span class="field-value">${venue.capacity ? venue.capacity.toLocaleString()+' seats' : 'TBD'}</span></div>
+<div class="field-row"><span class="field-label">Lodging</span><span class="field-value">${venue.lodging || 'Provided by talent'}</span></div>
+
+<hr class="divider">
+<div class="section-title">Financial Terms</div>
+<div class="field-row"><span class="field-label">Deal Structure</span><span class="field-value">${venue.dealType || 'Flat Guarantee'}</span></div>
+<div class="highlight"><strong>Total Guarantee: $${guarantee.toLocaleString()}</strong>${venue.dealType === 'Door Deal' ? ' ('+Math.round(venue.doorSplit||50)+'% of door after expenses)' : ''}</div>
+<div class="field-row"><span class="field-label">Deposit (${Math.round(deposit/guarantee*100)}%)</span><span class="field-value">$${deposit.toLocaleString()}</span></div>
+<div class="field-row"><span class="field-label">Deposit Due</span><span class="field-value">${venue.depositDue || '14 days prior to show date'}</span></div>
+<div class="field-row"><span class="field-label">Balance Due</span><span class="field-value">$${balance.toLocaleString()}</span></div>
+<div class="field-row"><span class="field-label">Balance Payment Timing</span><span class="field-value">${venue.expectedPaymentTiming || 'Night of show'}</span></div>
+${venue.agentCommission ? '<div class="field-row"><span class="field-label">Booking Commission</span><span class="field-value">'+venue.agentCommission+'%</span></div>' : ''}
+
+<hr class="divider">
+<div class="section-title">Terms & Conditions</div>
+<div class="terms">
+1. <strong>Performance:</strong> Performer agrees to provide a professional comedy performance of approximately ${venue.showCount > 1 ? venue.showCount+' sets' : '45-75 minutes'}.<br>
+2. <strong>Cancellation:</strong> Cancellation by Purchaser within 30 days of show date forfeits deposit. Cancellation within 14 days forfeits full guarantee.<br>
+3. <strong>Force Majeure:</strong> Neither party shall be liable for cancellation due to circumstances beyond reasonable control.<br>
+4. <strong>Merchandise:</strong> Performer retains ${100 - (venue.merchCut||0)}% of all merchandise sales. Venue provides table and space at no charge.<br>
+5. <strong>Billing:</strong> Performer shall receive sole headline billing. No other performer shall be billed above or equal to headline act without written consent.<br>
+6. <strong>Recording:</strong> No audio or video recording of the performance without prior written consent from Main Event Comedy Entertainment LLC.<br>
+7. <strong>Radius Clause:</strong> ${venue.radiusClause || 'No radius restrictions unless separately agreed in writing.'}<br>
+8. <strong>Governing Law:</strong> This agreement shall be governed by the laws of the State of Maryland.
+</div>
+
+<hr class="divider">
+<div class="section-title">Signatures</div>
+<div class="sig-row">
+  <div class="sig-box">
+    <div style="margin-bottom:40px">Signature</div>
+    <strong>Jason Schuster</strong><br>
+    Main Event Comedy Entertainment LLC<br>
+    jason@maineventcomedy.com
+  </div>
+  <div class="sig-box">
+    <div style="margin-bottom:40px">Signature</div>
+    <strong>${venue.booker || 'Authorized Representative'}</strong><br>
+    ${venue.venue}<br>
+    ${venue.email || ''}
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:48px;font-size:11px;color:#aaa;font-family:Arial,sans-serif">
+  Generated by StageBoss &mdash; Main Event Comedy Entertainment LLC &mdash; ${today}
+</div>
+</body></html>`;
+}
+
 function getEpkUrl() {
   try { return localStorage.getItem('stageboss_epk_url') || PHIL_EPK_URL; } catch(e){ return PHIL_EPK_URL; }
 }
@@ -947,6 +1226,30 @@ function migrateVenue(v) {
     merchSales: v.merchSales||[],
     dealClosedBy: v.dealClosedBy||'',
     calendarUrl: v.calendarUrl||'',
+    // ── v13 FIELDS ──
+    sequenceStatus: v.sequenceStatus||'none',   // none|active|paused|complete
+    sequenceDay: v.sequenceDay||0,              // 0,1,6,12,18
+    lastEmailSentDate: v.lastEmailSentDate||'',
+    nextSequenceDate: v.nextSequenceDate||'',
+    emailOpenCount: v.emailOpenCount||0,
+    emailOpenLastDate: v.emailOpenLastDate||'',
+    closeProbability: v.closeProbability||0,
+    routingCluster: v.routingCluster||'',
+    abVariant: v.abVariant||'A',
+    contractGenerated: v.contractGenerated||false,
+    contractUrl: v.contractUrl||'',
+    seasonalWindow: v.seasonalWindow||'',
+    personalityNotes: v.personalityNotes||'',
+    whatTheyCarAbout: v.whatTheyCarAbout||'',
+    preferredProofPoints: v.preferredProofPoints||'',
+    priorFriction: v.priorFriction||'',
+    personalDetails: v.personalDetails||'',
+    communicationPref: v.communicationPref||'Email',
+    trustLevel: v.trustLevel||'New',
+    reEngageFlag: v.reEngageFlag||false,
+    ticketPrice: v.ticketPrice||20,
+    ticketsSold: v.ticketsSold||0,
+    marketingSupport: v.marketingSupport||0,
   };
 }
 function migrateData(raw) {
@@ -2929,6 +3232,8 @@ function StageBoss({user,onLogout,accessToken}){
     const v=venues.find(x=>x.id===aiVenueId);
     if(!v||!aiResult)return;
     openGmail(v.email||'', 'Phil Medina - Availability - '+v.venue, withSig(aiResult, user), user);
+    // Advance the autonomous sequence
+    advanceSequence(v, upd);
     // Also copy to clipboard as fallback
     setTimeout(()=>{
       try{navigator.clipboard.writeText('To: '+v.email+'\nSubject: Phil Medina - Availability - '+v.venue+'\n\n'+aiResult);}catch{}
@@ -3618,6 +3923,10 @@ function StageBoss({user,onLogout,accessToken}){
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
             <button onClick={async()=>{setSyncing(true);try{const r=await cloudPush(OWNER_EMAIL,venues,templates,tours,comedians);localVersionRef.current=r||new Date().toISOString();setLastSync(new Date());toast2('Synced!');}catch(e){toast2('Failed: '+e.message);}setSyncing(false);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(0,184,148,0.4)',background:'rgba(0,184,148,0.1)',color:C.green,fontSize:10,cursor:'pointer',fontFamily:font.body,marginRight:6}}>{syncing?'...':'Sync'}</button>
+            <button onClick={()=>{
+              if(deferredPWAPrompt){deferredPWAPrompt.prompt();deferredPWAPrompt.userChoice.then(()=>{deferredPWAPrompt=null;});}
+              else{alert('To install: tap Share (iOS) or Menu (Android) → Add to Home Screen');}
+            }} style={{padding:'6px 10px',borderRadius:8,border:'1px solid rgba(124,58,237,0.4)',background:'rgba(124,58,237,0.1)',color:'#a78bfa',fontSize:10,cursor:'pointer',fontFamily:font.body}} title="Install StageBoss">📱</button>
             <button onClick={onLogout} style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${C.bord}`,background:'none',color:C.muted,fontSize:10,cursor:'pointer',fontFamily:font.body}}>OUT</button>
             <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:'50%',background:C.acc,border:'none',color:'#fff',fontSize:22,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>+</button>
           </div>
@@ -3755,6 +4064,68 @@ function StageBoss({user,onLogout,accessToken}){
                       <button onClick={()=>setDetailId(v.id)} style={{...s.btn(C.surf2,C.muted3,C.bord2),fontSize:11,padding:'5px 10px'}}>View</button>
                     </div>
                   </div>
+                </div>;
+              })}
+            </div>;
+          })()}
+
+          {/* ROUTING CLUSTERS */}
+          {(()=>{
+            const clusters = detectRoutingClusters(venues);
+            if (clusters.length === 0) return null;
+            return <div style={{background:'rgba(0,184,148,0.06)',border:'1px solid rgba(0,184,148,0.2)',borderRadius:12,padding:'12px 14px',marginBottom:12}}>
+              <div style={{fontSize:10,color:C.green,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>🗺️ Tour Cluster Opportunities — {clusters.length}</div>
+              {clusters.slice(0,3).map((cl,i)=>(
+                <div key={i} style={{padding:'6px 0',borderBottom:'1px solid rgba(0,184,148,0.08)'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{cl.region}</div>
+                    <span style={{fontSize:11,color:C.green,fontWeight:700}}>${cl.totalValue.toLocaleString()} · {cl.count} venues</span>
+                  </div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{cl.venues.slice(0,3).map(v=>v.venue).join(' · ')}</div>
+                </div>
+              ))}
+            </div>;
+          })()}
+
+          {/* SEQUENCE DUE TODAY */}
+          {(()=>{
+            const today = new Date().toISOString().split('T')[0];
+            const sequenceDue = venues
+              .filter(v => v.sequenceStatus === 'active' && v.nextSequenceDate && v.nextSequenceDate <= today)
+              .map(v => ({...v, _score: revenueBrainScore(v, venues)}))
+              .sort((a,b) => b._score - a._score)
+              .slice(0, 5);
+            if (sequenceDue.length === 0) return null;
+            return <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.25)',borderRadius:12,padding:'12px 14px',marginBottom:12}}>
+              <div style={{fontSize:10,color:'#a78bfa',fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>⚡ Sequence Due Today — {sequenceDue.length}</div>
+              {sequenceDue.map(v=>{
+                const seq = getSequenceLabel(v);
+                return <div key={v.id} onClick={()=>setComposeId(v.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid rgba(167,139,250,0.08)',cursor:'pointer'}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600}}>{v.venue}</div>
+                    <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {seq.label}</div>
+                  </div>
+                  <span style={{fontSize:11,color:'#a78bfa',fontWeight:700}}>Send →</span>
+                </div>;
+              })}
+            </div>;
+          })()}
+
+          {/* RE-ENGAGEMENT ALERTS */}
+          {(()=>{
+            const reEngage = venues.filter(v => needsReEngagement(v)).slice(0, 5);
+            if (reEngage.length === 0) return null;
+            return <div style={{background:'rgba(253,121,168,0.06)',border:'1px solid rgba(253,121,168,0.2)',borderRadius:12,padding:'12px 14px',marginBottom:12}}>
+              <div style={{fontSize:10,color:'#fd79a8',fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>🔄 Re-Engage — Gone Cold ({reEngage.length})</div>
+              {reEngage.map(v=>{
+                const log = v.contactLog || [];
+                const days = Math.floor((Date.now()-new Date(log[log.length-1].date))/(1000*60*60*24));
+                return <div key={v.id} onClick={()=>setComposeId(v.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid rgba(253,121,168,0.08)',cursor:'pointer'}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600}}>{v.venue}</div>
+                    <div style={{fontSize:11,color:C.muted3}}>{v.warmth} lead · Silent {days} days</div>
+                  </div>
+                  <span style={{fontSize:11,color:'#fd79a8',fontWeight:700}}>Re-engage →</span>
                 </div>;
               })}
             </div>;
@@ -4562,10 +4933,42 @@ function StageBoss({user,onLogout,accessToken}){
             <button onClick={()=>{setDealVenue({...dv});setShowDealBuilder(true);setDetailId(null);}} style={{...s.btn('linear-gradient(135deg,#059669,#047857)',C.txt,'transparent'),fontWeight:700}}>💰 Deal Builder</button>
             <button onClick={()=>{setRouteStops(prev=>{const already=prev.find(s=>s.id===dv.id);if(already){toast2('Already in route');return prev;}return [...prev,dv];});toast2(`${dv.venue} added to route!`);}} style={{...s.btn(C.surf2,C.blue,C.bord2),fontWeight:600}}>🗺️ Add to Route</button>
           </div>
+          {/* ── CLOSE PROBABILITY + SEQUENCE STATUS ── */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+            <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 12px'}}>
+              <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Close Probability</div>
+              {(()=>{const cp=closeProbabilityScore(dv);return<div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{flex:1,height:4,background:'rgba(255,255,255,0.08)',borderRadius:2,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:cp+'%',background:cp>=60?C.green:cp>=30?C.yellow:'#e17055',borderRadius:2}}/>
+                </div>
+                <span style={{fontSize:14,fontWeight:700,color:cp>=60?C.green:cp>=30?C.yellow:'#e17055'}}>{cp}%</span>
+              </div>;})()} 
+            </div>
+            <div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 12px'}}>
+              <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Sequence</div>
+              {(()=>{const seq=getSequenceLabel(dv);return<><div style={{fontSize:11,color:seq.color,fontWeight:600}}>{seq.label}</div>
+                {dv.sequenceStatus==='active'&&<button onClick={()=>{pauseSequence(dv,upd);toast2('Sequence paused');}} style={{fontSize:9,color:C.muted,background:'none',border:'none',cursor:'pointer',padding:0,marginTop:2}}>Pause</button>}
+                {['paused','complete','none',undefined].includes(dv.sequenceStatus)&&dv.email&&<button onClick={()=>{advanceSequence(dv,upd);toast2('Sequence started');}} style={{fontSize:9,color:C.acc2,background:'none',border:'none',cursor:'pointer',padding:0,marginTop:2}}>Start sequence</button>}
+              </>;})()} 
+            </div>
+          </div>
+
+          {/* ── SEASONAL BOOKING WINDOW ── */}
+          <div style={{background:'rgba(255,215,0,0.05)',border:'1px solid rgba(255,215,0,0.15)',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:11,color:C.muted,lineHeight:1.6}}>
+            <strong style={{color:'#ffd700'}}>📅 Window:</strong> {getSeasonalWindow(dv.venueType)}
+          </div>
+
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:10}}>
             {!dv.checklist&&['Hold','Confirmed','Advancing'].includes(dv.status)&&<button onClick={()=>{upd(dv.id,{checklist:createChecklist()});toast2('[OK] Checklist created!');}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1}}>[list] Create Checklist</button>}
             {dv.checklist&&<button onClick={()=>{setDetailId(null);setTimeout(()=>setChecklistId(dv.id),250);}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1}}>[list] Checklist ({checklistPct(dv.checklist)}%)</button>}
             {dv.paid&&<button onClick={()=>{setDetailId(null);setTimeout(()=>setSettlementId(dv.id),250);}} style={{...s.btn(C.surf2,C.acc2,C.bord),flex:1}}>[chart] Settlement</button>}
+            {['Confirmed','Advancing'].includes(dv.status)&&<button onClick={()=>{
+              const html = generateContractHTML(dv);
+              const w = window.open('','_blank');
+              if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),500);}
+              upd(dv.id,{contractGenerated:true});
+              toast2('Contract ready — print or save as PDF');
+            }} style={{...s.btn('rgba(255,215,0,0.1)','#ffd700','rgba(255,215,0,0.3)'),fontWeight:700}}>📄 Contract</button>}
           </div>
           {/* ── POST-SHOW INTELLIGENCE LOOP ── */}
           {['Confirmed','Completed','Advancing'].includes(dv.status)&&<>
@@ -4764,6 +5167,7 @@ function StageBoss({user,onLogout,accessToken}){
   upd(cv.id,{status:cv.status==='Lead'?'Contacted':cv.status});
   toast2('Opening Gmail...');
   openGmail(cv?.email||'',filledSubject,withSig(fullBody, user), user);
+  if(cv) advanceSequence(cv, upd);
 }} style={{...s.btn(C.acc,'#fff',null),width:'100%',flex:1}}>📧 Open Gmail</button>}
               <button onClick={()=>copyText(`Subject: ${filledSubject}\n\n${fullBody}`,'Email',toast2)} style={{...s.btn(C.surf2,C.txt,C.bord),flex:'0 0 auto',padding:'12px 14px'}}>Copy</button>
             </div>
@@ -6683,6 +7087,40 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
               <option>All Types</option>
             </select>
           </div>
+          {/* MASS DISCOVERY — all 50 states */}
+          <div style={{background:'rgba(124,58,237,0.08)',border:'1px solid rgba(124,58,237,0.2)',borderRadius:10,padding:'10px 14px',marginBottom:10}}>
+            <div style={{fontSize:11,color:'#a78bfa',fontWeight:700,marginBottom:4}}>🌎 Mass Discovery — All Markets</div>
+            <div style={{fontSize:10,color:C2.muted,marginBottom:8,lineHeight:1.5}}>Discover venues across multiple markets simultaneously. Leave city blank and enter a state, or leave both blank to run nationally by venue type.</div>
+            <button onClick={async()=>{
+              setDiscoverState(p=>({...p, loading:true, results:[], error:''}));
+              const massTargets = discoverState.state ? [discoverState.state] :
+                ['NY','CA','TX','FL','IL','PA','OH','GA','NC','TN','VA','WA','CO','AZ','NV','MA','MI','MN','MO','IN'];
+              const session = await sbAuthClient.auth.getSession();
+              const token = session?.data?.session?.access_token||'';
+              const venueTypeStr = discoverState.venueType === 'All Types' ? 'comedy clubs and entertainment venues' : discoverState.venueType + ' venues';
+              const excludeList = venues.slice(0,30).map(v=>v.venue).join(', ');
+              const prompt = 'Find the top '+venueTypeStr+' that book stand-up comedy headliners in these states: '+massTargets.join(', ')+'. Return 20-30 venues total spread across these states. Do not include: '+excludeList+'. Return JSON array only: [{venue,city,state,venueType,capacity,guarantee,booker,email,phone,instagram,website,address,notes,warmth}]';
+              try {
+                const res = await fetch('/.netlify/functions/smartboss', {
+                  method:'POST',
+                  headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+                  body: JSON.stringify({system:'Comedy venue database expert. Return only valid JSON arrays.',messages:[{role:'user',content:prompt}],max_tokens:3000})
+                });
+                if(!res.ok) throw new Error('Server error '+res.status);
+                const data = await res.json();
+                const raw = data.content?.find(c=>c.type==='text')?.text||'[]';
+                const clean = raw.replace(/```json|```/g,'').trim();
+                let found = [];
+                try{found=JSON.parse(clean);}catch(e){const m=clean.match(/\[[\s\S]*\]/);if(m)try{found=JSON.parse(m[0]);}catch(e2){}}
+                setDiscoverState(p=>({...p,loading:false,results:Array.isArray(found)&&found.length>0?found:[],error:Array.isArray(found)&&found.length>0?'':'No results — try again'}));
+              } catch(e) {
+                setDiscoverState(p=>({...p,loading:false,error:e.message||'Mass discovery failed'}));
+              }
+            }} disabled={discoverState.loading} style={{width:'100%',padding:'10px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',background:'rgba(124,58,237,0.2)',border:'1px solid rgba(124,58,237,0.4)',color:'#a78bfa'}}>
+              {discoverState.loading ? '🌎 Scanning markets...' : '🌎 Mass Discover — Top Markets'}
+            </button>
+          </div>
+
           <button onClick={async()=>{
             if (!discoverState.city && !discoverState.state) return;
             setDiscoverState(p=>({...p, loading:true, results:[], error:''}));
