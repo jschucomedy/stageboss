@@ -1444,6 +1444,39 @@ function ToggleGroup({options,value,onChange,color=C.acc}){return<div style={{di
 // -- LOGIN -----------------------------------------------------
 function LoginScreen({onLogin}){
   const[email,setEmail]=useState('');const[pw,setPw]=useState('');const[err,setErr]=useState('');const[loading,setLoading]=useState(false);
+  const[newPw,setNewPw]=useState('');const[confirmPw,setConfirmPw]=useState('');const[resetMode,setResetMode]=useState(false);const[resetDone,setResetDone]=useState(false);
+
+  // Check if this is a password reset callback from Supabase email link
+  const[isRecovery,setIsRecovery]=useState(false);const[recoveryPw,setRecoveryPw]=useState('');const[recoveryConfirm,setRecoveryConfirm]=useState('');const[recoverySaving,setRecoverySaving]=useState(false);const[recoveryErr,setRecoveryErr]=useState('');const[recoveryDone,setRecoveryDone]=useState(false);
+  useEffect(()=>{
+    // Supabase puts access_token and type=recovery in the URL hash after password reset click
+    const hash = window.location.hash;
+    if(hash.includes('type=recovery') || hash.includes('type=signup')) {
+      setIsRecovery(true);
+      // Let Supabase process the hash automatically
+      sbAuthClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsRecovery(true);
+        }
+      });
+    }
+  },[]);
+
+  async function saveRecoveryPassword(){
+    if(!recoveryPw || recoveryPw.length < 6){ setRecoveryErr('Password must be at least 6 characters.'); return; }
+    if(recoveryPw !== recoveryConfirm){ setRecoveryErr('Passwords do not match.'); return; }
+    setRecoverySaving(true); setRecoveryErr('');
+    try{
+      const {error} = await sbAuthClient.auth.updateUser({password: recoveryPw});
+      if(error) throw error;
+      setRecoveryDone(true);
+      setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 2000);
+    }catch(e){
+      setRecoveryErr(e.message || 'Could not update password. Try again.');
+      setRecoverySaving(false);
+    }
+  }
+
   async function attempt(){
     setLoading(true);setErr('');
     try{
@@ -1478,11 +1511,24 @@ function LoginScreen({onLogin}){
         <div style={{width:48,height:3,background:`linear-gradient(90deg,${C.acc},${C.acc2})`,borderRadius:2,margin:'18px auto 0'}}/>
       </div>
       <div style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:20,padding:28}}>
+        {isRecovery ? (<>
+          <div style={{fontFamily:font.head,fontWeight:700,fontSize:17,marginBottom:8}}>Set New Password</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:20}}>Enter a new password for your StageBoss account.</div>
+          {recoveryDone ? (
+            <div style={{background:'rgba(0,184,148,0.1)',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'14px',fontSize:13,color:C.green,textAlign:'center'}}>✅ Password updated! Redirecting to login...</div>
+          ) : (<>
+            <div style={s.field()}><label style={s.label}>New Password</label><input type="password" value={recoveryPw} onChange={e=>setRecoveryPw(e.target.value)} placeholder="Min 6 characters" autoCapitalize="none" autoCorrect="off" style={s.input()}/></div>
+            <div style={s.field(20)}><label style={s.label}>Confirm Password</label><input type="password" value={recoveryConfirm} onChange={e=>setRecoveryConfirm(e.target.value)} onKeyDown={e=>e.key==='Enter'&&saveRecoveryPassword()} placeholder="Repeat password" autoCapitalize="none" autoCorrect="off" style={s.input()}/></div>
+            {recoveryErr&&<div style={{background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:8,padding:'10px 12px',fontSize:12,color:C.red,marginBottom:16}}>{recoveryErr}</div>}
+            <button onClick={saveRecoveryPassword} disabled={recoverySaving} style={{...s.btn(C.green,'#fff',null),width:'100%',opacity:recoverySaving?0.7:1}}>{recoverySaving?'Saving...':'Save New Password'}</button>
+          </>)}
+        </>) : (<>
         <div style={{fontFamily:font.head,fontWeight:700,fontSize:17,marginBottom:22}}>Sign In</div>
         <div style={s.field()}><label style={s.label}>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&attempt()} placeholder="your@gmail.com" autoCapitalize="none" autoCorrect="off" autoComplete="email" spellCheck="false" style={s.input()}/></div>
         <div style={s.field(20)}><label style={s.label}>Password</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&attempt()} placeholder="**********" autoCapitalize="none" autoCorrect="off" autoComplete="current-password" style={s.input()}/></div>
         {err&&<div style={{background:'rgba(225,112,85,0.1)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:8,padding:'10px 12px',fontSize:12,color:C.red,marginBottom:16}}>{err}</div>}
         <button onClick={attempt} disabled={loading} style={{...s.btn(loading?'#3d3270':C.acc,'#fff',null),width:'100%',opacity:loading?0.7:1}}>{loading?'Signing in...':'Sign In ->'}</button>
+        </>)}
       </div>
     </div>
   </div>);
