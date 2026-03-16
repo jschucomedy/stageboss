@@ -4946,16 +4946,22 @@ function SmartBossAI({venues=[], tours=[], comedians=[], upd=()=>{}}) {
     // 1. Never overwrite email if contactLog has entries AND venue not bounced
     // 2. Only fill MISSING fields — never overwrite existing data
     // 3. Skip venues that are fully enriched already
-    const needsEnrich = venuesList.filter(v => {
-      // Enrich if missing ANY useful field
+    // Deduplicate venues first — keep first occurrence of each venue+city combo
+    const seen = new Set();
+    const deduped = venuesList.filter(v => {
+      const key = (v.venue||'').toLowerCase().trim() + '|' + (v.city||'').toLowerCase().trim();
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const needsEnrich = deduped.filter(v => {
       const missingBooker = !v.booker || v.booker.trim() === '';
       const missingPhone = !v.phone || v.phone.trim() === '';
       const missingNotes = !v.notes || v.notes.length < 20;
       const missingInstagram = !v.instagram || v.instagram.trim() === '';
-      const missingAddress = !v.address || v.address.trim() === '';
-      const missingEmail = !v.email || v.email.trim() === '';
       const hasEmailContact = (v.contactLog||[]).length > 0 && !v.bounce;
-      // Include if missing booker OR phone OR notes OR (missing email and no contact sent)
+      const missingEmail = !v.email || v.email.trim() === '';
       return missingBooker || missingPhone || missingNotes || missingInstagram || (!hasEmailContact && missingEmail);
     });
 
@@ -5031,7 +5037,8 @@ function SmartBossAI({venues=[], tours=[], comedians=[], upd=()=>{}}) {
           }
         });
 
-        const logEntry = `Batch ${Math.floor(i/BATCH)+1}: ${batch.map(v=>v.venue).join(', ')} — ${batchEnriched} enriched`;
+        const uniqueNames = [...new Set(batch.map(v=>v.venue))].join(', ');
+        const logEntry = 'Batch '+(Math.floor(i/BATCH)+1)+': '+uniqueNames+' — '+batchEnriched+' enriched';
         setEnrichState(p=>({
           ...p,
           processed: Math.min(p.processed + batch.length, p.total),
@@ -5954,13 +5961,21 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
               const token = session?.data?.session?.access_token || '';
               const venueTypeStr = discoverState.venueType === 'All Types' ? 'comedy clubs, theaters, casinos, and universities' : discoverState.venueType + ' venues';
               const locationStr = (discoverState.city || '') + (discoverState.city && discoverState.state ? ', ' : '') + (discoverState.state || '');
-              const excludeList = venues.slice(0,50).map(function(v){return v.venue;}).join(', ');
-              const prompt = 'Find '+venueTypeStr+' in '+locationStr+' that book stand-up comedy headliners. Return ONLY a JSON array with no markdown or backticks. Each object must have exactly these fields: venue (string), city (string), state (string), venueType (string), capacity (number), guarantee (number - estimated typical headliner guarantee in dollars), booker (string), email (string), phone (string), instagram (string - handle without @), website (string - full URL), address (string), notes (string - 2-3 sentences about recent headliners, venue vibe, audience type, why Phil Medina would be a good fit), warmth (string - Warm or Cold). Do not include any of these existing venues: '+excludeList+'. Return 10-20 new venues. JSON array only, no other text.';
+              // Only exclude venues in the same city to keep request small
+              const cityVenues = venues.filter(v => (v.city||'').toLowerCase() === (discoverState.city||'').toLowerCase());
+              const excludeList = cityVenues.slice(0,15).map(function(v){return v.venue;}).join(', ');
+              const excludePart = excludeList ? ' Do not include: '+excludeList+'.' : '';
+              const prompt = 'Find '+venueTypeStr+' in '+locationStr+' that book stand-up comedy headliners.'+excludePart+' Return 10-15 venues as a JSON array. Each object: {venue, city, state, venueType, capacity (number), guarantee (number), booker, email, phone, instagram, website, address, notes, warmth}. JSON array only, no markdown.';
+              const simpleSystem = 'You are a comedy venue database. Return only valid JSON arrays with real venue data.';
               const res = await fetch('/.netlify/functions/smartboss', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-                body: JSON.stringify({ system: SYSTEM_PROMPT, messages:[{role:'user',content:prompt}], max_tokens:3000 })
+                body: JSON.stringify({ system: simpleSystem, messages:[{role:'user',content:prompt}], max_tokens:2500 })
               });
+              if(!res.ok) {
+                const errText = await res.text();
+                throw new Error('Server error '+res.status+': '+errText.slice(0,100));
+              }
               const data = await res.json();
               const raw = data.content?.find(c=>c.type==='text')?.text || '[]';
               const clean = raw.replace(/```json|```/g,'').trim();
@@ -5969,7 +5984,7 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
                 const match = clean.match(/\[[\s\S]*\]/);
                 if (match) try { found = JSON.parse(match[0]); } catch(e2){}
               }
-              setDiscoverState(p=>({...p, loading:false, results: Array.isArray(found) ? found : [], error: Array.isArray(found) ? '' : 'Could not parse results — try again'}));
+              setDiscoverState(p=>({...p, loading:false, results: Array.isArray(found) && found.length > 0 ? found : [], error: Array.isArray(found) && found.length > 0 ? '' : 'No results returned — try a different city or venue type'}));
             } catch(e) {
               setDiscoverState(p=>({...p, loading:false, error:e.message||'Discovery failed'}));
             }
@@ -6203,12 +6218,39 @@ OPENING LINE ONLY (ultra short, 80 chars max):
 
           {enrichState.done && <div style={{fontSize:12, color:'#00b894', textAlign:'center', marginBottom:10}}>✅ Enrichment complete — {enrichState.enriched} venues updated · Sync to save changes</div>}
 
+          {/* Clean duplicates button */}
+          <button onClick={()=>{
+            const seen = new Set();
+            const dupes = [];
+            venues.forEach(v => {
+              const key = (v.venue||'').toLowerCase().trim()+'|'+(v.city||'').toLowerCase().trim();
+              if(seen.has(key)) dupes.push(v.id);
+              else seen.add(key);
+            });
+            if(dupes.length === 0){ toast2('No duplicates found'); return; }
+            if(window.confirm('Remove '+dupes.length+' duplicate venue entries? This cannot be undone.')){ 
+              dupes.forEach(id => { try{ document.dispatchEvent(new CustomEvent('sb_remove_venue',{detail:id})); }catch(e){} });
+              setVenues(vs => {
+                const seen2 = new Set();
+                return vs.filter(v => {
+                  const key = (v.venue||'').toLowerCase().trim()+'|'+(v.city||'').toLowerCase().trim();
+                  if(seen2.has(key)) return false;
+                  seen2.add(key);
+                  return true;
+                });
+              });
+              toast2('Duplicates removed — tap Sync to save');
+            }
+          }} style={{width:'100%', padding:'10px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(225,112,85,0.1)', border:'1px solid rgba(225,112,85,0.3)', color:'#e17055', marginBottom:10}}>
+            🧹 Clean Duplicate Venues
+          </button>
+
           {/* Rules reminder */}
           <div style={{fontSize:10, color:C2.muted, lineHeight:1.7, background:'rgba(255,255,255,0.02)', borderRadius:8, padding:'10px 12px'}}>
             <strong style={{color:C2.acc2}}>Rules:</strong><br/>
             ✓ Only fills MISSING fields — never overwrites existing data<br/>
             ✓ Emails already sent (not bounced) are never changed<br/>
-            ✓ Runs in batches of 5 — safe for all 634 venues<br/>
+            ✓ Deduplicates before running — no venue processed twice<br/>
             ✓ Tap Sync after completion to save to cloud
           </div>
         </div>
