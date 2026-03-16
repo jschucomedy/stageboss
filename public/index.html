@@ -657,94 +657,68 @@ function getRegion(state) {
 // One-tap from confirmed deal to professional booking agreement
 // ═══════════════════════════════════════════════════════════════
 
-function generateContractHTML(venue, tour) {
+function generateContractHTML(venue) {
   const today = new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
   const guarantee = parseFloat(venue.guarantee) || 0;
   const deposit = parseFloat(venue.depositAmount) || Math.round(guarantee * 0.25);
   const balance = guarantee - deposit;
+  const bookerName = (venue.booker||'') + (venue.bookerLast ? ' '+venue.bookerLast : '') || 'Authorized Representative';
+  const showDates = venue.showDate || venue.targetDates || '[DATE TBD]';
+  const depositPct = guarantee > 0 ? Math.round(deposit/guarantee*100) : 25;
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>Booking Agreement — ${venue.venue}</title>
-<style>
-  body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:0 40px;color:#1a1a1a;line-height:1.7;font-size:14px}
-  h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px;letter-spacing:0.02em}
-  .subtitle{text-align:center;color:#666;font-size:13px;margin-bottom:32px}
-  .divider{border:none;border-top:1px solid #ddd;margin:24px 0}
-  .section-title{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#888;font-family:Arial,sans-serif;margin-bottom:8px;font-weight:600}
-  .field-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid #eee;font-size:13px}
-  .field-label{color:#666;min-width:180px;font-family:Arial,sans-serif}
-  .field-value{font-weight:600;text-align:right}
-  .terms{font-size:12px;color:#444;line-height:1.8;margin-top:8px}
-  .sig-row{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px}
-  .sig-box{border-top:1px solid #333;padding-top:8px;font-size:12px;color:#666}
-  .highlight{background:#f9f9f9;border-left:3px solid #333;padding:12px 16px;margin:16px 0;font-size:13px}
-  @media print{body{margin:20px;padding:0 20px}}
-</style></head><body>
-<h1>BOOKING AGREEMENT</h1>
-<div class="subtitle">Main Event Comedy Entertainment LLC &mdash; ${today}</div>
-<hr class="divider">
+  const css = 'body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:0 40px;color:#1a1a1a;line-height:1.7;font-size:14px} h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px} .sub{text-align:center;color:#666;font-size:13px;margin-bottom:32px} hr{border:none;border-top:1px solid #ddd;margin:24px 0} .st{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#888;margin-bottom:8px;font-weight:600} .fr{display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid #eee;font-size:13px} .fl{color:#666;min-width:180px} .fv{font-weight:600;text-align:right} .hl{background:#f9f9f9;border-left:3px solid #333;padding:12px 16px;margin:16px 0;font-size:13px;font-weight:700} .sr{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px} .sb{border-top:1px solid #333;padding-top:8px;font-size:12px;color:#666}';
 
-<div class="section-title">Parties</div>
-<div class="field-row"><span class="field-label">Talent Management</span><span class="field-value">Main Event Comedy Entertainment LLC</span></div>
-<div class="field-row"><span class="field-label">Contact</span><span class="field-value">Jason Schuster — jason@maineventcomedy.com</span></div>
-<div class="field-row"><span class="field-label">Venue / Purchaser</span><span class="field-value">${venue.venue}</span></div>
-<div class="field-row"><span class="field-label">Venue Location</span><span class="field-value">${venue.city}, ${venue.state}</span></div>
-${venue.booker ? '<div class="field-row"><span class="field-label">Booker Contact</span><span class="field-value">'+venue.booker+(venue.bookerLast?' '+venue.bookerLast:'')+'</span></div>' : ''}
-${venue.email ? '<div class="field-row"><span class="field-label">Booker Email</span><span class="field-value">'+venue.email+'</span></div>' : ''}
+  const field = (label, value) => '<div class="fr"><span class="fl">'+label+'</span><span class="fv">'+value+'</span></div>';
 
-<hr class="divider">
-<div class="section-title">Performance Details</div>
-<div class="field-row"><span class="field-label">Performer</span><span class="field-value">Phil Medina</span></div>
-<div class="field-row"><span class="field-label">Package</span><span class="field-value">${venue.package || 'Phil Medina — Headliner'}</span></div>
-<div class="field-row"><span class="field-label">Show Date(s)</span><span class="field-value">${venue.showDate || venue.targetDates || '[DATE TBD]'}</span></div>
-<div class="field-row"><span class="field-label">Number of Shows</span><span class="field-value">${venue.showCount || 1}</span></div>
-<div class="field-row"><span class="field-label">Venue Capacity</span><span class="field-value">${venue.capacity ? venue.capacity.toLocaleString()+' seats' : 'TBD'}</span></div>
-<div class="field-row"><span class="field-label">Lodging</span><span class="field-value">${venue.lodging || 'Provided by talent'}</span></div>
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Booking Agreement</title><style>'+css+'</style></head><body>'
+    + '<h1>BOOKING AGREEMENT</h1>'
+    + '<div class="sub">Main Event Comedy Entertainment LLC &mdash; '+today+'</div>'
+    + '<hr>'
+    + '<div class="st">Parties</div>'
+    + field('Talent Management','Main Event Comedy Entertainment LLC')
+    + field('Contact','Jason Schuster &mdash; jason@maineventcomedy.com')
+    + field('Venue / Purchaser', venue.venue||'')
+    + field('Venue Location', (venue.city||'')+', '+(venue.state||''))
+    + (venue.booker ? field('Booker Contact', bookerName) : '')
+    + (venue.email ? field('Booker Email', venue.email) : '')
+    + '<hr>'
+    + '<div class="st">Performance Details</div>'
+    + field('Performer','Phil Medina')
+    + field('Package', venue.package||'Phil Medina — Headliner')
+    + field('Show Date(s)', showDates)
+    + field('Number of Shows', String(venue.showCount||1))
+    + field('Venue Capacity', venue.capacity ? venue.capacity.toLocaleString()+' seats' : 'TBD')
+    + field('Lodging', venue.lodging||'Provided by talent')
+    + '<hr>'
+    + '<div class="st">Financial Terms</div>'
+    + field('Deal Structure', venue.dealType||'Flat Guarantee')
+    + '<div class="hl">Total Guarantee: $'+guarantee.toLocaleString()+'</div>'
+    + field('Deposit ('+depositPct+'%)', '$'+deposit.toLocaleString())
+    + field('Deposit Due', venue.depositDue||'14 days prior to show date')
+    + field('Balance Due', '$'+balance.toLocaleString())
+    + field('Balance Payment Timing', venue.expectedPaymentTiming||'Night of show')
+    + '<hr>'
+    + '<div class="st">Terms &amp; Conditions</div>'
+    + '<div style="font-size:12px;color:#444;line-height:1.8;margin-top:8px">'
+    + '1. <strong>Performance:</strong> Performer agrees to provide a professional comedy performance.<br>'
+    + '2. <strong>Cancellation:</strong> Cancellation within 30 days forfeits deposit. Within 14 days forfeits full guarantee.<br>'
+    + '3. <strong>Force Majeure:</strong> Neither party liable for cancellation due to circumstances beyond reasonable control.<br>'
+    + '4. <strong>Merchandise:</strong> Performer retains '+(100-(venue.merchCut||0))+'% of all merchandise sales.<br>'
+    + '5. <strong>Billing:</strong> Performer shall receive sole headline billing.<br>'
+    + '6. <strong>Recording:</strong> No recording without prior written consent from Main Event Comedy Entertainment LLC.<br>'
+    + '7. <strong>Radius Clause:</strong> '+(venue.radiusClause||'No radius restrictions unless separately agreed in writing.')+'<br>'
+    + '8. <strong>Governing Law:</strong> This agreement shall be governed by the laws of the State of Maryland.'
+    + '</div>'
+    + '<hr>'
+    + '<div class="st">Signatures</div>'
+    + '<div class="sr">'
+    + '<div class="sb"><div style="margin-bottom:40px">Signature</div><strong>Jason Schuster</strong><br>Main Event Comedy Entertainment LLC<br>jason@maineventcomedy.com</div>'
+    + '<div class="sb"><div style="margin-bottom:40px">Signature</div><strong>'+bookerName+'</strong><br>'+(venue.venue||'')+'<br>'+(venue.email||'')+'</div>'
+    + '</div>'
+    + '<div style="text-align:center;margin-top:48px;font-size:11px;color:#aaa">Generated by StageBoss &mdash; Main Event Comedy Entertainment LLC &mdash; '+today+'</div>'
+    + '</body></html>';
 
-<hr class="divider">
-<div class="section-title">Financial Terms</div>
-<div class="field-row"><span class="field-label">Deal Structure</span><span class="field-value">${venue.dealType || 'Flat Guarantee'}</span></div>
-<div class="highlight"><strong>Total Guarantee: $${guarantee.toLocaleString()}</strong>${venue.dealType === 'Door Deal' ? ' ('+Math.round(venue.doorSplit||50)+'% of door after expenses)' : ''}</div>
-<div class="field-row"><span class="field-label">Deposit (${Math.round(deposit/guarantee*100)}%)</span><span class="field-value">$${deposit.toLocaleString()}</span></div>
-<div class="field-row"><span class="field-label">Deposit Due</span><span class="field-value">${venue.depositDue || '14 days prior to show date'}</span></div>
-<div class="field-row"><span class="field-label">Balance Due</span><span class="field-value">$${balance.toLocaleString()}</span></div>
-<div class="field-row"><span class="field-label">Balance Payment Timing</span><span class="field-value">${venue.expectedPaymentTiming || 'Night of show'}</span></div>
-${venue.agentCommission ? '<div class="field-row"><span class="field-label">Booking Commission</span><span class="field-value">'+venue.agentCommission+'%</span></div>' : ''}
-
-<hr class="divider">
-<div class="section-title">Terms & Conditions</div>
-<div class="terms">
-1. <strong>Performance:</strong> Performer agrees to provide a professional comedy performance of approximately ${venue.showCount > 1 ? venue.showCount+' sets' : '45-75 minutes'}.<br>
-2. <strong>Cancellation:</strong> Cancellation by Purchaser within 30 days of show date forfeits deposit. Cancellation within 14 days forfeits full guarantee.<br>
-3. <strong>Force Majeure:</strong> Neither party shall be liable for cancellation due to circumstances beyond reasonable control.<br>
-4. <strong>Merchandise:</strong> Performer retains ${100 - (venue.merchCut||0)}% of all merchandise sales. Venue provides table and space at no charge.<br>
-5. <strong>Billing:</strong> Performer shall receive sole headline billing. No other performer shall be billed above or equal to headline act without written consent.<br>
-6. <strong>Recording:</strong> No audio or video recording of the performance without prior written consent from Main Event Comedy Entertainment LLC.<br>
-7. <strong>Radius Clause:</strong> ${venue.radiusClause || 'No radius restrictions unless separately agreed in writing.'}<br>
-8. <strong>Governing Law:</strong> This agreement shall be governed by the laws of the State of Maryland.
-</div>
-
-<hr class="divider">
-<div class="section-title">Signatures</div>
-<div class="sig-row">
-  <div class="sig-box">
-    <div style="margin-bottom:40px">Signature</div>
-    <strong>Jason Schuster</strong><br>
-    Main Event Comedy Entertainment LLC<br>
-    jason@maineventcomedy.com
-  </div>
-  <div class="sig-box">
-    <div style="margin-bottom:40px">Signature</div>
-    <strong>${venue.booker || 'Authorized Representative'}</strong><br>
-    ${venue.venue}<br>
-    ${venue.email || ''}
-  </div>
-</div>
-
-<div style="text-align:center;margin-top:48px;font-size:11px;color:#aaa;font-family:Arial,sans-serif">
-  Generated by StageBoss &mdash; Main Event Comedy Entertainment LLC &mdash; ${today}
-</div>
-</body></html>`;
+  return html;
 }
 
 function getEpkUrl() {
