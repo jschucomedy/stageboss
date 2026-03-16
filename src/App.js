@@ -6145,15 +6145,18 @@ Return ONLY a valid JSON object — no markdown, no backticks, no extra text bef
             <div style={{fontFamily:'Bebas Neue,Impact,sans-serif', fontSize:22, letterSpacing:-0.5, color:'#f0f0ff', lineHeight:1}}>SmartBoss AI</div>
             <div style={{fontSize:10, color:'rgba(167,139,250,0.8)', letterSpacing:'0.12em', textTransform:'uppercase'}}>Tour Intelligence Engine</div>
           </div>
-          <div style={{marginLeft:'auto', display:'flex', gap:6}}>
+          <div style={{width:'100%', overflowX:'auto', WebkitOverflowScrolling:'touch', marginTop:8, paddingBottom:4}}>
+            <div style={{display:'flex', gap:6, minWidth:'max-content'}}>
             {[['year','📆 Year'],['chat','💬 Chat'],['plan','🗺️ Plan'],['discover','🔍 Discover'],['igdm','📱 IG DM'],['enrich','⚡ Enrich'],['negotiate','🤝 Negotiate'],['optimize','📈 Optimize']].map(([m,label])=>(
               <button key={m} onClick={()=>setMode(m)} style={{
-                padding:'6px 12px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
+                padding:'6px 10px', borderRadius:20, fontSize:10, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap',
                 border:`1px solid ${mode===m ? '#7c3aed' : 'rgba(124,58,237,0.25)'}`,
                 background: mode===m ? 'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(236,72,153,0.2))' : 'rgba(20,20,35,0.9)',
                 color: mode===m ? '#a78bfa' : 'rgba(200,200,255,0.45)',
+                flexShrink: 0,
               }}>{label}</button>
             ))}
+            </div>
           </div>
         </div>
 
