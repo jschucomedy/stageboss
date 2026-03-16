@@ -57,10 +57,35 @@ function revenueBrainScore(v, allVenues=[]) {
   };
   score += typeBonus[v.venueType] || 5;
 
+  // Post-show intelligence feedback
+  if (v.showReport) {
+    const sr = v.showReport;
+    if ((sr.rebookLikelihood||0) >= 4) score += 20; // high rebook = prioritize
+    if ((sr.venueProfessionalism||0) <= 2) score -= 10; // bad venue = deprioritize
+    if ((sr.crowdEnergy||0) >= 4) score += 10; // strong show = good market
+    if ((sr.paymentIssues)) score -= 15; // payment problems = flag
+  }
+
+  // Rebook date — if set and coming up, boost priority
+  if (v.rebookDate) {
+    const daysToRebook = Math.floor((new Date(v.rebookDate) - Date.now())/(1000*60*60*24));
+    if (daysToRebook <= 14 && daysToRebook >= 0) score += 25; // rebook window open
+    if (daysToRebook < 0) score += 15; // overdue rebook
+  }
+
+  // Relationship memory boost
+  if (v.trustLevel === 'Strong') score += 15;
+  if (v.trustLevel === 'Trusted') score += 10;
+
   // Bounce penalty
   if (v.bounce) score = 0;
-  // Completed/Lost — skip
-  if (['Completed','Lost','Confirmed'].includes(v.status)) score = 0;
+  // Completed/Lost — skip unless rebook ready
+  if (v.status === 'Lost') score = 0;
+  if (v.status === 'Completed') {
+    // Keep in rotation if rebook date is set
+    score = v.rebookDate ? score : 0;
+  }
+  if (v.status === 'Confirmed') score = 0; // already booked
 
   return Math.round(score);
 }
@@ -140,6 +165,122 @@ function recommendChannel(v) {
   if (touches >= 2 && status === 'Contacted') return {channel:'📱 DM', reason:'Email ignored — try Instagram'};
   if (v.instagram && touches >= 1) return {channel:'📧 Email + DM', reason:'Double tap for response'};
   return {channel:'📧 Email', reason:'Standard first touch'};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 2A — VENUE INTELLIGENCE LAYER
+// Living intelligence profile for every venue
+// ═══════════════════════════════════════════════════════════════
+
+function venueIntelligence(v) {
+  const log = v.contactLog || [];
+  const touches = log.length;
+  const guarantee = parseFloat(v.guarantee) || 0;
+  const capacity = parseInt(v.capacity) || 0;
+  const hasShowReport = v.showReport && Object.keys(v.showReport).length > 0;
+  const actualWalk = parseFloat(v.actualWalk) || 0;
+
+  // Booking window intelligence by venue type
+  const bookingWindows = {
+    'Casino': 'Book 3-6 months out. Q4 (Oct-Dec) highest value. Call preferred.',
+    'Comedy Club': 'Book 4-8 weeks out for weekends. Follow up Tuesday-Thursday.',
+    'College': 'CAB books Sept-Nov for spring, Feb-April for fall. Lead time 2-3 months.',
+    'Theater': 'Book 2-4 months out. Weekends only. Strong social proof required.',
+    'Corporate': 'Book 1-3 months out. Budget approval cycles. Decision by committee.',
+    'Bar/Lounge': 'Book 2-3 weeks out. Flexible. Door deals common.',
+  };
+
+  // Fit score — how well does Phil fit this venue
+  let fitScore = 50; // baseline
+  if (guarantee >= 2000) fitScore += 15; // they pay real money
+  if (capacity >= 150 && capacity <= 600) fitScore += 10; // right room size
+  if (v.warmth === 'Warm' || v.warmth === 'Established') fitScore += 10;
+  if (v.venueType === 'Comedy Club' || v.venueType === 'Casino') fitScore += 10;
+  if (hasShowReport && v.showReport.crowdEnergy >= 4) fitScore += 10;
+  if (v.status === 'Confirmed' || v.status === 'Completed') fitScore = 95;
+  if (v.bounce) fitScore = 10;
+  fitScore = Math.min(100, fitScore);
+
+  // Response pattern
+  const avgCloseTime = touches > 0 && v.confirmedViaEmailDate
+    ? Math.floor((new Date(v.confirmedViaEmailDate) - new Date(log[0].date)) / (1000*60*60*24))
+    : null;
+
+  // Profit potential
+  const profitPotential = guarantee > 0
+    ? guarantee * 0.85 // rough net after costs
+    : capacity > 0 ? Math.round(capacity * 0.7 * 18 * 0.65) : 0; // estimated door
+
+  // Rebook signal
+  const rebookReady = hasShowReport
+    ? (v.showReport.rebookLikelihood >= 4 || v.showReport.venueProfessionalism >= 4)
+    : false;
+
+  return {
+    bookingWindow: bookingWindows[v.venueType] || 'Follow standard outreach cadence.',
+    fitScore,
+    profitPotential,
+    avgCloseTime,
+    rebookReady,
+    preferredDeal: v.dealType || 'Flat Guarantee',
+    relationshipStrength: v.warmth === 'Established' ? 'Strong' : v.warmth === 'Hot' ? 'Active' : touches > 2 ? 'Building' : 'New',
+    negotiationDifficulty: v.venueType === 'Casino' ? 'Medium — they have budgets but slow approval' :
+      v.venueType === 'College' ? 'Low — CAB has set process, just need to fit criteria' :
+      v.venueType === 'Comedy Club' ? 'Low-Medium — bookers are direct, decisions are fast' :
+      'Medium',
+    repeatValue: hasShowReport && actualWalk > 0
+      ? (actualWalk >= capacity * 0.8 ? 'High — strong draw' : actualWalk >= capacity * 0.5 ? 'Medium' : 'Low')
+      : 'Unknown — no show data yet',
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 2B — POST-SHOW INTELLIGENCE LOOP
+// After every show, capture data that makes future bookings smarter
+// ═══════════════════════════════════════════════════════════════
+
+function createShowReport() {
+  return {
+    actualAttendance: 0,
+    capacityPct: 0,
+    actualGross: 0,
+    actualNet: 0,
+    merchRevenue: 0,
+    crowdEnergy: 3,        // 1-5
+    venueProfessionalism: 3, // 1-5
+    paymentTiming: 'Night of show',
+    paymentIssues: false,
+    hospitality: 3,        // 1-5
+    loadInNotes: '',
+    rebookLikelihood: 3,   // 1-5
+    idealFutureAsk: 0,
+    fitNotes: '',          // how well Phil fit the room
+    audienceType: '',      // demographics notes
+    venueStaffNotes: '',
+    marketingSupport: 3,   // 1-5 — how much did venue promote
+    completedAt: new Date().toISOString().split('T')[0],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 2C — RELATIONSHIP MEMORY ENGINE
+// Track booker personality, preferences, and communication style
+// ═══════════════════════════════════════════════════════════════
+
+function createRelationshipProfile() {
+  return {
+    personalityNotes: '',      // e.g. "Direct, no-nonsense, responds fast"
+    communicationPref: 'Email', // Email / Phone / Instagram / Text
+    responseSpeed: '',         // Fast / Medium / Slow / Ghosted
+    whatTheyCarAbout: '',      // e.g. "Ticket sales, not credits"
+    preferredProofPoints: '',  // e.g. "Casino booker — wants draw numbers"
+    priorFriction: '',         // e.g. "Tried to lowball guarantee twice"
+    trustLevel: 'New',         // New / Building / Trusted / Strong
+    warmthIsReal: '',          // Real / Passive / Performative
+    favoriteActTypes: '',      // e.g. "Clean comics, 45-min sets"
+    personalDetails: '',       // e.g. "Has kids, likes golf"
+    lastUpdated: '',
+  };
 }
 const PHIL_EPK_URL = 'https://drive.google.com/file/d/1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie/view?usp=drive_link';
 const PHIL_EPK_DOWNLOAD = 'https://drive.google.com/uc?export=download&id=1dK7Hiyh_CB27S4v8P19wjOyYIiLbPbie';
@@ -4021,6 +4162,43 @@ function StageBoss({user,onLogout,accessToken}){
           <div style={{...s.grid2,gap:6,marginBottom:16}}>{PIPELINE.map(st=>{const color=PIPE_COLORS[st]||C.muted;const active=dv.status===st;return<div key={st} onClick={()=>{upd(dv.id,{status:st});toast2(`Status: ${st}`);}} style={{padding:'8px 10px',borderRadius:9,border:`1px solid ${active?color:C.bord}`,background:active?`${color}18`:C.surf2,color:active?color:C.muted,textAlign:'center',cursor:'pointer',fontSize:10,fontFamily:font.body}}>{st}</div>;})}</div>
           <div style={s.sectionTitle}>[temp] Warmth</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:16}}>{WARMTH.map(w=>{const color=WARMTH_COLORS[w];const active=dv.warmth===w;return<div key={w} onClick={()=>upd(dv.id,{warmth:w})} style={{padding:'7px 4px',borderRadius:9,border:`1px solid ${active?color:C.bord}`,background:active?`${color}18`:C.surf2,color:active?color:C.muted,textAlign:'center',cursor:'pointer',fontSize:10,fontFamily:font.body}}>{w}</div>;})}</div>
+          {/* ── VENUE INTELLIGENCE LAYER ── */}
+          {(()=>{
+            const intel = venueIntelligence(dv);
+            return <div style={{background:'linear-gradient(135deg,rgba(124,58,237,0.08),rgba(236,72,153,0.04))',border:'1px solid rgba(124,58,237,0.2)',borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+              <div style={{fontFamily:font.head,fontWeight:700,fontSize:12,color:C.acc2,marginBottom:8,letterSpacing:'0.05em'}}>🧠 VENUE INTELLIGENCE</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                <div style={{background:'rgba(10,10,20,0.4)',borderRadius:8,padding:'8px 10px'}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>Phil Fit Score</div>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <div style={{flex:1,height:4,background:'rgba(255,255,255,0.08)',borderRadius:2,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:intel.fitScore+'%',background:intel.fitScore>=70?C.green:intel.fitScore>=40?C.yellow:'#e17055',borderRadius:2}}/>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:700,color:intel.fitScore>=70?C.green:intel.fitScore>=40?C.yellow:'#e17055'}}>{intel.fitScore}</span>
+                  </div>
+                </div>
+                <div style={{background:'rgba(10,10,20,0.4)',borderRadius:8,padding:'8px 10px'}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>Profit Potential</div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.green}}>${intel.profitPotential.toLocaleString()}</div>
+                </div>
+                <div style={{background:'rgba(10,10,20,0.4)',borderRadius:8,padding:'8px 10px'}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>Relationship</div>
+                  <div style={{fontSize:12,color:C.acc2,fontWeight:600}}>{intel.relationshipStrength}</div>
+                </div>
+                <div style={{background:'rgba(10,10,20,0.4)',borderRadius:8,padding:'8px 10px'}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>Rebook Ready</div>
+                  <div style={{fontSize:12,color:intel.rebookReady?C.green:C.muted,fontWeight:600}}>{intel.rebookReady?'Yes ✅':'Not yet'}</div>
+                </div>
+              </div>
+              <div style={{fontSize:11,color:C.muted,lineHeight:1.6,background:'rgba(10,10,20,0.3)',borderRadius:8,padding:'8px 10px',marginBottom:6}}>
+                <strong style={{color:C.acc2}}>📅 Booking Window:</strong> {intel.bookingWindow}
+              </div>
+              <div style={{fontSize:11,color:C.muted,lineHeight:1.6,background:'rgba(10,10,20,0.3)',borderRadius:8,padding:'8px 10px'}}>
+                <strong style={{color:C.acc2}}>🤝 Negotiation:</strong> {intel.negotiationDifficulty}
+              </div>
+            </div>;
+          })()}
+
           <div style={s.sectionTitle}>[person] Booker</div>
           <div style={s.grid2}>
             <div style={s.field()}><label style={s.label}>First Name</label><input style={s.input(12)} defaultValue={dv.booker||''} onChange={e=>upd(dv.id,{booker:e.target.value})} placeholder="Jamie"/></div>
@@ -4072,6 +4250,41 @@ function StageBoss({user,onLogout,accessToken}){
           <div style={s.field()}><label style={s.label}>History / Previous Shows</label><input style={s.input(12)} defaultValue={dv.history||''} onChange={e=>upd(dv.id,{history:e.target.value})} placeholder="Sold out March 2024..."/></div>
           <div style={s.field()}><label style={s.label}>Referral Source</label><input style={s.input(12)} defaultValue={dv.referralSource||''} onChange={e=>upd(dv.id,{referralSource:e.target.value})} placeholder="Who introduced you?"/></div>
 
+          {/* ── RELATIONSHIP MEMORY ENGINE ── */}
+          <div style={{fontSize:10,color:'#fd79a8',fontWeight:700,letterSpacing:'0.1em',margin:'14px 0 8px'}}>💝 RELATIONSHIP MEMORY</div>
+          <div style={{background:'rgba(253,121,168,0.05)',border:'1px solid rgba(253,121,168,0.15)',borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+            {[
+              {label:'Booker Personality', field:'personalityNotes', placeholder:'e.g. Direct, responds fast, no-nonsense'},
+              {label:'What They Care About', field:'whatTheyCarAbout', placeholder:'e.g. Ticket sales numbers, not credits'},
+              {label:'Preferred Proof Points', field:'preferredProofPoints', placeholder:'e.g. Wants draw data and crowd photos'},
+              {label:'Prior Friction', field:'priorFriction', placeholder:'e.g. Tried to lowball twice, sensitive to fees'},
+              {label:'Personal Details', field:'personalDetails', placeholder:'e.g. Has kids, coaches baseball, likes golf'},
+            ].map(({label,field,placeholder})=>(
+              <div key={field} style={{marginBottom:8}}>
+                <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>{label}</div>
+                <input style={{...s.input(11),width:'100%'}}
+                  defaultValue={dv[field]||''}
+                  placeholder={placeholder}
+                  onBlur={e=>{if(e.target.value!==dv[field]) upd(dv.id,{[field]:e.target.value});}}
+                />
+              </div>
+            ))}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:4}}>
+              <div>
+                <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>Communication Pref</div>
+                <select style={s.select} value={dv.communicationPref||'Email'} onChange={e=>upd(dv.id,{communicationPref:e.target.value})}>
+                  <option>Email</option><option>Phone</option><option>Instagram</option><option>Text</option>
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>Trust Level</div>
+                <select style={s.select} value={dv.trustLevel||'New'} onChange={e=>upd(dv.id,{trustLevel:e.target.value})}>
+                  <option>New</option><option>Building</option><option>Trusted</option><option>Strong</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* EMAIL THREAD TRACKING */}
           <div style={{fontSize:10,color:C.acc2,fontWeight:700,letterSpacing:'0.1em',margin:'10px 0 8px'}}>🧵 EMAIL THREAD</div>
           <div style={{display:'flex',gap:8,alignItems:'flex-end',marginBottom:8}}>
@@ -4097,6 +4310,80 @@ function StageBoss({user,onLogout,accessToken}){
             {dv.checklist&&<button onClick={()=>{setDetailId(null);setTimeout(()=>setChecklistId(dv.id),250);}} style={{...s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)'),flex:1}}>[list] Checklist ({checklistPct(dv.checklist)}%)</button>}
             {dv.paid&&<button onClick={()=>{setDetailId(null);setTimeout(()=>setSettlementId(dv.id),250);}} style={{...s.btn(C.surf2,C.acc2,C.bord),flex:1}}>[chart] Settlement</button>}
           </div>
+          {/* ── POST-SHOW INTELLIGENCE LOOP ── */}
+          {['Confirmed','Completed','Advancing'].includes(dv.status)&&<>
+            <div style={{fontSize:10,color:'#ffd700',fontWeight:700,letterSpacing:'0.1em',margin:'14px 0 8px'}}>⭐ POST-SHOW INTELLIGENCE</div>
+            <div style={{background:'rgba(255,215,0,0.05)',border:'1px solid rgba(255,215,0,0.15)',borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+              {!dv.showReport ? (
+                <button onClick={()=>upd(dv.id,{showReport:createShowReport()})} style={{...s.btn('rgba(255,215,0,0.1)','#ffd700','rgba(255,215,0,0.3)'),width:'100%',fontWeight:700}}>
+                  + File Post-Show Report
+                </button>
+              ) : (
+                <>
+                  <div style={{fontSize:11,color:'#ffd700',fontWeight:700,marginBottom:10}}>Show Report — {dv.showReport.completedAt||'In progress'}</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                    {[
+                      {label:'Actual Attendance', field:'actualAttendance', type:'number', placeholder:'250'},
+                      {label:'Actual Gross ($)', field:'actualGross', type:'number', placeholder:'3500'},
+                      {label:'Merch Revenue ($)', field:'merchRevenue', type:'number', placeholder:'0'},
+                      {label:'Ideal Future Ask ($)', field:'idealFutureAsk', type:'number', placeholder:'2000'},
+                    ].map(({label,field,type,placeholder})=>(
+                      <div key={field}>
+                        <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>{label}</div>
+                        <input type={type} style={s.input(11)}
+                          defaultValue={dv.showReport[field]||''}
+                          placeholder={placeholder}
+                          onBlur={e=>upd(dv.id,{showReport:{...dv.showReport,[field]:parseFloat(e.target.value)||0}})}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {[
+                    {label:'Crowd Energy', field:'crowdEnergy'},
+                    {label:'Venue Professionalism', field:'venueProfessionalism'},
+                    {label:'Marketing Support', field:'marketingSupport'},
+                    {label:'Rebook Likelihood', field:'rebookLikelihood'},
+                    {label:'Hospitality', field:'hospitality'},
+                  ].map(({label,field})=>(
+                    <div key={field} style={{marginBottom:8}}>
+                      <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{label}</div>
+                      <div style={{display:'flex',gap:6}}>
+                        {[1,2,3,4,5].map(n=>(
+                          <div key={n} onClick={()=>upd(dv.id,{showReport:{...dv.showReport,[field]:n}})}
+                            style={{flex:1,padding:'6px 0',borderRadius:6,border:`1px solid ${(dv.showReport[field]||0)>=n?'#ffd700':'rgba(255,255,255,0.1)'}`,background:(dv.showReport[field]||0)>=n?'rgba(255,215,0,0.15)':'transparent',textAlign:'center',cursor:'pointer',fontSize:12,color:(dv.showReport[field]||0)>=n?'#ffd700':C.muted}}>
+                            {n}⭐
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {[
+                    {label:'Fit Notes', field:'fitNotes', placeholder:'How well did Phil fit the room and audience?'},
+                    {label:'Audience Type', field:'audienceType', placeholder:'Demographics, vibe, comedy experience level'},
+                    {label:'Venue Staff Notes', field:'venueStaffNotes', placeholder:'Stage manager, sound, hospitality quality'},
+                    {label:'Payment Notes', field:'loadInNotes', placeholder:'Any issues with payment timing or process?'},
+                  ].map(({label,field,placeholder})=>(
+                    <div key={field} style={{marginBottom:8}}>
+                      <div style={{fontSize:9,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:3}}>{label}</div>
+                      <input style={{...s.input(11),width:'100%'}}
+                        defaultValue={dv.showReport[field]||''}
+                        placeholder={placeholder}
+                        onBlur={e=>upd(dv.id,{showReport:{...dv.showReport,[field]:e.target.value}})}
+                      />
+                    </div>
+                  ))}
+                  {/* Auto-update venue warmth and rebook date based on show report */}
+                  {(dv.showReport.rebookLikelihood>=4)&&<div style={{background:'rgba(0,184,148,0.1)',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'10px',marginTop:8}}>
+                    <div style={{fontSize:11,color:C.green,fontWeight:700,marginBottom:4}}>✅ High rebook likelihood — upgrade to Established</div>
+                    <button onClick={()=>upd(dv.id,{warmth:'Established',status:'Completed',rebookDate:new Date(Date.now()+90*24*60*60*1000).toISOString().split('T')[0]})} style={{...s.btn('rgba(0,184,148,0.15)',C.green,'rgba(0,184,148,0.3)'),width:'100%',fontSize:11}}>
+                      Mark Established + Set 90-day Rebook Reminder
+                    </button>
+                  </div>}
+                </>
+              )}
+            </div>
+          </>}
+
           {(dv.contactLog||[]).length>0&&<><div style={s.divider}/><div style={s.sectionTitle}>[scroll] Contact History</div>{[...(dv.contactLog||[])].reverse().map((entry,i)=><div key={i} style={{padding:'8px 10px',background:C.surf2,borderRadius:8,marginBottom:6,fontSize:11}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:C.acc2}}>{entry.method}</span><span style={{color:C.muted}}>{entry.date}</span></div><div style={{color:C.muted2}}>{entry.note}</div></div>)}</>}
           <div style={s.divider}/>
           <div style={s.field()}><label style={s.label}>Notes</label><textarea style={{...s.input(),resize:'none',minHeight:70}} defaultValue={dv.notes||''} onChange={e=>upd(dv.id,{notes:e.target.value})} placeholder="Deal notes, follow-up details..."/></div>
@@ -4269,19 +4556,33 @@ function StageBoss({user,onLogout,accessToken}){
           </div>
 
           {/* MOMENTUM SCORE */}
-          {cv&&(()=>{const score=momentumScore(cv);return<div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:8,marginBottom:8}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700}}>Booking Momentum</div>
-              <div style={{fontSize:11,color:C.muted2,marginTop:2}}>{score>=70?'Strong — push to close':score>=40?'Building — keep touching':'Low — warm this up first'}</div>
-            </div>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,color:score>=70?C.green:score>=40?C.yellow:C.orange}}>{score}</div>
-              <div style={{fontSize:9,color:C.muted}}>/ 100</div>
-            </div>
-            <div style={{width:6,height:40,background:C.bord,borderRadius:3,overflow:'hidden'}}>
-              <div style={{width:'100%',height:score+'%',background:score>=70?C.green:score>=40?C.yellow:C.orange,borderRadius:3,marginTop:(100-score)+'%'}}/>
-            </div>
-          </div>;})()} 
+          {cv&&(()=>{
+            const score=momentumScore(cv);
+            const rbScore=revenueBrainScore(cv,venues);
+            const intel=venueIntelligence(cv);
+            const tag=behaviorTag(cv);
+            const ch=recommendChannel(cv);
+            return<div style={{background:C.surf2,border:`1px solid ${C.bord}`,borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700}}>Revenue Brain Score</div>
+                <div style={{fontSize:11,color:tag.color,marginTop:2,fontWeight:600}}>{tag.label}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,color:rbScore>=80?C.green:rbScore>=50?C.yellow:C.orange}}>{rbScore}</div>
+                <div style={{fontSize:9,color:C.muted}}>priority</div>
+              </div>
+              <div style={{width:6,height:40,background:C.bord,borderRadius:3,overflow:'hidden'}}>
+                <div style={{width:'100%',height:Math.min(100,rbScore)+'%',background:rbScore>=80?C.green:rbScore>=50?C.yellow:C.orange,borderRadius:3,marginTop:Math.max(0,100-rbScore)+'%'}}/>
+              </div>
+              </div>
+              <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
+                <span style={{fontSize:10,color:C.muted,background:C.surf,padding:'3px 8px',borderRadius:6,border:'1px solid '+C.bord}}>{ch.channel}</span>
+                <span style={{fontSize:10,color:C.muted,padding:'3px 8px'}}>Phil fit: {intel.fitScore}/100</span>
+                <span style={{fontSize:10,color:C.green,padding:'3px 8px'}}>Est. ${intel.profitPotential.toLocaleString()}</span>
+              </div>
+            </div>;
+          })()} 
 
           <button onClick={()=>{logTouch(cv.id,'Email','Marked as contacted');upd(cv.id,{status:'Contacted'});toast2('✓ Contacted + follow-up auto-scheduled');}} style={s.btn('rgba(0,184,148,0.1)',C.green,'rgba(0,184,148,0.25)')}>✓ Mark Contacted + Auto-Schedule Follow-Up</button>
         </>}
