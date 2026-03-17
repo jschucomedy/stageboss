@@ -2,7 +2,13 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
-const BUILD_ID = '2026-03-14-v13';
+const BUILD_ID = '2026-03-14-v14';
+
+// ── SAFE GUARANTEE PARSER — handles commas, strings, nulls ──
+function parseGuarantee(val) {
+  if (!val && val !== 0) return 0;
+  return parseFloat(String(val).replace(/,/g, '')) || 0;
+}
 
 // ── PWA SERVICE WORKER REGISTRATION ──────────────────────────
 if ('serviceWorker' in navigator) {
@@ -29,7 +35,7 @@ function revenueBrainScore(v, allVenues=[]) {
   const touches = log.length;
   const lastTouch = log.length > 0 ? new Date(log[log.length-1].date) : null;
   const daysSinceLast = lastTouch ? Math.floor((Date.now()-lastTouch)/(1000*60*60*24)) : 999;
-  const guarantee = parseFloat(v.guarantee) || 0;
+  const guarantee = parseGuarantee(v.guarantee) || 0;
 
   // Revenue potential (0-40 pts)
   if (guarantee >= 3000) score += 40;
@@ -66,8 +72,9 @@ function revenueBrainScore(v, allVenues=[]) {
 
   // Venue type value multiplier
   const typeBonus = {
-    'Casino': 15, 'Theater': 12, 'Prestige Club': 10,
-    'Comedy Club': 8, 'College': 6, 'Corporate': 12
+    'Casino': 15, 'Theater': 12, 'Theater/Arena': 12,
+    'Prestige Club': 10, 'Comedy Club': 8, 'College': 6,
+    'Corporate': 12, 'University/College': 6, 'Bar/Lounge': 3
   };
   score += typeBonus[v.venueType] || 5;
 
@@ -101,7 +108,7 @@ function revenueBrainScore(v, allVenues=[]) {
   }
   if (v.status === 'Confirmed') score = 0; // already booked
 
-  return Math.round(score);
+  return Math.min(100, Math.max(0, Math.round(score)));
 }
 
 // Adaptive Follow-Up: picks the RIGHT template based on behavior, not just touch count
@@ -129,11 +136,12 @@ function adaptiveTemplate(v, templates=[]) {
   }
 
   if (touches === 1) {
-    if (daysSinceLast >= 12) {
-      // Sent once, 12+ days no reply — friendly nudge
+    if (daysSinceLast >= 7) {
+      // Sent once, 7+ days no reply — friendly nudge
       return templates.find(t=>t.id==='tmpl_followup_1') || templates[0];
     }
-    return templates.find(t=>t.id==='tmpl_followup_1') || templates[0];
+    // Not yet time — return original first-touch template
+    return templates.find(t=>t.id==='tmpl_jason_phil_standard') || templates[0];
   }
 
   if (touches === 2) {
@@ -189,7 +197,7 @@ function recommendChannel(v) {
 function venueIntelligence(v) {
   const log = v.contactLog || [];
   const touches = log.length;
-  const guarantee = parseFloat(v.guarantee) || 0;
+  const guarantee = parseGuarantee(v.guarantee) || 0;
   const capacity = parseInt(v.capacity) || 0;
   const hasShowReport = v.showReport && Object.keys(v.showReport).length > 0;
   const actualWalk = parseFloat(v.actualWalk) || 0;
@@ -306,7 +314,7 @@ function tourEconomicsScore(tour, confirmedVenues=[]) {
   if (!tour || !tour.dates || tour.dates.length === 0) return null;
 
   const dates = tour.dates || [];
-  const totalGuarantee = dates.reduce((a,d) => a + (parseFloat(d.guarantee)||0), 0);
+  const totalGuarantee = dates.reduce((a,d) => a + (parseGuarantee(d.guarantee)||0), 0);
   const totalExpenses = (parseFloat(tour.travelBudget)||0) + (parseFloat(tour.lodgingBudget)||0) + (parseFloat(tour.miscBudget)||0);
   const netRevenue = totalGuarantee * 0.75 - totalExpenses;
   const showCount = dates.length;
@@ -372,7 +380,7 @@ function getPersonalizedAssets(v) {
   const venueType = v.venueType || 'Comedy Club';
   const warmth = v.warmth || 'Cold';
   const touches = (v.contactLog || []).length;
-  const guarantee = parseFloat(v.guarantee) || 0;
+  const guarantee = parseGuarantee(v.guarantee) || 0;
 
   const assets = {
     headline_credit: '',
@@ -471,7 +479,7 @@ function predictiveMarkets(venues, tours) {
       const key = (v.city||'') + ', ' + (v.state||'');
       if (!cityMap[key]) cityMap[key] = {city:v.city, state:v.state, count:0, totalValue:0};
       cityMap[key].count++;
-      cityMap[key].totalValue += parseFloat(v.guarantee)||0;
+      cityMap[key].totalValue += parseGuarantee(v.guarantee)||0;
     });
   const hotMarkets = Object.values(cityMap)
     .filter(m => m.count >= 2)
@@ -628,7 +636,7 @@ function detectRoutingClusters(venues) {
     .map(([region, vs]) => {
       const warm = vs.filter(v => ['Warm','Hot','Established'].includes(v.warmth)
         && !['Confirmed','Completed','Lost'].includes(v.status));
-      const totalValue = warm.reduce((a,v) => a + (parseFloat(v.guarantee)||0), 0);
+      const totalValue = warm.reduce((a,v) => a + (parseGuarantee(v.guarantee)||0), 0);
       return { region, count: warm.length, totalValue, venues: warm.slice(0,5) };
     })
     .sort((a,b) => b.totalValue - a.totalValue);
@@ -1737,7 +1745,7 @@ const s = {
   overlay:(open)=>({position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:100,opacity:open?1:0,pointerEvents:open?'auto':'none',transition:'opacity 0.2s'}),
   panel:(open)=>({position:'fixed',top:0,right:0,height:'100%',width:'min(480px,100vw)',maxWidth:'100vw',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',background:C.surf,borderLeft:`1px solid ${C.bord2}`,zIndex:101,overflowY:'auto',padding:'20px 16px 100px',transform:open?'translateX(0)':'translateX(100%)',transition:'transform 0.28s cubic-bezier(0.4,0,0.2,1)'}),
   handle:{width:4,height:32,background:C.bord2,borderRadius:2,margin:'0 auto 16px'},
-  header:{background:C.surf,borderBottom:`1px solid ${C.bord}`,padding:'12px 16px',position:'sticky',top:0,zIndex:40},
+  stickyHeader:{background:C.surf,borderBottom:`1px solid ${C.bord}`,padding:'12px 16px',position:'sticky',top:0,zIndex:40},
   content:{flex:1,overflowY:'auto'},
   modal:{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(8px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:16},
   modalBox:{background:C.surf,border:`1px solid ${C.bord2}`,borderRadius:18,padding:28,width:'100%',maxWidth:560,maxHeight:'90vh',overflowY:'auto'},
@@ -2098,7 +2106,7 @@ function withSig(body, senderLoginEmail) {
 // ── DEAL CALCULATOR ──────────────────────────────────────────
 function calcDeal(d) {
   if(!d) return {};
-  const type=d.dealType||'Flat Guarantee',guarantee=parseFloat(d.guarantee)||0,
+  const type=d.dealType||'Flat Guarantee',guarantee=parseGuarantee(d.guarantee)||0,
     doorSplit=parseFloat(d.doorSplit)||50,ticketPrice=parseFloat(d.ticketPrice)||20,
     capacity=parseInt(d.capacity)||0,sellThrough=parseFloat(d.sellThrough)||85,
     agentPct=(parseFloat(d.agentCommission)||10)/100,
@@ -2345,6 +2353,7 @@ class ErrorBoundary extends React.Component {
 // ANALYTICS TAB COMPONENT
 // ════════════════════════════════════════════════════════════
 function AnalyticsTab({venues, tours, bestTimeData={}}){
+  const [projHorizon, setProjHorizon] = useState('6mo');
   const C = {
     bg:'#07070f', surf:'#10101e', surf2:'#16162e', bord:'#2a2a50',
     acc:'#7c3aed', acc2:'#a78bfa', green:'#00b894', pink:'#ec4899',
@@ -2365,7 +2374,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
     if(d.startsWith(thisYear)){
       const m=parseInt(d.split('-')[1])-1;
       if(m>=0&&m<12){
-        revenueByMonth[m].guarantee+=parseFloat(v.guarantee)||0;
+        revenueByMonth[m].guarantee+=parseGuarantee(v.guarantee)||0;
         revenueByMonth[m].merch+=parseFloat(v.settlement?.merchNet)||0;
       }
     }
@@ -2377,7 +2386,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
       if(!['Confirmed','Advancing','Completed'].includes(d.status)) return;
       const m=parseInt(d.date.split('-')[1])-1;
       if(m>=0&&m<12){
-        revenueByMonth[m].guarantee+=parseFloat(d.guarantee)||0;
+        revenueByMonth[m].guarantee+=parseGuarantee(d.guarantee)||0;
         revenueByMonth[m].merch+=parseFloat(d.settlement?.merchNet)||0;
       }
     });
@@ -2388,7 +2397,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
   confirmed.forEach(v=>{
     if(!v.state) return;
     if(!byState[v.state]) byState[v.state]={state:v.state,total:0,shows:0};
-    byState[v.state].total+=parseFloat(v.guarantee)||0;
+    byState[v.state].total+=parseGuarantee(v.guarantee)||0;
     byState[v.state].shows++;
   });
   const topStates=Object.values(byState).sort((a,b)=>b.total-a.total).slice(0,8);
@@ -2398,7 +2407,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
   confirmed.forEach(v=>{
     const t=v.venueType||'Club';
     if(!byType[t]) byType[t]={type:t,total:0,shows:0};
-    byType[t].total+=parseFloat(v.guarantee)||0;
+    byType[t].total+=parseGuarantee(v.guarantee)||0;
     byType[t].shows++;
   });
   const topTypes=Object.values(byType).sort((a,b)=>b.total-a.total);
@@ -2409,7 +2418,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
   const convRate=leads>0?Math.round((converted/leads)*100):0;
 
   // Average deal size
-  const avgDeal=converted>0?Math.round(confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0)/converted):0;
+  const avgDeal=converted>0?Math.round(confirmed.reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0),0)/converted):0;
 
   // Template response rate
   const templateHits={};
@@ -2432,7 +2441,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
 
   // Tour profitability
   const tourProfit=tours.map(t=>{
-    const gross=(t.dates||[]).reduce((a,d)=>a+(parseFloat(d.guarantee)||0),0);
+    const gross=(t.dates||[]).reduce((a,d)=>a+(parseGuarantee(d.guarantee)||0),0);
     const expenses=(parseFloat(t.budget?.travel)||0)+(parseFloat(t.budget?.lodging)||0)+(parseFloat(t.budget?.misc)||0);
     return {name:t.name,gross,expenses,net:gross-expenses,dates:(t.dates||[]).length};
   }).filter(t=>t.gross>0);
@@ -2446,7 +2455,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
   const avgVelocity=velocities.length>0?Math.round(velocities.reduce((a,b)=>a+b,0)/velocities.length):null;
 
   // Totals
-  const totalRevenue=confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
+  const totalRevenue=confirmed.reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0),0);
   const totalMerch=confirmed.reduce((a,v)=>a+(parseFloat(v.settlement?.merchNet)||0),0);
   const maxMonth=Math.max(...revenueByMonth.map(m=>m.guarantee+m.merch),1);
   const maxState=topStates.length>0?topStates[0].total:1;
@@ -2705,13 +2714,13 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
         venues.filter(v=>['Confirmed','Advancing'].includes(v.status)&&v.showDate).forEach(v=>{
           const d = new Date(v.showDate);
           const bi = buckets.findIndex(b=>b.year===d.getFullYear()&&b.month===d.getMonth());
-          if(bi>=0) buckets[bi].confirmed += parseFloat(v.guarantee)||0;
+          if(bi>=0) buckets[bi].confirmed += parseGuarantee(v.guarantee)||0;
         });
 
         // Pipeline venues weighted by close probability (use targetDates or nextFollowUp for timing)
         venues.filter(v=>!['Confirmed','Advancing','Completed','Lost'].includes(v.status)&&(v.guarantee||v.avgDeal||avgDeal)).forEach(v=>{
           const weight = WEIGHTS[v.status]||0.05;
-          const dealSize = parseFloat(v.guarantee)||avgDeal||0;
+          const dealSize = parseGuarantee(v.guarantee)||avgDeal||0;
           const projected = dealSize * weight;
           if(projected < 1) return;
           // Try to place in the right month from targetDates
@@ -2747,7 +2756,7 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
             const dt = new Date(d.date);
             const bi = buckets.findIndex(b=>b.year===dt.getFullYear()&&b.month===dt.getMonth());
             if(bi>=0){
-              const guarantee = parseFloat(d.guarantee)||0;
+              const guarantee = parseGuarantee(d.guarantee)||0;
               const weight = WEIGHTS[d.status]||0.6;
               if(d.status==='Confirmed'||d.status==='Completed') buckets[bi].confirmed += guarantee;
               else buckets[bi].tours += guarantee * weight;
@@ -2761,9 +2770,6 @@ function AnalyticsTab({venues, tours, bestTimeData={}}){
       const horizons = ['3mo','6mo','12mo'];
       const labels = {'3mo':'3 Months','6mo':'6 Months','12mo':'12 Months'};
 
-      // Use a simple inline toggle — track with a data attr trick using useState via ref
-      // We'll render all three and show/hide with CSS — simpler approach
-      const [projHorizon, setProjHorizon] = React.useState('6mo');
       const buckets = buildProjection(projHorizon);
       const totalConfirmed = buckets.reduce((a,b)=>a+b.confirmed,0);
       const totalPipeline = buckets.reduce((a,b)=>a+b.pipeline,0);
@@ -3348,14 +3354,33 @@ function StageBoss({user,onLogout,accessToken}){
 
   const toast2=useCallback((msg)=>{setToast(msg);setTimeout(()=>setToast(''),2500);},[]);
   const upd=useCallback((id,fields)=>{
-    // Track wins when status changes to Confirmed
+    // Track wins and auto-create checklist when status changes to Confirmed
     if(fields.status==='Confirmed'){
       setVenues(vs=>{
         const v=vs.find(x=>x.id===id);
         if(v&&v.status!=='Confirmed'){
           setWinsHistory(wh=>[{id:Date.now(),venue:v.venue,city:v.city,state:v.state,guarantee:v.guarantee||fields.guarantee||0,date:new Date().toISOString().split('T')[0]},...wh.slice(0,19)]);
         }
-        return vs.map(x=>x.id===id?{...x,...fields}:x);
+        return vs.map(x=>{
+          if(x.id!==id) return x;
+          const updated={...x,...fields};
+          // Auto-create checklist if not already present
+          if(!updated.checklist){
+            updated.checklist=[
+              {id:1,label:'Confirm show date and time in writing',done:false},
+              {id:2,label:'Send contract or email agreement',done:false},
+              {id:3,label:'Collect deposit if applicable',done:false},
+              {id:4,label:'Confirm venue address and load-in details',done:false},
+              {id:5,label:'Add date to tour calendar',done:false},
+              {id:6,label:'Send Phil show details',done:false},
+              {id:7,label:'Confirm hotel/lodging',done:false},
+              {id:8,label:'Request venue logo and promo assets',done:false},
+              {id:9,label:'Collect balance payment after show',done:false},
+              {id:10,label:'File show report and rebook conversation',done:false},
+            ];
+          }
+          return updated;
+        });
       });
     } else {
       setVenues(vs=>vs.map(v=>v.id===id?{...v,...fields}:v));
@@ -3426,7 +3451,7 @@ function StageBoss({user,onLogout,accessToken}){
   // -- Analytics --
   const stats=useMemo(()=>{
     const confirmed=venues.filter(v=>['Confirmed','Advancing','Completed'].includes(v.status));
-    const totalGross=confirmed.reduce((a,v)=>a+(Number(v.guarantee)||0),0);
+    const totalGross=confirmed.reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0),0);
     return{total:venues.length,leads:venues.filter(v=>v.status==='Lead').length,active:venues.filter(v=>['Contacted','Follow-Up','Responded','Negotiating','Hold'].includes(v.status)).length,confirmed:confirmed.length,totalGross,netEst:totalGross*0.75,byStatus:PIPELINE.reduce((a,st)=>{a[st]=venues.filter(v=>v.status===st).length;return a;},{})};
   },[venues]);
 
@@ -3527,7 +3552,17 @@ function StageBoss({user,onLogout,accessToken}){
 
   function addVenue(){
     if(!nv.venue.trim()){toast2('Venue name required');return;}
-    const v={...nv,id:'manual_'+Date.now(),status:'Lead',notes:nv.notes||'',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',capacity:parseInt(nv.capacity)||0,guarantee:parseFloat(nv.guarantee)||0,doorSplit:parseFloat(nv.doorSplit)||0,agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'};
+    // Input validation
+    if(nv.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nv.email)){toast2('⚠️ Check email format before adding');return;}
+    const cleanState=(nv.state||'').toUpperCase().slice(0,2);
+    const cleanGuarantee=parseGuarantee(nv.guarantee);
+    const v={...nv,id:'manual_'+Date.now(),status:'Lead',notes:nv.notes||'',contactLog:[],contractStatus:'None',depositPaid:false,balancePaid:false,actualWalk:0,estimatedGross:0,showCount:3,showDates:[],ticketPrice:20,depositAmount:0,depositDue:'',balanceDue:'',radiusClause:'',flightDetails:'',bonusTier:'',capacity:parseInt(nv.capacity)||0,guarantee:cleanGuarantee,state:cleanState,doorSplit:parseFloat(nv.doorSplit)||0,agreementType:'Email Agreement',confirmedViaEmailDate:'',emailThreadURL:'',emailThreadText:'',emailAgreementNotes:'',termsLocked:false,checklist:null,expectedPaymentTiming:'Night of show',paid:false,paidDate:'',settlement:null,showReport:null,rebookDate:'',package:'Jason + Phil'};
+    // Dedup check
+    const duplicate=venues.find(x=>x.venue.toLowerCase().trim()===nv.venue.toLowerCase().trim()&&x.city.toLowerCase().trim()===(nv.city||'').toLowerCase().trim());
+    if(duplicate){
+      const proceed=window.confirm(`"${nv.venue}" in ${nv.city||'unknown city'} already exists in your database. Add anyway?`);
+      if(!proceed) return;
+    }
     setVenues(vs=>{
       const updated=[v,...vs];
       // Save to localStorage immediately so it persists on refresh
@@ -3911,6 +3946,16 @@ function StageBoss({user,onLogout,accessToken}){
       {/* MAIN CONTENT */}
       <div className="sb-main">
 
+      {/* SYNC ERROR BANNER */}
+      {syncError&&<div style={{background:'rgba(225,112,85,0.15)',border:'1px solid rgba(225,112,85,0.4)',borderRadius:0,padding:'8px 16px',display:'flex',alignItems:'center',gap:8,position:'sticky',top:0,zIndex:50}}>
+        <span style={{fontSize:14}}>⚠️</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:11,color:C.red,fontWeight:700}}>Sync error — working from local cache</div>
+          <div style={{fontSize:10,color:C.muted}}>Changes may not be saving to the cloud. Tap Sync to retry.</div>
+        </div>
+        <button onClick={async()=>{setSyncing(true);try{await cloudPush(OWNER_EMAIL,venues,templates,tours,comedians);setSyncError(null);setLastSync(new Date());toast2('Sync restored!');}catch(e){}setSyncing(false);}} style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(225,112,85,0.5)',background:'rgba(225,112,85,0.2)',color:C.red,fontSize:10,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Retry Sync</button>
+      </div>}
+
       {/* HEADER */}
       <div className="sb-mobile-header" style={s.header}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
@@ -3944,7 +3989,7 @@ function StageBoss({user,onLogout,accessToken}){
       <div className="sb-content" style={s.content}>
 
         {/* == TODAY TAB == */}
-        {tab==='today'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+        {tab==='today'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
           {/* HEADER */}
           <div style={{marginBottom:20}}>
             <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,marginBottom:2}}>
@@ -3962,7 +4007,7 @@ function StageBoss({user,onLogout,accessToken}){
               const d=v.confirmedViaEmailDate||v.showDate||'';
               return !d||d.startsWith(thisYear);
             });
-            const projectedGross=confirmed.reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
+            const projectedGross=confirmed.reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0),0);
             const merchTotal=confirmed.reduce((a,v)=>a+(parseFloat(v.settlement?.merchNet)||0),0);
             const totalRevenue=projectedGross+merchTotal;
             const pct=totalRevenue>0?Math.min(100,Math.round((totalRevenue/Math.max(totalRevenue*1.25,10000))*100)):0;
@@ -4032,7 +4077,7 @@ function StageBoss({user,onLogout,accessToken}){
             // Revenue at risk — sum of Negotiating + Responded guarantees
             const revenueAtRisk = due
               .filter(v=>['Negotiating','Responded'].includes(v.status))
-              .reduce((a,v)=>a+(parseFloat(v.guarantee)||0),0);
+              .reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0),0);
             return <div style={{marginBottom:16}}>
               {revenueAtRisk>0&&<div style={{background:'rgba(255,215,0,0.07)',border:'1px solid rgba(255,215,0,0.2)',borderRadius:10,padding:'10px 14px',marginBottom:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div style={{fontSize:11,color:'#ffd700',fontWeight:700}}>💰 Revenue at risk</div>
@@ -4055,7 +4100,7 @@ function StageBoss({user,onLogout,accessToken}){
                       <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
                         <span style={{fontSize:10,color:C.muted,background:C.surf2,padding:'2px 7px',borderRadius:6}}>{ch.channel}</span>
                         <span style={{fontSize:10,color:C.muted}}>{ch.reason}</span>
-                        {(parseFloat(v.guarantee)||0)>0&&<span style={{fontSize:11,color:C.green,fontWeight:700}}>${(parseFloat(v.guarantee)||0).toLocaleString()}</span>}
+                        {(parseGuarantee(v.guarantee)||0)>0&&<span style={{fontSize:11,color:C.green,fontWeight:700}}>${(parseGuarantee(v.guarantee)||0).toLocaleString()}</span>}
                         <span style={{fontSize:10,color:C.muted,marginLeft:'auto'}}>Score: {v._score}</span>
                       </div>
                     </div>
@@ -4086,6 +4131,21 @@ function StageBoss({user,onLogout,accessToken}){
               ))}
             </div>;
           })()}
+
+          {/* OVERDUE FOLLOW-UPS */}
+          {overdueActions.length>0&&<div style={{background:'rgba(225,112,85,0.08)',border:'1px solid rgba(225,112,85,0.3)',borderRadius:12,padding:'12px 14px',marginBottom:12}}>
+            <div style={{fontSize:10,color:C.red,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>🚨 Overdue Follow-Ups — {overdueActions.length}</div>
+            {overdueActions.slice(0,6).map(v=>{
+              const daysOver=Math.floor((Date.now()-new Date(v.nextFollowUp))/(1000*60*60*24));
+              return <div key={v.id} onClick={()=>setComposeId(v.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid rgba(225,112,85,0.08)',cursor:'pointer'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>{v.venue}</div>
+                  <div style={{fontSize:11,color:C.muted3}}>{v.city}, {v.state} · {daysOver} day{daysOver===1?'':'s'} overdue</div>
+                </div>
+                <span style={{fontSize:11,color:C.red,fontWeight:700}}>Send Now →</span>
+              </div>;
+            })}
+          </div>}
 
           {/* SEQUENCE DUE TODAY */}
           {(()=>{
@@ -4398,7 +4458,7 @@ function StageBoss({user,onLogout,accessToken}){
 
           {tours.length===0&&<div style={{textAlign:'center',padding:'40px 20px',color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>[bus]</div><div style={{marginBottom:16}}>No tours yet</div><button onClick={()=>{setEditTourId(null);setTourOpen(true);}} style={{...s.btn(C.acc,'#fff',null),display:'inline-flex',width:'auto',padding:'12px 20px'}}>Create First Tour</button></div>}
           {tours.map(tour=>{
-            const totalGuarantee=(tour.dates||[]).reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+            const totalGuarantee=(tour.dates||[]).reduce((a,d)=>a+(parseGuarantee(d.guarantee)||0),0);
             const totalExpenses=(Number(tour.travelBudget)||0)+(Number(tour.lodgingBudget)||0)+(Number(tour.miscBudget)||0);
             const netRevenue=totalGuarantee*0.75-totalExpenses;
             const isExpanded=expandTourId===tour.id;
@@ -4646,7 +4706,7 @@ function StageBoss({user,onLogout,accessToken}){
         const bt=tours.find(t=>t.id===tourBreakdownId);
         if(!bt) return null;
         const btDates=(bt.dates||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
-        const totalGross=btDates.reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+        const totalGross=btDates.reduce((a,d)=>a+(parseGuarantee(d.guarantee)||0),0);
         const totalTravel=Number(bt.travelBudget)||0;
         const totalLodging=Number(bt.lodgingBudget)||0;
         const totalMisc=Number(bt.miscBudget)||0;
@@ -4654,7 +4714,7 @@ function StageBoss({user,onLogout,accessToken}){
         const netEst=totalGross-totalExp;
         const confirmedShows=btDates.filter(d=>d.status==='Confirmed').length;
         const holdShows=btDates.filter(d=>d.status==='Hold').length;
-        const confirmedRev=btDates.filter(d=>d.status==='Confirmed').reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+        const confirmedRev=btDates.filter(d=>d.status==='Confirmed').reduce((a,d)=>a+(parseGuarantee(d.guarantee)||0),0);
         const avgPerShow=btDates.length?Math.round(totalGross/btDates.length):0;
         return<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.7)',zIndex:200,overflowY:'auto',padding:'16px'}} onClick={()=>setTourBreakdownId(null)}>
           <div style={{background:C.surf,borderRadius:16,maxWidth:600,margin:'0 auto',padding:20}} onClick={e=>e.stopPropagation()}>
@@ -4732,7 +4792,7 @@ function StageBoss({user,onLogout,accessToken}){
 
         {/* == ANALYTICS TAB == */}
         {tab==='smartboss'&&<SmartBossAI venues={venues} setVenues={setVenues} tours={tours} comedians={comedians} upd={upd} toast2={toast2}/>}
-        {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+        {tab==='analytics'&&<div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
           <AnalyticsTab venues={venues} tours={tours} bestTimeData={bestTimeData} />
         </div>}
         {tab==='marketing'&&<MarketingTab venues={venues} tours={tours} comedians={comedians} currentUserEmail={user||'jschucomedy@gmail.com'}/>}
@@ -5138,9 +5198,12 @@ function StageBoss({user,onLogout,accessToken}){
               const booker=(cv.booker||'there')+(cv.bookerLast?' '+cv.bookerLast:'');
               const prompt='You are Jason Schuster, comedian and tour manager for Phil Medina, a nationally touring headliner.\n\nVenue: '+cv.venue+'\nCity: '+cv.city+', '+cv.state+'\nBooker: '+booker+'\nTouch #: '+(touches+1)+'\nRelationship: '+(isNew?'First ever contact - brand new cold outreach':'Existing contact - touch #'+(touches+1)+', reached out '+touches+' time'+(touches===1?'':'s')+' before')+'\nWarmth: '+(cv.warmth||'Cold')+'\nStatus: '+cv.status+'\nTarget dates: '+targetDates+'\nNotes: '+(cv.history||cv.notes||'none')+'\n\nPhil Medina credits: Laugh Factory, Hollywood Improv, Ice House Comedy Club, Netflix Is A Joke Fest, Hulu West Coast Comedy.\nJason Schuster credits: Comedy Store, Jimmy Kimmel Comedy Club, Kenan Presents.\n\n'+(isNew?'Write a warm professional first-touch cold outreach. Brief and friendly, not pushy.':'Write a natural follow-up referencing prior outreach. Persistent but friendly, different opener each time.')+'\n\nWrite ONLY the email body under 120 words. Sign: Jason Schuster / jschucomedy@gmail.com';
               toast2('Generating AI draft...');
-              fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})})
+              sbAuthClient.auth.getSession().then(({data:sd})=>{
+                const token=sd?.session?.access_token||'';
+                return fetch('/.netlify/functions/smartboss',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({system:'You are Jason Schuster, comedian and tour manager for Phil Medina.',messages:[{role:'user',content:prompt}],max_tokens:400})});
+              })
               .then(r=>r.json()).then(d=>{
-                const body=d?.content?.[0]?.text?.trim()||'';
+                const body=d?.content?.find(c=>c.type==='text')?.text?.trim()||'';
                 if(body){setComposeOpts(o=>({...o,aiNote:body,filledBody:body}));toast2('AI draft ready!');}
                 else throw new Error('empty');
               }).catch(()=>{
@@ -5204,8 +5267,8 @@ function StageBoss({user,onLogout,accessToken}){
                 setResearchResult('');
                 setResearchLoading(true);
                 const prompt=`Research this comedy venue and provide a brief intel report:\n\nVenue: ${cv.venue}\nCity: ${cv.city}, ${cv.state}\nVenue Type: ${cv.venueType||'Comedy Club'}\n\nProvide:\n1. Typical comedian tier they book (local/regional/national/headliner)\n2. Estimated typical guarantee range\n3. Any known booker preferences or booking style\n4. Best approach for first outreach\n5. One specific talking point that would resonate with this venue\n\nKeep it under 150 words. Be specific and actionable.`;
-                fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:300,messages:[{role:'user',content:prompt}]})})
-                .then(r=>r.json()).then(d=>{setResearchResult(d?.content?.[0]?.text||'No data found');setResearchLoading(false);})
+                sbAuthClient.auth.getSession().then(({data:sd})=>{ const token=sd?.session?.access_token||''; return fetch('/.netlify/functions/smartboss',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({system:'You are a comedy industry researcher.',messages:[{role:'user',content:prompt}],max_tokens:300})}); })
+                .then(r=>r.json()).then(d=>{setResearchResult(d?.content?.find(c=>c.type==='text')?.text||'No data found');setResearchLoading(false);})
                 .catch(()=>{setResearchResult(`${cv.venue} is a ${cv.venueType||'comedy venue'} in ${cv.city}, ${cv.state}. ${cv.capacity?`Capacity: ${cv.capacity}.`:''} ${cv.guarantee?`Typical guarantee around ${fmt$(cv.guarantee)}.`:''} Approach: professional first-touch email referencing Phil's touring credits. Best angle: emphasize his draw and ability to sell tickets.`);setResearchLoading(false);});
               }} style={{...s.btn(researchOpen===cv?.id?'rgba(14,165,233,0.2)':C.surf2,C.blue,researchOpen===cv?.id?'rgba(14,165,233,0.4)':C.bord),fontSize:10,padding:'4px 10px',fontWeight:700}}>
                 {researchOpen===cv?.id?'Close':'Research'}
@@ -5693,8 +5756,8 @@ function MoneyTimeline({venues,onMarkPaid}){
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()+window2);
   const depositItems=venues.filter(v=>{if(!v.depositAmount||v.depositPaid||!v.depositDue)return false;const d=new Date(v.depositDue);return d>=today&&d<=cutoff;}).sort((a,b)=>new Date(a.depositDue)-new Date(b.depositDue));
   const showItems=venues.filter(v=>['Confirmed','Advancing'].includes(v.status)&&v.guarantee>0);
-  const totalExpected=showItems.reduce((a,v)=>a+(Number(v.guarantee)||0)*0.75,0);
-  const totalPaid=showItems.filter(v=>v.paid).reduce((a,v)=>a+(Number(v.guarantee)||0)*0.75,0);
+  const totalExpected=showItems.reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0)*0.75,0);
+  const totalPaid=showItems.filter(v=>v.paid).reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0)*0.75,0);
   return(<div>
     <div style={{display:'flex',gap:8,marginBottom:16}}>{[30,60,90].map(d=><button key={d} onClick={()=>setWindow2(d)} style={{flex:1,padding:'9px',borderRadius:8,border:'1px solid',borderColor:window2===d?C.acc:C.bord,background:window2===d?`${C.acc}18`:'none',color:window2===d?C.acc2:C.muted,fontSize:11,cursor:'pointer',fontFamily:font.head,fontWeight:700}}>{d} Days</button>)}</div>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>{[['Expected',formatCurrency(totalExpected),C.green],['Paid',formatCurrency(totalPaid),C.acc2],['Pending',formatCurrency(totalExpected-totalPaid),C.yellow]].map(([l,v,color])=><div key={l} style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:10,padding:'10px 8px',textAlign:'center'}}><div style={{fontSize:9,color:C.muted,letterSpacing:1,textTransform:'uppercase',marginBottom:4}}>{l}</div><div style={{fontFamily:font.head,fontWeight:800,fontSize:15,color}}>{v}</div></div>)}</div>
@@ -5778,7 +5841,7 @@ function CalendarTab({venues,tours=[],onVenueClick,onChecklist,toast2,comedians=
 
   const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const allConfirmed=venues.filter(v=>['Confirmed','Advancing','Completed'].includes(v.status));
-  const totalGuarantee=allConfirmed.reduce((a,v)=>a+(Number(v.guarantee)||0),0);
+  const totalGuarantee=allConfirmed.reduce((a,v)=>a+(parseGuarantee(v.guarantee)||0),0);
 
   // Tour ICS bulk download
   function downloadTourICS(tour){
@@ -5838,7 +5901,7 @@ function CalendarTab({venues,tours=[],onVenueClick,onChecklist,toast2,comedians=
         const dated=(t.dates||[]).filter(d=>d.date);
         const firstDate=dated.length?dated[0].date:'';
         const lastDate=dated.length?dated[dated.length-1].date:'';
-        const gross=dated.reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+        const gross=dated.reduce((a,d)=>a+(parseGuarantee(d.guarantee)||0),0);
         return <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:`1px solid ${C.bord}`}}>
           <div>
             <div style={{fontWeight:700,fontSize:13}}>{t.name}</div>
@@ -7629,7 +7692,7 @@ function TourEditor({tour,onSave,onCancel,comedians=[]}){
   function addDate(){setDates(d=>[...d,{id:Date.now(),venue:'',city:'',state:'',address:'',zip:'',date:'',showCount:1,guarantee:0,dealType:'Flat Guarantee',status:'Hold',notes:''}]);}
   function updDate(id,fields){setDates(d=>d.map(x=>x.id===id?{...x,...fields}:x));}
   function removeDate(id){setDates(d=>d.filter(x=>x.id!==id));}
-  const totalGuarantee=dates.reduce((a,d)=>a+(Number(d.guarantee)||0),0);
+  const totalGuarantee=dates.reduce((a,d)=>a+(parseGuarantee(d.guarantee)||0),0);
   const totalExpenses=(Number(travelBudget)||0)+(Number(lodgingBudget)||0)+(Number(miscBudget)||0);
   const totalProjectedPayouts=dates.reduce((a,d)=>a+(d.comedianPayouts||[]).filter(p=>p.onThisDate).reduce((a2,p)=>a2+(Number(p.projected)||0),0),0);
   const totalActualPayouts=dates.reduce((a,d)=>a+(d.comedianPayouts||[]).filter(p=>p.onThisDate).reduce((a2,p)=>a2+(Number(p.actual)||0),0),0);
@@ -7825,7 +7888,7 @@ function MarketingTab({ venues=[], tours=[], comedians=[], currentUserEmail='jsc
   ];
 
   return (
-    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,color:C.txt,marginBottom:2}}>Marketing Intelligence</div>
         <div style={{fontSize:11,color:C.muted}}>Revenue · Promotion · Routing · Venue Intel</div>
@@ -7861,7 +7924,7 @@ function AnalyticsDashboard({ venues=[], tours=[] }) {
   const negotiating = venues.filter(v=>v.status==='Negotiating');
   const pipeline = [...confirmed,...negotiating,...venues.filter(v=>v.status==='Responded')];
   const totalPipelineValue = pipeline.reduce((s,v)=>{
-    const g = Number(v.guarantee)||0;
+    const g = parseGuarantee(v.guarantee)||0;
     return s + (v.showCount||1)*g;
   },0);
 
@@ -7870,7 +7933,7 @@ function AnalyticsDashboard({ venues=[], tours=[] }) {
     const t = v.venueType||'Other';
     if(!byType[t]) byType[t]={count:0,revenue:0};
     byType[t].count++;
-    byType[t].revenue += (Number(v.guarantee)||0)*(v.showCount||1);
+    byType[t].revenue += (parseGuarantee(v.guarantee)||0)*(v.showCount||1);
   });
 
   // Deal closed by
@@ -7900,7 +7963,7 @@ function AnalyticsDashboard({ venues=[], tours=[] }) {
           ['Pipeline Value',`$${totalPipelineValue.toLocaleString()}`,C.acc2,'Total confirmed + negotiating'],
           ['Close Rate',`${closeRate}%`,C.green,'Contacted → Confirmed'],
           ['Confirmed Shows',confirmed.length,C.yellow,'Active confirmed deals'],
-          ['Avg Guarantee',confirmed.length?`$${Math.round(confirmed.reduce((s,v)=>s+(Number(v.guarantee)||0),0)/confirmed.length).toLocaleString()}`:'$0',C.orange,'Per confirmed venue'],
+          ['Avg Guarantee',confirmed.length?`$${Math.round(confirmed.reduce((s,v)=>s+(parseGuarantee(v.guarantee)||0),0)/confirmed.length).toLocaleString()}`:'$0',C.orange,'Per confirmed venue'],
         ].map(([l,v,color,sub])=>(
           <div key={l} style={{background:`${color}0d`,border:`1px solid ${color}22`,borderRadius:12,padding:'14px 14px'}}>
             <div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>{l}</div>
@@ -8224,9 +8287,11 @@ Tone: ${toneGuide[tone]}
 
 Output ONLY the post text, nothing else. No labels, no explanations.`;
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+      const _session1 = await sbAuthClient.auth.getSession();
+      const _token1 = _session1?.data?.session?.access_token||'';
+      const res = await fetch('/.netlify/functions/smartboss',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${_token1}`},body:JSON.stringify({system:'You are a social media copywriter for a comedy touring company.',messages:[{role:'user',content:prompt}],max_tokens:500})});
       const data = await res.json();
-      const text = data.content?.[0]?.text||'';
+      const text = data.content?.find(c=>c.type==='text')?.text||'';
       if(!text) throw new Error('empty');
       setOutput(text);
     } catch(e) {
@@ -8427,9 +8492,11 @@ Provide:
 Keep it tactical, specific, and actionable. No filler.`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+      const _session3 = await sbAuthClient.auth.getSession();
+      const _token3 = _session3?.data?.session?.access_token||'';
+      const res = await fetch('/.netlify/functions/smartboss',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${_token3}`},body:JSON.stringify({system:'You are a comedy touring logistics expert.',messages:[{role:'user',content:prompt}],max_tokens:800})});
       const data = await res.json();
-      const text = data.content?.[0]?.text||'';
+      const text = data.content?.find(c=>c.type==='text')?.text||'';
       if(!text) throw new Error('empty');
       setResult(text);
     } catch(e) {
@@ -8596,9 +8663,11 @@ Provide:
 Be specific with names where you know them. Mark any you're uncertain about.`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+      const _session4 = await sbAuthClient.auth.getSession();
+      const _token4 = _session4?.data?.session?.access_token||'';
+      const res = await fetch('/.netlify/functions/smartboss',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${_token4}`},body:JSON.stringify({system:'You are a comedy marketing expert.',messages:[{role:'user',content:prompt}],max_tokens:800})});
       const data = await res.json();
-      const text2 = data.content?.[0]?.text||'';
+      const text2 = data.content?.find(c=>c.type==='text')?.text||'';
       if(!text2) throw new Error('empty');
       setResult(text2);
     } catch(e) {
@@ -8877,7 +8946,7 @@ function VenueIntelligence({ venues=[] }) {
                     {(v.dealType||v.guarantee) && (
                       <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:6}}>
                         {v.dealType&&<div style={{fontSize:11,color:C.muted2}}>💰 {v.dealType}</div>}
-                        {v.guarantee&&<div style={{fontSize:11,color:C.green}}>Guarantee: ${Number(v.guarantee).toLocaleString()}</div>}
+                        {v.guarantee&&<div style={{fontSize:11,color:C.green}}>Guarantee: ${parseGuarantee(v.guarantee).toLocaleString()}</div>}
                       </div>
                     )}
 
@@ -9128,7 +9197,7 @@ Thanks,
   const confirmedVenues = venues.filter(v=>v.status==='Confirmed'||v.status==='Negotiating');
 
   return (
-    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
       {/* User identity badge */}
       <div style={{background:`${C.acc}0d`,border:`1px solid ${C.acc}22`,borderRadius:12,padding:'12px 14px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
         <div style={{width:36,height:36,borderRadius:10,background:`linear-gradient(135deg,${userProfile.role==='owner'?'#6c5ce7':'#2a7de1'},${userProfile.role==='owner'?'#a29bfe':'#74b9ff'})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>
@@ -9408,9 +9477,11 @@ function PressKitBuilder({ venues=[], comedians=[] }) {
     setAiLoading(true);
     const prompt = `Write a compelling, professional press kit bio for a stand-up comedian named ${comedian}.\nStyle: 2-3 short paragraphs. Professional but warm. Suitable for a comedy booking one-sheet.\nCredits to mention: ${credits.join(', ')}\nKeep it under 120 words total. No generic filler.`;
     try{
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})});
+      const _session5 = await sbAuthClient.auth.getSession();
+      const _token5 = _session5?.data?.session?.access_token||'';
+      const res = await fetch('/.netlify/functions/smartboss',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${_token5}`},body:JSON.stringify({system:'You are a professional comedy press kit writer.',messages:[{role:'user',content:prompt}],max_tokens:400})});
       const data = await res.json();
-      setBio(data.content?.[0]?.text||bio);
+      setBio(data.content?.find(c=>c.type==='text')?.text||bio);
     }catch(e){}
     setAiLoading(false);
   }
@@ -9451,7 +9522,7 @@ ${creditsHtml}${videoHtml}${showsHtml}
   const bioParagraphs = bio.split('\n').filter(p=>p.trim());
 
   return (
-    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+    <div style={{padding:'14px 14px 100px',overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
       <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5,color:C.txt,marginBottom:2}}>Press Kit Builder</div>
       <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Photo · Video · Bio · Credits · Upcoming Dates → Print as PDF</div>
 
