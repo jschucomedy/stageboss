@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
-const BUILD_ID = '2026-03-17-v17b';
+const BUILD_ID = '2026-03-28-v17c';
 
 function parseGuarantee(val) {
   if (!val && val !== 0) return 0;
@@ -3176,6 +3176,115 @@ function StageBoss({user,onLogout,accessToken}){
     return()=>clearTimeout(syncTimeout.current);
   },[venues,templates,tours,comedians]);;
 
+  // ── PUBLISH SHOWS TO WEBSITES ─────────────────────────────────────────────
+  // Collects all tour dates with websitePublish=true + confirmed venues with
+  // websitePublish=true, builds a flat published_shows[] array, and writes it
+  // to Supabase so maineventcomedy.com, philmedinacomedy.com, and
+  // jasonschuster.com can read it directly from data.published_shows[].
+  async function publishShowsToWebsites() {
+    const allPublished = [];
+
+    // Collect from tours
+    tours.forEach(tour => {
+      (tour.dates || []).forEach(d => {
+        if (!d.websitePublish) return;
+        allPublished.push({
+          id: d.id || (tour.id + '_' + (d.date || Math.random())),
+          tourName: tour.name || '',
+          venue: d.venue || '',
+          city: d.city || '',
+          state: d.state || '',
+          date: d.date || '',
+          ticketUrl: d.websiteTicketUrl || '',
+          ticketPrice: d.websitePrice || String(d.ticketPrice || ''),
+          notes: d.websiteNotes || '',
+          showVenue: d.websiteShowVenue !== false,
+          showCity: d.websiteShowCity !== false,
+          showDate: d.websiteShowDate !== false,
+          showTickets: d.websiteShowTickets !== false,
+          showPrice: !!d.websiteShowPrice,
+          sites: d.websiteSites || ['jason', 'phil', 'mainevent'],
+          package: d.package || tour.package || 'Jason + Phil',
+          status: d.status || 'Confirmed',
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    });
+
+    // Collect confirmed standalone venues
+    venues.forEach(v => {
+      if (!v.websitePublish) return;
+      if (!['Confirmed', 'Advancing'].includes(v.status)) return;
+      allPublished.push({
+        id: v.id,
+        tourName: '',
+        venue: v.venue || '',
+        city: v.city || '',
+        state: v.state || '',
+        date: v.showDate || v.targetDates || '',
+        ticketUrl: v.websiteTicketUrl || v.ticketLink || '',
+        ticketPrice: String(v.ticketPrice || ''),
+        notes: v.websiteNotes || '',
+        showVenue: true,
+        showCity: true,
+        showDate: true,
+        showTickets: !!(v.websiteTicketUrl || v.ticketLink),
+        showPrice: !!v.ticketPrice,
+        sites: v.websiteSites || ['jason', 'phil', 'mainevent'],
+        package: v.package || 'Jason + Phil',
+        status: v.status,
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    // Sort by date ascending
+    allPublished.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    setSyncing(true);
+    try {
+      const fetchResult = await cloudFetch(OWNER_EMAIL);
+      const currentData = fetchResult.row?.data || {};
+      const updatedData = {
+        ...currentData,
+        venues,
+        templates,
+        tours,
+        comedians,
+        published_shows: allPublished,
+        published_at: new Date().toISOString(),
+      };
+
+      const r = await fetch(`${SB_URL}/rest/v1/userdata?on_conflict=email`, {
+        method: 'POST',
+        headers: {
+          'apikey': SB_KEY,
+          'Authorization': `Bearer ${SB_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates,return=representation',
+        },
+        body: JSON.stringify({
+          email: OWNER_EMAIL,
+          data: updatedData,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(`Push failed ${r.status}: ${txt}`);
+      }
+
+      setLastSync(new Date());
+      setSyncError(null);
+      toast2(`✅ ${allPublished.length} show${allPublished.length !== 1 ? 's' : ''} published to all websites!`);
+    } catch(e) {
+      setSyncError(e.message);
+      toast2(`❌ Publish failed: ${e.message}`);
+    }
+    setSyncing(false);
+  }
+  // ── END publishShowsToWebsites ─────────────────────────────────────────────
+
   // -- AI OUTREACH WRITER (secure - calls server-side Netlify Function) ------
   async function generateAIOutreach(venueId, templateId, dates){
     const v = venues.find(x => x.id === venueId);
@@ -3991,6 +4100,10 @@ function StageBoss({user,onLogout,accessToken}){
                 style={{marginTop:12,background:'linear-gradient(135deg,#7c3aed,#ec4899)',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',width:'100%'}}>
                 📊 Export P&amp;L Statement
               </button>
+              <button onClick={publishShowsToWebsites} disabled={syncing}
+                style={{marginTop:8,background:'linear-gradient(135deg,#00b894,#00cec9)',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',width:'100%',opacity:syncing?0.7:1}}>
+                {syncing?'Publishing...':'🌐 Publish Shows to Websites'}
+              </button>
             </div>;
           })()}
 
@@ -4367,7 +4480,10 @@ function StageBoss({user,onLogout,accessToken}){
               <div style={{fontFamily:font.head,fontWeight:900,fontSize:22,letterSpacing:-0.5}}>Tours & Route Planner</div>
               <div style={{fontSize:12,color:C.muted3,marginTop:2}}>{tours.length} tour{tours.length!==1?'s':''} · {routeStops.length} stops in current route</div>
             </div>
-            <button onClick={()=>{setEditTourId(null);setTourOpen(true);}} style={{...s.btn('linear-gradient(135deg,#7c3aed,#ec4899)',C.txt,'transparent'),padding:'10px 18px',fontWeight:700,fontSize:12,boxShadow:'0 4px 20px rgba(124,58,237,0.3)'}}>+ New Tour</button>
+            <div style={{display:'flex',gap:8}}>
+               <button onClick={publishShowsToWebsites} disabled={syncing} style={{...s.btn('linear-gradient(135deg,#00b894,#00cec9)',C.txt,'transparent'),padding:'10px 14px',fontWeight:700,fontSize:12,boxShadow:'0 4px 16px rgba(0,184,148,0.3)',opacity:syncing?0.7:1}}>{syncing?'Publishing...':'🌐 Publish'}</button>
+               <button onClick={()=>{setEditTourId(null);setTourOpen(true);}} style={{...s.btn('linear-gradient(135deg,#7c3aed,#ec4899)',C.txt,'transparent'),padding:'10px 18px',fontWeight:700,fontSize:12,boxShadow:'0 4px 20px rgba(124,58,237,0.3)'}}>+ New Tour</button>
+             </div>
           </div>
           {/* ROUTE PLANNER */}
           <div style={{background:C.surf,border:`1px solid ${C.bord}`,borderRadius:14,padding:18,marginBottom:20}}>
@@ -4863,6 +4979,31 @@ function StageBoss({user,onLogout,accessToken}){
           <div style={s.field()}><label style={s.label}>Address</label><input style={s.input(12)} defaultValue={dv.address||''} placeholder="123 Main St" onBlur={e=>upd(dv.id,{address:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>Zip Code</label><input style={s.input(12)} defaultValue={dv.zip||''} placeholder="90028" onBlur={e=>upd(dv.id,{zip:e.target.value})}/></div>
           <div style={s.field()}><label style={s.label}>Target Dates</label><input style={s.input(12)} defaultValue={dv.targetDates||''} onChange={e=>upd(dv.id,{targetDates:e.target.value})} placeholder="June 21-24"/></div>
+          {['Confirmed','Advancing'].includes(dv.status)&&<div style={{background:'rgba(0,184,148,0.06)',border:'1px solid rgba(0,184,148,0.2)',borderRadius:10,padding:'12px 14px',marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#00b894',marginBottom:8}}>🌐 WEBSITE PUBLISHING</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:dv.websitePublish?10:0}}>
+              <div style={{fontSize:12,color:'#f1f0ff'}}>Publish this show to websites</div>
+              <div onClick={()=>upd(dv.id,{websitePublish:!dv.websitePublish})}
+                style={{width:44,height:24,borderRadius:12,background:dv.websitePublish?'#00b894':'rgba(255,255,255,0.12)',cursor:'pointer',position:'relative',transition:'background 0.2s',flexShrink:0}}>
+                <div style={{position:'absolute',top:3,left:dv.websitePublish?22:3,width:18,height:18,borderRadius:9,background:'#fff',transition:'left 0.2s'}}/>
+              </div>
+            </div>
+            {dv.websitePublish&&<>
+              <div style={{marginBottom:8}}>
+                <label style={{fontSize:9,color:'rgba(200,200,255,0.5)',textTransform:'uppercase',letterSpacing:'0.1em',display:'block',marginBottom:4}}>Ticket URL</label>
+                <input style={{background:'rgba(10,10,20,0.6)',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'8px 10px',color:'#f1f0ff',fontSize:12,width:'100%',fontFamily:'inherit'}} defaultValue={dv.websiteTicketUrl||''} placeholder="https://ticketmaster.com/..." onBlur={e=>upd(dv.id,{websiteTicketUrl:e.target.value})}/>
+              </div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                {[{key:'jason',label:"Jason's Site"},{key:'phil',label:"Phil's Site"},{key:'mainevent',label:"Main Event"}].map(site=>{
+                  const active=(dv.websiteSites||['jason','phil','mainevent']).includes(site.key);
+                  return <div key={site.key} onClick={()=>{const cur=dv.websiteSites||['jason','phil','mainevent'];upd(dv.id,{websiteSites:active?cur.filter(x=>x!==site.key):[...cur,site.key]});}} style={{flex:1,padding:'6px 8px',borderRadius:6,border:`1px solid ${active?'#00b894':'rgba(255,255,255,0.1)'}`,background:active?'rgba(0,184,148,0.12)':'transparent',cursor:'pointer',textAlign:'center',fontSize:10,fontWeight:active?700:400,color:active?'#00b894':'rgba(200,200,255,0.4)'}}>{site.label}</div>;
+                })}
+              </div>
+              <button onClick={publishShowsToWebsites} disabled={syncing} style={{background:'linear-gradient(135deg,#00b894,#00cec9)',color:'#fff',border:'none',borderRadius:8,padding:'8px 12px',fontSize:11,fontWeight:700,cursor:'pointer',width:'100%',opacity:syncing?0.7:1}}>
+                {syncing?'Publishing...':'🌐 Publish Now'}
+              </button>
+            </>}
+          </div>}
           <div style={s.grid2}>
             <div style={s.field()}><label style={s.label}>📅 Show Date</label><input type="date" style={s.input(12)} value={dv.showDate||''} onChange={e=>upd(dv.id,{showDate:e.target.value})}/></div>
             <div style={s.field()}><label style={s.label}>Next Follow-Up</label><input type="date" style={s.input(12)} value={dv.nextFollowUp||''} onChange={e=>upd(dv.id,{nextFollowUp:e.target.value})}/></div>
