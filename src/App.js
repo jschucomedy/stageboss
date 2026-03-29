@@ -4991,7 +4991,7 @@ function StageBoss({user,onLogout,accessToken}){
             {dv.websitePublish&&<>
               <div style={{marginBottom:8}}>
                 <label style={{fontSize:9,color:'rgba(200,200,255,0.5)',textTransform:'uppercase',letterSpacing:'0.1em',display:'block',marginBottom:4}}>Ticket URL</label>
-                <input style={{background:'rgba(10,10,20,0.6)',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'8px 10px',color:'#f1f0ff',fontSize:12,width:'100%',fontFamily:'inherit'}} defaultValue={dv.websiteTicketUrl||''} placeholder="https://ticketmaster.com/..." onBlur={e=>upd(dv.id,{websiteTicketUrl:e.target.value})}/>
+                <input style={{background:'rgba(10,10,20,0.6)',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'8px 10px',color:'#f1f0ff',fontSize:12,width:'100%',fontFamily:'inherit'}} value={dv.websiteTicketUrl||''} placeholder="https://ticketmaster.com/..." onChange={e=>upd(dv.id,{websiteTicketUrl:e.target.value})}/>
               </div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
                 {[{key:'jason',label:"Jason's Site"},{key:'phil',label:"Phil's Site"},{key:'mainevent',label:"Main Event"}].map(site=>{
