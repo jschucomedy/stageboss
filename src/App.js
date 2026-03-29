@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // -- SUPABASE CLOUD SYNC --------------------------------------
-const BUILD_ID = '2026-03-28-v17c';
+const BUILD_ID = '2026-03-28-v17d';
 
 function parseGuarantee(val) {
   if (!val && val !== 0) return 0;
