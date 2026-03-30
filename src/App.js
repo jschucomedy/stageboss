@@ -3239,6 +3239,22 @@ function StageBoss({user,onLogout,accessToken}){
       });
     });
 
+    // Also sync websiteTicketUrl back into tours dates so sites can read it
+    const updatedTours = tours.map(tour => ({
+      ...tour,
+      dates: (tour.dates || []).map(d => {
+        const matchingVenue = venues.find(v =>
+          v.websitePublish && v.websiteTicketUrl &&
+          (v.venue === d.venue || v.id === d.venueId) &&
+          (v.showDate === d.date || v.targetDates === d.date)
+        );
+        if (matchingVenue && matchingVenue.websiteTicketUrl && !d.websiteTicketUrl) {
+          return {...d, websiteTicketUrl: matchingVenue.websiteTicketUrl};
+        }
+        return d;
+      })
+    }));
+
     // Sort by date ascending
     allPublished.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
@@ -3250,7 +3266,7 @@ function StageBoss({user,onLogout,accessToken}){
         ...currentData,
         venues,
         templates,
-        tours,
+        tours: updatedTours,
         comedians,
         published_shows: allPublished,
         published_at: new Date().toISOString(),
