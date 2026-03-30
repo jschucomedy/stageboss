@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Main Event Comedy Entertainment — A National Touring Comedy Company</title>
+<meta name="description" content="Main Event Comedy Entertainment produces nationally touring stand-up comedy shows. Comedy clubs, theaters, casinos, and private events across the United States.">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+html,body{overflow-x:hidden}
+body{background:#080808;color:#f0ece4;font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased}
+:root{
+  --red:#c8102e;--red2:#e8182e;--gold:#c9a84c;
+  --cream:#f0ece4;--dim:rgba(240,236,228,.55);--dim2:rgba(240,236,228,.28);
+  --bord:rgba(240,236,228,.08);--bord2:rgba(240,236,228,.15);
+  --dark:#080808;--dark2:#0d0d0d;
+}
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;padding:0 clamp(20px,5vw,64px);height:64px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(8,8,8,.98) 0%,transparent 100%);transition:background .3s}
+nav.solid{background:rgba(8,8,8,.98)!important;backdrop-filter:blur(12px);border-bottom:1px solid var(--bord)}
+.nlogo{display:flex;flex-direction:column;gap:1px;text-decoration:none}
+.nlogo-main{font-family:'Bebas Neue',sans-serif;font-size:clamp(14px,2vw,17px);letter-spacing:.2em;color:var(--cream)}
+.nlogo-main span{color:var(--red2)}
+.nlogo-sub{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim2)}
+.nlinks{display:flex;gap:clamp(16px,2.5vw,36px);list-style:none}
+.nlinks a{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);text-decoration:none;transition:color .2s}
+.nlinks a:hover{color:var(--cream)}
+.nbtn{padding:9px 22px;background:var(--red);color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;transition:background .2s}
+.nbtn:hover{background:var(--red2)}
+@media(max-width:768px){.nlinks{display:none}}
+/* HERO */
+#hero{min-height:100svh;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:0 clamp(20px,6vw,80px) clamp(52px,9vh,90px)}
+.hero-bg-img{position:absolute;inset:0;z-index:0}
+.hero-bg-img img{width:100%;height:100%;object-fit:cover;object-position:center 30%;filter:brightness(.42) contrast(1.1)}
+.hero-ov1{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(8,8,8,.3) 0%,rgba(8,8,8,.05) 40%,rgba(8,8,8,.88) 82%,#080808 100%)}
+.hero-ov2{position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(8,8,8,.65) 0%,transparent 55%)}
+.hero-kicker{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:var(--red2);margin-bottom:20px;position:relative;z-index:2;display:flex;align-items:center;gap:14px}
+.hero-kicker::before{content:'';width:32px;height:1px;background:var(--red2)}
+h1.hero-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(62px,13vw,168px);letter-spacing:.04em;line-height:.88;margin-bottom:6px;position:relative;z-index:2}
+h1.hero-title .accent{color:var(--red2)}
+.hero-subtitle{font-family:'Barlow Condensed',sans-serif;font-size:clamp(18px,3.2vw,38px);font-weight:700;font-style:italic;color:var(--dim);letter-spacing:.04em;margin-bottom:24px;position:relative;z-index:2}
+.hero-desc{font-size:clamp(13px,1.5vw,15px);font-weight:300;color:var(--dim);max-width:480px;line-height:1.8;margin-bottom:36px;position:relative;z-index:2}
+.hero-desc strong{color:var(--cream);font-weight:500}
+.hero-ctas{display:flex;gap:12px;flex-wrap:wrap;position:relative;z-index:2}
+.btn-red{padding:15px 36px;background:var(--red);color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;transition:background .2s}
+.btn-red:hover{background:var(--red2)}
+.btn-outline{padding:15px 36px;border:1px solid rgba(240,236,228,.35);color:var(--cream);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;transition:border-color .2s}
+.btn-outline:hover{border-color:var(--cream)}
+/* MARQUEE */
+.marquee-wrap{border-top:1px solid var(--bord);border-bottom:1px solid var(--bord);padding:14px 0;overflow:hidden;background:var(--red);position:relative;z-index:2}
+.marquee-track{display:flex;animation:marquee 30s linear infinite;white-space:nowrap}
+.marquee-item{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.9);padding:0 32px;flex-shrink:0}
+.marquee-item span{color:rgba(255,255,255,.4);margin-right:32px}
+@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+/* SECTIONS */
+section{padding:clamp(72px,11vh,130px) clamp(20px,6vw,80px)}
+.sec-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--red2);margin-bottom:14px;display:flex;align-items:center;gap:14px}
+.sec-label::before{content:'';width:24px;height:1px;background:var(--red2)}
+.sec-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,7vw,88px);letter-spacing:.04em;line-height:.95;margin-bottom:16px}
+.sec-body{font-size:15px;font-weight:300;color:var(--dim);max-width:560px;line-height:1.85}
+/* ABOUT */
+#about{background:var(--dark2);border-top:1px solid var(--bord)}
+.about-layout{display:grid;grid-template-columns:1fr 1fr;gap:clamp(40px,7vw,100px);align-items:start;max-width:1200px}
+@media(max-width:860px){.about-layout{grid-template-columns:1fr}}
+.about-body{font-size:15px;font-weight:300;color:var(--dim);line-height:1.9;margin-bottom:20px;max-width:520px}
+.about-body strong{color:var(--cream);font-weight:500}
+.about-cta{display:inline-block;margin-top:16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--red2);text-decoration:none;border-bottom:1px solid rgba(200,16,46,.4);padding-bottom:3px;transition:border-color .2s}
+.about-cta:hover{border-color:var(--red2)}
+.about-pillars{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--bord);border:1px solid var(--bord);margin-bottom:20px}
+.pillar{background:var(--dark2);padding:24px 20px}
+.pillar-icon{font-size:22px;margin-bottom:12px}
+.pillar-name{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--cream);margin-bottom:4px}
+.pillar-text{font-size:12px;color:var(--dim2);line-height:1.6}
+.about-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--bord);border:1px solid var(--bord)}
+.astat{background:var(--dark2);padding:20px 16px;text-align:center}
+.astat-num{font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,4vw,44px);letter-spacing:.04em;color:var(--red2);line-height:1}
+.astat-label{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim2);margin-top:4px}
+/* SHOWS */
+#shows{border-top:1px solid var(--bord)}
+.shows-list{max-width:960px;display:flex;flex-direction:column;gap:0;margin-top:48px}
+.show-row{display:grid;grid-template-columns:90px 1fr auto;gap:24px;align-items:center;padding:22px 0;border-bottom:1px solid var(--bord);transition:background .15s}
+.show-row:first-child{border-top:1px solid var(--bord)}
+.show-row:hover{background:rgba(200,16,46,.04)}
+@media(max-width:560px){.show-row{grid-template-columns:72px 1fr}.show-tix{display:inline-block}}
+.show-date{text-align:center;padding:10px 8px;border:1px solid rgba(200,16,46,.25);background:rgba(200,16,46,.06)}
+.show-mo{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--red2)}
+.show-dy{font-family:'Bebas Neue',sans-serif;font-size:30px;letter-spacing:.04em;line-height:1;color:var(--cream)}
+.show-venue{font-size:16px;font-weight:600;color:var(--cream);margin-bottom:3px}
+.show-loc{font-size:12px;color:var(--dim2);letter-spacing:.04em}
+.show-meta{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap}
+.show-tag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--bord2);color:var(--dim2)}
+.show-tag.hl{border-color:rgba(200,16,46,.35);color:var(--red2)}
+.show-tix{padding:10px 22px;background:var(--red);color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;white-space:nowrap;transition:background .2s;flex-shrink:0}
+.show-tix:hover{background:var(--red2)}
+.no-shows{padding:48px 0;color:var(--dim2);font-size:14px;font-style:italic}
+/* COMEDIANS */
+#comedians{background:var(--dark2);border-top:1px solid var(--bord)}
+.comedians-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1px;background:var(--bord);border:1px solid var(--bord);max-width:1200px;margin-top:48px}
+.comedian-card{background:var(--dark2);overflow:hidden;position:relative;transition:background .2s}
+.comedian-card:hover{background:#111}
+.cc-bar{position:absolute;top:0;left:0;right:0;height:3px;background:var(--red);transform:scaleX(0);transform-origin:left;transition:transform .3s}
+.comedian-card:hover .cc-bar{transform:scaleX(1)}
+.cc-body{padding:28px 24px}
+.cc-role{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--red2);margin-bottom:8px}
+.cc-name{font-family:'Bebas Neue',sans-serif;font-size:clamp(30px,3.5vw,42px);letter-spacing:.06em;color:var(--cream);margin-bottom:14px;line-height:1}
+.cc-bio{font-size:13px;font-weight:300;color:var(--dim);line-height:1.75;margin-bottom:18px}
+.cc-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.cc-tag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border:1px solid var(--bord2);color:var(--dim2)}
+.cc-tag.hot{border-color:rgba(200,16,46,.4);color:var(--red2)}
+.cc-link{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--red2);text-decoration:none}
+.cc-link:hover{color:var(--cream)}
+/* SERVICES */
+#services{border-top:1px solid var(--bord)}
+.services-intro{font-size:15px;font-weight:300;color:var(--dim);max-width:540px;line-height:1.85;margin-bottom:52px}
+.services-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1px;background:var(--bord);border:1px solid var(--bord);max-width:1100px}
+.svc{background:var(--dark);padding:32px 28px;transition:background .2s}
+.svc:hover{background:rgba(200,16,46,.04)}
+.svc-num{font-family:'Bebas Neue',sans-serif;font-size:56px;color:rgba(200,16,46,.2);line-height:1;margin-bottom:16px;letter-spacing:.04em}
+.svc-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--cream);margin-bottom:10px}
+.svc-body{font-size:13px;font-weight:300;color:var(--dim);line-height:1.75}
+/* FOUNDERS */
+#founders{background:var(--dark2);border-top:1px solid var(--bord)}
+.founders-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--bord);border:1px solid var(--bord);max-width:1000px;margin-top:48px}
+@media(max-width:680px){.founders-grid{grid-template-columns:1fr}}
+.founder-card{background:var(--dark2);padding:36px 32px;position:relative;overflow:hidden}
+.founder-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--red),transparent)}
+.founder-num{font-family:'Bebas Neue',sans-serif;font-size:80px;color:rgba(200,16,46,.07);position:absolute;top:16px;right:24px;line-height:1;pointer-events:none}
+.founder-role{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.24em;text-transform:uppercase;color:var(--red2);margin-bottom:10px}
+.founder-name{font-family:'Bebas Neue',sans-serif;font-size:clamp(36px,5vw,56px);letter-spacing:.05em;color:var(--cream);margin-bottom:16px;line-height:.95}
+.founder-bio{font-size:14px;font-weight:300;color:var(--dim);line-height:1.8;margin-bottom:20px}
+.founder-bio strong{color:var(--cream);font-weight:500}
+.founder-tags{display:flex;flex-wrap:wrap;gap:6px}
+.founder-tag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border:1px solid var(--bord2);color:var(--dim2)}
+.founder-tag.hot{border-color:rgba(200,16,46,.35);color:var(--red2)}
+.founder-link{display:inline-block;margin-top:18px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--red2);text-decoration:none;border-bottom:1px solid rgba(200,16,46,.3);padding-bottom:2px}
+.founder-link:hover{border-color:var(--red2)}
+/* MAILING */
+#mailing{border-top:1px solid var(--bord);text-align:center;padding:clamp(64px,10vh,110px) clamp(20px,6vw,80px);background:linear-gradient(135deg,#0d0505 0%,#080808 100%)}
+.mail-kicker{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--red2);margin-bottom:16px}
+.mail-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,8vw,96px);letter-spacing:.04em;line-height:.92;margin-bottom:16px}
+.mail-title span{color:var(--red2)}
+.mail-sub{font-size:15px;font-weight:300;color:var(--dim);margin:0 auto 36px;max-width:400px;line-height:1.75}
+.mail-form{display:flex;max-width:480px;margin:0 auto;border:1px solid var(--bord2)}
+.mail-input{flex:1;padding:15px 20px;background:rgba(240,236,228,.06);border:none;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:14px;outline:none}
+.mail-input::placeholder{color:var(--dim2)}
+.mail-btn{padding:15px 28px;background:var(--red);border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:background .2s;white-space:nowrap}
+.mail-btn:hover{background:var(--red2)}
+.mail-note{font-size:11px;color:var(--dim2);margin-top:12px}
+/* CONTACT */
+#contact{background:var(--dark2);border-top:1px solid var(--bord)}
+.contact-layout{display:grid;grid-template-columns:1fr 1fr;gap:clamp(40px,7vw,100px);max-width:1100px;align-items:start}
+@media(max-width:820px){.contact-layout{grid-template-columns:1fr}}
+.contact-body{font-size:15px;font-weight:300;color:var(--dim);line-height:1.85;margin-bottom:32px;max-width:460px}
+.contact-cards{display:flex;flex-direction:column;gap:12px;margin-bottom:32px}
+.contact-card{padding:20px 24px;border:1px solid var(--bord);text-decoration:none;display:flex;flex-direction:column;gap:4px;transition:border-color .2s}
+.contact-card:hover{border-color:var(--red2)}
+.cc-l{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim2)}
+.cc-v{font-size:14px;font-weight:400;color:var(--cream)}
+.socials{display:flex;gap:20px;flex-wrap:wrap}
+.soc{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim2);text-decoration:none;transition:color .2s}
+.soc:hover{color:var(--red2)}
+.bform{display:flex;flex-direction:column;gap:14px}
+.bform-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:500px){.bform-row{grid-template-columns:1fr}}
+.bform input,.bform select,.bform textarea{width:100%;padding:13px 16px;background:rgba(240,236,228,.05);border:1px solid var(--bord);color:var(--cream);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color .2s}
+.bform input:focus,.bform select:focus,.bform textarea:focus{border-color:var(--red2)}
+.bform input::placeholder,.bform textarea::placeholder{color:var(--dim2)}
+.bform select{color:var(--dim2);appearance:none}
+.bform select option{background:#0d0d0d;color:var(--cream)}
+.bform textarea{height:110px;resize:vertical}
+.bform-btn{padding:15px 36px;background:var(--red);color:#fff;border:none;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:background .2s;align-self:flex-start}
+.bform-btn:hover{background:var(--red2)}
+.bform-note{font-size:11px;color:var(--dim2);line-height:1.6}
+/* FOOTER */
+footer{border-top:1px solid var(--bord);background:#050505;padding:40px clamp(20px,6vw,80px) 28px}
+.footer-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
+@media(max-width:860px){.footer-top{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.footer-top{grid-template-columns:1fr}}
+.footer-name{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.18em;color:var(--cream);margin-bottom:4px}
+.footer-name span{color:var(--red2)}
+.footer-tagline{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim2);margin-bottom:14px}
+.footer-desc{font-size:12px;font-weight:300;color:var(--dim2);line-height:1.7;max-width:260px}
+.footer-col-title{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim2);margin-bottom:14px}
+.footer-links{display:flex;flex-direction:column;gap:8px}
+.footer-link{font-size:13px;color:var(--dim);text-decoration:none;transition:color .2s}
+.footer-link:hover{color:var(--cream)}
+.footer-bottom{border-top:1px solid var(--bord);padding-top:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.footer-copy{font-family:'DM Mono',monospace;font-size:9px;color:var(--dim2);letter-spacing:.06em}
+/* LOADING */
+#loading{position:fixed;inset:0;background:#080808;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .6s}
+#loading.done{opacity:0;pointer-events:none}
+.load-name{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:.22em;color:var(--red2)}
+.load-sub{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim2)}
+.load-bar{width:140px;height:2px;background:var(--bord2);overflow:hidden;margin-top:6px}
+.load-fill{height:100%;background:var(--red);animation:loadfill .9s ease forwards}
+@keyframes loadfill{from{width:0}to{width:100%}}
+/* REVEAL */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
+.reveal.d1{transition-delay:.1s}.reveal.d2{transition-delay:.2s}.reveal.d3{transition-delay:.3s}.reveal.d4{transition-delay:.4s}
+.reveal.vis{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="load-name">MAIN EVENT</div>
+  <div class="load-sub">Comedy Entertainment</div>
+  <div class="load-bar"><div class="load-fill"></div></div>
+</div>
+
+<nav id="nav">
+  <a href="#hero" class="nlogo">
+    <span class="nlogo-main">MAIN EVENT <span>COMEDY</span></span>
+    <span class="nlogo-sub">Entertainment LLC · Baltimore &amp; Los Angeles</span>
+  </a>
+  <ul class="nlinks">
+    <li><a href="#about">About</a></li>
+    <li><a href="#shows">Shows</a></li>
+    <li><a href="#comedians">Comedians</a></li>
+    <li><a href="#services">Services</a></li>
+    <li><a href="#contact">Book</a></li>
+  </ul>
+  <a href="#contact" class="nbtn">Book a Show</a>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-bg-img">
+    <img src="https://images.unsplash.com/photo-1576085898323-218337e3e43c?w=1920&q=80" alt="Live comedy crowd"/>
+  </div>
+  <div class="hero-ov1"></div>
+  <div class="hero-ov2"></div>
+  <div class="hero-kicker reveal">A National Touring Comedy Company</div>
+  <h1 class="hero-title reveal d1">The Main<br><span class="accent">Event</span><br>of Live Comedy</h1>
+  <div class="hero-subtitle reveal d2">Nationally Touring Stand-Up Comedy</div>
+  <p class="hero-desc reveal d2">We produce <strong>world-class comedy shows</strong> across the United States — comedy clubs, theaters, casinos, and private events. Unforgettable nights. Professional production. Real laughs.</p>
+  <div class="hero-ctas reveal d3">
+    <a href="#shows" class="btn-red">Upcoming Shows</a>
+    <a href="#contact" class="btn-outline">Book a Show</a>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <div class="marquee-item"><span>★</span>Comedy Clubs</div>
+    <div class="marquee-item"><span>★</span>Theaters</div>
+    <div class="marquee-item"><span>★</span>Casinos</div>
+    <div class="marquee-item"><span>★</span>Universities</div>
+    <div class="marquee-item"><span>★</span>Corporate Events</div>
+    <div class="marquee-item"><span>★</span>Private Shows</div>
+    <div class="marquee-item"><span>★</span>National Tours</div>
+    <div class="marquee-item"><span>★</span>Festival Appearances</div>
+    <div class="marquee-item"><span>★</span>Baltimore · Los Angeles</div>
+    <div class="marquee-item"><span>★</span>Comedy Clubs</div>
+    <div class="marquee-item"><span>★</span>Theaters</div>
+    <div class="marquee-item"><span>★</span>Casinos</div>
+    <div class="marquee-item"><span>★</span>Universities</div>
+    <div class="marquee-item"><span>★</span>Corporate Events</div>
+    <div class="marquee-item"><span>★</span>Private Shows</div>
+    <div class="marquee-item"><span>★</span>National Tours</div>
+    <div class="marquee-item"><span>★</span>Festival Appearances</div>
+    <div class="marquee-item"><span>★</span>Baltimore · Los Angeles</div>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="about-layout">
+    <div>
+      <div class="sec-label reveal">Who We Are</div>
+      <h2 class="sec-title reveal d1">A Touring<br>Entertainment<br>Powerhouse</h2>
+      <p class="about-body reveal d2">Main Event Comedy Entertainment is a <strong>national comedy production company</strong> built for the road. We produce and promote stand-up comedy shows across the United States — from intimate comedy club runs to casino headline dates and major theater productions.</p>
+      <p class="about-body reveal d2">Founded by comedians and producers <strong>Jason Schuster and Phil Medina</strong>, we understand what it takes to put on a great show because we've been doing it from the stage up. Every production is handled with the same standard: <strong>professional, polished, and packed.</strong></p>
+      <p class="about-body reveal d3">Based in <strong>Baltimore, Maryland and Los Angeles, California</strong> — we operate coast to coast with a network of 333+ venues and counting.</p>
+      <a href="#founders" class="about-cta reveal d3">Meet the Founders →</a>
+    </div>
+    <div>
+      <div class="about-pillars reveal d1">
+        <div class="pillar"><div class="pillar-icon">🎤</div><div class="pillar-name">Production</div><div class="pillar-text">Full show production from concept to curtain call</div></div>
+        <div class="pillar"><div class="pillar-icon">🗺️</div><div class="pillar-name">National Touring</div><div class="pillar-text">Routing, logistics, and tour management nationwide</div></div>
+        <div class="pillar"><div class="pillar-icon">🤝</div><div class="pillar-name">Booking</div><div class="pillar-text">Venue deals, contracts, and follow-through</div></div>
+        <div class="pillar"><div class="pillar-icon">📣</div><div class="pillar-name">Promotion</div><div class="pillar-text">Marketing, press, and audience development</div></div>
+      </div>
+      <div class="about-stats reveal d2">
+        <div class="astat"><div class="astat-num">333+</div><div class="astat-label">Venues</div></div>
+        <div class="astat"><div class="astat-num">2</div><div class="astat-label">Coasts</div></div>
+        <div class="astat"><div class="astat-num">US</div><div class="astat-label">Nationwide</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SHOWS -->
+<section id="shows">
+  <div class="sec-label reveal">On The Road</div>
+  <h2 class="sec-title reveal d1">Upcoming Shows</h2>
+  <p class="sec-body reveal d2">All Main Event Comedy productions on tour — updated in real time. Get your tickets before they're gone.</p>
+  <div class="shows-list reveal d3" id="shows-list">
+    <div class="no-shows">Loading upcoming shows...</div>
+  </div>
+</section>
+
+<!-- COMEDIANS -->
+<section id="comedians">
+  <div class="sec-label reveal">The Talent</div>
+  <h2 class="sec-title reveal d1">Our Comedians</h2>
+  <p class="sec-body reveal d2">Nationally touring headliners and featured acts. Real performers. Real laughs. Night after night.</p>
+  <div class="comedians-grid reveal d3">
+    <div class="comedian-card">
+      <div class="cc-bar"></div>
+      <div class="cc-body">
+        <div class="cc-role">Headlining Comedian</div>
+        <div class="cc-name">Phil Medina</div>
+        <p class="cc-bio">Powerhouse national headliner with an electric stage presence. Featured at the Netflix Is A Joke Festival and on Hulu's West Coast Comedy. Has headlined comedy clubs and theaters across the U.S. and performed for U.S. troops worldwide.</p>
+        <div class="cc-tags">
+          <div class="cc-tag hot">Netflix Is A Joke Fest</div>
+          <div class="cc-tag hot">Hulu: West Coast Comedy</div>
+          <div class="cc-tag">National Headliner</div>
+          <div class="cc-tag">Military Shows</div>
+        </div>
+        <a href="https://philmedinacomedy.com" target="_blank" class="cc-link">Full Profile →</a>
+      </div>
+    </div>
+    <div class="comedian-card">
+      <div class="cc-bar"></div>
+      <div class="cc-body">
+        <div class="cc-role">Feature Act · Producer</div>
+        <div class="cc-name">Jason Schuster</div>
+        <p class="cc-bio">Bi-coastal stand-up comedian known for sharp wit, dynamic stage presence, and spot-on impressions. Has performed at The Comedy Store, Jimmy Kimmel's Comedy Club, and The Hollywood Improv. Co-founder of Main Event Comedy Entertainment.</p>
+        <div class="cc-tags">
+          <div class="cc-tag hot">The Comedy Store</div>
+          <div class="cc-tag hot">Jimmy Kimmel's</div>
+          <div class="cc-tag">Hollywood Improv</div>
+          <div class="cc-tag">Bi-Coastal</div>
+        </div>
+        <a href="https://jasonschustercomedy.com" target="_blank" class="cc-link">Full Profile →</a>
+      </div>
+    </div>
+    <div class="comedian-card">
+      <div class="cc-bar"></div>
+      <div class="cc-body">
+        <div class="cc-role">Featured Comedian</div>
+        <div class="cc-name">Pej Ahmadi</div>
+        <p class="cc-bio">Sharp, high-energy comedian with a knack for connecting with any crowd. Pej brings bold comedy and genuine authenticity to every performance — a standout on any lineup.</p>
+        <div class="cc-tags">
+          <div class="cc-tag">National Circuit</div>
+          <div class="cc-tag">Live Tours</div>
+          <div class="cc-tag">Main Event Featured</div>
+        </div>
+      </div>
+    </div>
+    <div class="comedian-card">
+      <div class="cc-bar"></div>
+      <div class="cc-body">
+        <div class="cc-role">Featured Comedian</div>
+        <div class="cc-name">Mark Gonzales</div>
+        <p class="cc-bio">A crowd favorite known for his relatable storytelling and big personality. Mark delivers consistent laughs and memorable moments — a proven performer on the national comedy circuit.</p>
+        <div class="cc-tags">
+          <div class="cc-tag">National Circuit</div>
+          <div class="cc-tag">Live Tours</div>
+          <div class="cc-tag">Main Event Featured</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES -->
+<section id="services">
+  <div class="sec-label reveal">What We Offer</div>
+  <h2 class="sec-title reveal d1">Show Packages</h2>
+  <p class="services-intro reveal d2">From intimate club nights to full theater productions — Main Event Comedy Entertainment handles everything. Tell us what you need and we'll build the right show for your venue.</p>
+  <div class="services-grid reveal d3">
+    <div class="svc"><div class="svc-num">01</div><div class="svc-title">Comedy Club Shows</div><p class="svc-body">Full-night comedy productions for clubs of all sizes. Headliner, feature, and MC packages available. We handle the lineup, logistics, and night-of production.</p></div>
+    <div class="svc"><div class="svc-num">02</div><div class="svc-title">Theater Productions</div><p class="svc-body">Polished, high-production comedy shows for performing arts centers and theaters. Professionally staged, marketed, and run from top to bottom.</p></div>
+    <div class="svc"><div class="svc-num">03</div><div class="svc-title">Casino Entertainment</div><p class="svc-body">Nationally recognized comedians ready for casino showrooms and lounges. Guaranteed performances with proven headliner talent and full production support.</p></div>
+    <div class="svc"><div class="svc-num">04</div><div class="svc-title">University Shows</div><p class="svc-body">Campus-friendly comedy events tailored for college audiences. We work directly with student programming boards to create unforgettable events.</p></div>
+    <div class="svc"><div class="svc-num">05</div><div class="svc-title">Corporate Events</div><p class="svc-body">Private comedy experiences for corporate events, conferences, and team building. Clean-friendly options available. Fully customized to your group and occasion.</p></div>
+    <div class="svc"><div class="svc-num">06</div><div class="svc-title">Private & Festival</div><p class="svc-body">Private events, fundraisers, festivals, and community shows. We bring professional comedy production to any setting, anywhere in the country.</p></div>
+  </div>
+</section>
+
+<!-- FOUNDERS -->
+<section id="founders">
+  <div class="sec-label reveal">Leadership</div>
+  <h2 class="sec-title reveal d1">The Founders</h2>
+  <p class="sec-body reveal d2">Built by comedians who know the stage and the business. Two performers who decided to build the infrastructure around the art.</p>
+  <div class="founders-grid reveal d3">
+    <div class="founder-card">
+      <div class="founder-num">01</div>
+      <div class="founder-role">Co-Founder · Producer · Tour Manager · Feature Act</div>
+      <div class="founder-name">Jason Schuster</div>
+      <p class="founder-bio">Jason Schuster is a <strong>bi-coastal stand-up comedian, producer, and tour manager</strong> who has performed across the United States at top venues including The Comedy Store, Jimmy Kimmel's Comedy Club, and The Hollywood Improv. Known for his sharp wit and spot-on impressions, Jason brings both stage talent and business acumen to every production. As co-founder of Main Event Comedy Entertainment, he oversees booking, tour routing, and night-of operations.</p>
+      <div class="founder-tags">
+        <div class="founder-tag hot">The Comedy Store</div>
+        <div class="founder-tag hot">Jimmy Kimmel's</div>
+        <div class="founder-tag">Hollywood Improv</div>
+        <div class="founder-tag">Bi-Coastal</div>
+        <div class="founder-tag">Producer</div>
+        <div class="founder-tag">Tour Manager</div>
+      </div>
+      <a href="https://jasonschustercomedy.com" target="_blank" class="founder-link">jasonschustercomedy.com →</a>
+    </div>
+    <div class="founder-card">
+      <div class="founder-num">02</div>
+      <div class="founder-role">Co-Founder · Headlining Comedian</div>
+      <div class="founder-name">Phil Medina</div>
+      <p class="founder-bio">Phil Medina is a <strong>nationally touring headlining comedian</strong> with an electric stage presence that commands every room. Featured at the Netflix Is A Joke Festival and on Hulu's West Coast Comedy, Phil headlines comedy clubs, theaters, and casinos across the country. As co-founder of Main Event Comedy Entertainment, Phil is the frontline talent and creative force behind the brand's live experience.</p>
+      <div class="founder-tags">
+        <div class="founder-tag hot">Netflix Is A Joke Fest</div>
+        <div class="founder-tag hot">Hulu Featured</div>
+        <div class="founder-tag">Military Shows</div>
+        <div class="founder-tag">National Headliner</div>
+      </div>
+      <a href="https://philmedinacomedy.com" target="_blank" class="founder-link">philmedinacomedy.com →</a>
+    </div>
+  </div>
+</section>
+
+<!-- MAILING LIST -->
+<section id="mailing">
+  <div class="mail-kicker reveal">Stay In The Loop</div>
+  <h2 class="mail-title reveal d1">Never Miss<br>a <span>Show</span></h2>
+  <p class="mail-sub reveal d2">Be the first to know about new tour dates, ticket drops, and exclusive announcements from Main Event Comedy Entertainment.</p>
+  <div class="mail-form reveal d3">
+    <input type="email" class="mail-input" placeholder="Your email address"/>
+    <button class="mail-btn" onclick="handleMail(this)">Join the List</button>
+  </div>
+  <p class="mail-note reveal d4">No spam. Just shows. Unsubscribe anytime.</p>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="contact-layout">
+    <div>
+      <div class="sec-label reveal">Get In Touch</div>
+      <h2 class="sec-title reveal d1">Book a Show.<br>Build a Tour.</h2>
+      <p class="contact-body reveal d2">Whether you're a venue looking to book a headliner, a corporate client planning an event, or a festival looking for a comedy package — we want to hear from you.</p>
+      <div class="contact-cards reveal d3">
+        <a href="mailto:jschucomedy@gmail.com" class="contact-card">
+          <span class="cc-l">General Booking &amp; Inquiries</span>
+          <span class="cc-v">jschucomedy@gmail.com</span>
+        </a>
+        <a href="https://jasonschustercomedy.com" target="_blank" class="contact-card">
+          <span class="cc-l">Jason Schuster — Producer</span>
+          <span class="cc-v">jasonschustercomedy.com</span>
+        </a>
+        <a href="https://philmedinacomedy.com" target="_blank" class="contact-card">
+          <span class="cc-l">Phil Medina — Headliner</span>
+          <span class="cc-v">philmedinacomedy.com</span>
+        </a>
+      </div>
+      <div class="socials reveal d4">
+        <a href="https://instagram.com/jschucomedy" target="_blank" class="soc">Instagram</a>
+        <a href="https://www.tiktok.com/@jschucomedy" target="_blank" class="soc">TikTok</a>
+        <a href="https://www.youtube.com/channel/UC_27-E__H64DYt5MQLIxYFA" target="_blank" class="soc">YouTube</a>
+      </div>
+    </div>
+    <div>
+      <div class="sec-label reveal">Booking Inquiry</div>
+      <div class="bform reveal d2">
+        <div class="bform-row">
+          <input type="text" placeholder="Your Name"/>
+          <input type="text" placeholder="Organization / Venue"/>
+        </div>
+        <input type="email" placeholder="Email Address"/>
+        <input type="tel" placeholder="Phone Number (optional)"/>
+        <select>
+          <option value="" disabled selected>Event Type</option>
+          <option>Comedy Club</option>
+          <option>Theater</option>
+          <option>Casino</option>
+          <option>University / College</option>
+          <option>Corporate Event</option>
+          <option>Private Event</option>
+          <option>Festival</option>
+          <option>Other</option>
+        </select>
+        <div class="bform-row">
+          <input type="text" placeholder="Location (City, State)"/>
+          <input type="text" placeholder="Estimated Date"/>
+        </div>
+        <textarea placeholder="Tell us about your event — capacity, budget, what you're looking for..."></textarea>
+        <button class="bform-btn" onclick="handleBooking(this)">Send Inquiry</button>
+        <p class="bform-note">We respond to all serious inquiries within 48 hours.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-top">
+    <div>
+      <div class="footer-name">MAIN EVENT <span>COMEDY</span></div>
+      <div class="footer-tagline">A National Touring Comedy Company</div>
+      <p class="footer-desc">Main Event Comedy Entertainment produces and promotes nationally touring stand-up comedy shows across the United States. Based in Baltimore, MD and Los Angeles, CA.</p>
+    </div>
+    <div>
+      <div class="footer-col-title">Navigate</div>
+      <div class="footer-links">
+        <a href="#about" class="footer-link">About</a>
+        <a href="#shows" class="footer-link">Upcoming Shows</a>
+        <a href="#comedians" class="footer-link">Comedians</a>
+        <a href="#services" class="footer-link">Services</a>
+        <a href="#contact" class="footer-link">Book a Show</a>
+      </div>
+    </div>
+    <div>
+      <div class="footer-col-title">Our Talent</div>
+      <div class="footer-links">
+        <a href="https://philmedinacomedy.com" target="_blank" class="footer-link">Phil Medina</a>
+        <a href="https://jasonschustercomedy.com" target="_blank" class="footer-link">Jason Schuster</a>
+      </div>
+    </div>
+    <div>
+      <div class="footer-col-title">Contact</div>
+      <div class="footer-links">
+        <a href="mailto:jschucomedy@gmail.com" class="footer-link">jschucomedy@gmail.com</a>
+        <a href="https://instagram.com/jschucomedy" target="_blank" class="footer-link">Instagram</a>
+        <a href="https://www.tiktok.com/@jschucomedy" target="_blank" class="footer-link">TikTok</a>
+        <a href="https://www.youtube.com/channel/UC_27-E__H64DYt5MQLIxYFA" target="_blank" class="footer-link">YouTube</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">© 2026 Main Event Comedy Entertainment LLC · Maryland LLC · EIN Registered · Baltimore, MD &amp; Los Angeles, CA</div>
+  </div>
+</footer>
+
+<script>
+window.addEventListener('load',()=>{setTimeout(()=>document.getElementById('loading').classList.add('done'),900)});
+window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('solid',window.scrollY>80)});
+const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('vis')})},{threshold:0.08});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+function handleMail(btn){const inp=btn.previousElementSibling;if(!inp.value||!inp.value.includes('@')){inp.style.borderColor='var(--red)';return}btn.textContent='✓ You\'re In!';btn.style.background='#2a5e2a';inp.disabled=true;btn.disabled=true}
+function handleBooking(btn){btn.textContent='✓ Inquiry Sent!';btn.style.background='#2a5e2a';btn.disabled=true}
+const SB_URL='https://qqgwxkxbdxjuyxhsuymj.supabase.co';
+const SB_KEY='sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
+const OWNER_EMAIL='jschucomedy@gmail.com';
+async function loadShows(){
+  const list=document.getElementById('shows-list');
+  try{
+    const res=await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(OWNER_EMAIL)}&select=data`,{headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`}});
+    const rows=await res.json();
+    const data=rows?.[0]?.data;
+    const allDates=[];
+    (data?.tours||[]).forEach(tour=>{(tour.dates||[]).forEach(d=>{if(d.websitePublish&&d.websiteSites&&d.websiteSites.some(s=>['jason','phil','mainevent'].includes(s))){allDates.push({...d,tourName:tour.name})}})});
+    const today=new Date().toISOString().slice(0,10);
+    const upcoming=allDates.filter(d=>d.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+    if(!upcoming.length){list.innerHTML='<div class="no-shows">No upcoming shows scheduled. Check back soon — we\'re always routing.</div>';return}
+    list.innerHTML=upcoming.map(show=>{
+      const dt=new Date(show.date+'T12:00:00');
+      const month=dt.toLocaleString('en-US',{month:'short'}).toUpperCase();
+      const day=dt.getDate();
+      const tix=(show.websiteTicketUrl&&show.websiteShowTickets!==false)?`<a href="${show.websiteTicketUrl}" target="_blank" class="show-tix">Get Tickets</a>`:'';
+      const price=(show.websitePrice&&show.websiteShowPrice!==false)?`<span class="show-tag hl">$${show.websitePrice}</span>`:'';
+      return`<div class="show-row"><div class="show-date"><div class="show-mo">${month}</div><div class="show-dy">${day}</div></div><div class="show-info"><div class="show-venue">${show.venue||'TBA'}</div><div class="show-loc">${show.city||''}${show.state?', '+show.state:''}</div><div class="show-meta">${price}${show.status==='Confirmed'?'<span class="show-tag">Confirmed</span>':''}${show.tourName?`<span class="show-tag">${show.tourName}</span>`:''}</div></div>${tix}</div>`;
+    }).join('');
+  }catch(e){list.innerHTML='<div class="no-shows">Could not load shows. Check back soon.</div>'}
+}
+loadShows();
+</script>
+<script>
+document.querySelectorAll('a[href*="jschucomedy@gmail"]').forEach(a=>{
+  a.href = 'mailto:jason@maineventcomedy.com';
+});
+document.querySelectorAll('*').forEach(el=>{
+  if(el.childNodes){
+    el.childNodes.forEach(node=>{
+      if(node.nodeType===3 && node.textContent.includes('jschucomedy@gmail.com')){
+        node.textContent = node.textContent.replace(/jschucomedy@gmail\.com/g,'jason@maineventcomedy.com');
+      }
+    });
+  }
+});
+</script><script>
+const form = document.querySelector('form');
+if(form) {
+  form.setAttribute('name', 'booking-inquiry');
+  form.setAttribute('data-netlify', 'true');
+  const hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = 'form-name';
+  hidden.value = 'booking-inquiry';
+  form.prepend(hidden);
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const data = new FormData(form);
+    fetch('/', {method:'POST', body: data})
+      .then(()=>{
+        form.innerHTML = '<div style="padding:40px;text-align:center;color:#fff;font-size:16px;">✅ Thank you! We\'ll be in touch within 48 hours.<br><br><a href="mailto:jason@maineventcomedy.com" style="color:#C8102E;">jason@maineventcomedy.com</a></div>';
+      });
+  });
+}
+</script><!-- ============================================================
+  MAIN EVENT COMEDY — FORMSPREE FORM FIX
+  Deploy: Netlify → Site configuration → Snippet injection → Before </body>
+  This OVERRIDES the fake handleBooking() and handleMail() functions
+  with real Formspree submissions to jschucomedy@gmail.com
+  Formspree endpoint: https://formspree.io/f/xvzwwbod
+  ============================================================ -->
+
+<script>
+// ── REAL BOOKING FORM SUBMIT ──────────────────────────────────
+// Overrides the fake handleBooking(btn) in maineventcomedy.com
+async function handleBooking(btn) {
+  const form = btn.closest('.bform');
+  if (!form) return;
+
+  // Collect all inputs
+  const inputs = form.querySelectorAll('input, select, textarea');
+  const data = { _subject: 'New Booking Inquiry — Main Event Comedy Entertainment' };
+
+  inputs.forEach(el => {
+    const key = el.placeholder || el.name || el.id || 'field';
+    if (el.value && el.value !== '') data[key] = el.value;
+  });
+
+  // Validate email field
+  const emailInput = form.querySelector('input[type="email"]');
+  if (!emailInput || !emailInput.value || !emailInput.value.includes('@')) {
+    if (emailInput) emailInput.style.borderColor = 'var(--red2, #e8182e)';
+    btn.textContent = 'Add Email Address';
+    setTimeout(() => { btn.textContent = 'Send Inquiry'; }, 2000);
+    return;
+  }
+
+  // Send to Formspree
+  btn.textContent = 'Sending…';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('https://formspree.io/f/xvzwwbod', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    if (res.ok) {
+      btn.textContent = '✓ Inquiry Sent!';
+      btn.style.background = '#2a5e2a';
+      // Clear form fields
+      inputs.forEach(el => { if (el.tagName !== 'SELECT') el.value = ''; });
+    } else {
+      const json = await res.json();
+      console.error('Formspree error:', json);
+      btn.textContent = 'Error — Try Again';
+      btn.style.background = 'var(--red, #c8102e)';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    console.error('Network error:', err);
+    btn.textContent = 'Error — Try Again';
+    btn.style.background = 'var(--red, #c8102e)';
+    btn.disabled = false;
+  }
+}
+
+// ── REAL MAILING LIST SUBMIT ──────────────────────────────────
+// Overrides the fake handleMail(btn) in maineventcomedy.com
+async function handleMail(btn) {
+  const input = btn.previousElementSibling;
+  if (!input || !input.value || !input.value.includes('@')) {
+    if (input) input.style.borderColor = 'var(--red2, #e8182e)';
+    return;
+  }
+
+  btn.textContent = 'Joining…';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('https://formspree.io/f/xvzwwbod', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: input.value,
+        _subject: 'Mailing List Signup — Main Event Comedy Entertainment'
+      })
+    });
+
+    if (res.ok) {
+      btn.textContent = '✓ You\'re In!';
+      btn.style.background = '#2a5e2a';
+      input.disabled = true;
+      input.value = '';
+    } else {
+      btn.textContent = 'Error — Try Again';
+      btn.style.background = 'var(--red, #c8102e)';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    btn.textContent = 'Error — Try Again';
+    btn.style.background = 'var(--red, #c8102e)';
+    btn.disabled = false;
+  }
+}
+</script><!-- ============================================================
+  MAIN EVENT COMEDY — CONTACT SECTION FIX
+  Deploy: Netlify → Site configuration → Snippet injection → Before </body>
+  Fixes the contact cards: removes Jason + Phil cards, updates email
+  ============================================================ -->
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Fix the email address on the first contact card
+  const cards = document.querySelectorAll('#contact .contact-cards .contact-card');
+  cards.forEach(card => {
+    const label = card.querySelector('.cc-l');
+    const val = card.querySelector('.cc-v');
+    if (!label || !val) return;
+
+    // Update the booking card email
+    if (label.textContent.includes('Booking')) {
+      card.href = 'mailto:booking@maineventcomedy.com';
+      val.textContent = 'booking@maineventcomedy.com';
+    }
+
+    // Remove Jason and Phil cards
+    if (
+      label.textContent.includes('Jason') ||
+      label.textContent.includes('Phil')
+    ) {
+      card.remove();
+    }
+  });
+});
+</script></body>
+</html>

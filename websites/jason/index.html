@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Jason Schuster — Comedian</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+html,body{overflow-x:hidden}
+body{background:#0a0a0a;color:#f0ede6;font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased}
+:root{
+  --gold:#c9a84c;
+  --gold2:#e8c96d;
+  --cream:#f0ede6;
+  --dim:rgba(240,237,230,0.55);
+  --dim2:rgba(240,237,230,0.28);
+  --bord:rgba(240,237,230,0.1);
+  --bord2:rgba(240,237,230,0.18);
+}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px clamp(20px,5vw,60px);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(10,10,10,.95) 0%,transparent 100%);backdrop-filter:blur(4px)}
+.nlogo{font-family:'Playfair Display',serif;font-size:clamp(16px,2.5vw,20px);font-weight:700;letter-spacing:.02em;color:var(--cream);text-decoration:none}
+.nlogo span{color:var(--gold)}
+.nlinks{display:flex;gap:clamp(16px,3vw,36px);list-style:none}
+.nlinks a{font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);text-decoration:none;transition:color .2s}
+.nlinks a:hover{color:var(--cream)}
+.nbook{padding:8px 20px;border:1px solid var(--gold);color:var(--gold);font-size:11px;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;transition:all .2s}
+.nbook:hover{background:var(--gold);color:#0a0a0a}
+@media(max-width:680px){.nlinks{display:none}}
+
+/* ── HERO ── */
+#hero{min-height:100svh;display:flex;flex-direction:column;justify-content:flex-end;padding:0 clamp(20px,6vw,80px) clamp(48px,8vh,80px);position:relative;overflow:hidden}
+.hero-photo-full{position:absolute;inset:0;z-index:0}
+.hero-photo-full img{width:100%;height:100%;object-fit:cover;object-position:center top}
+.hero-bg{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,.15) 0%,rgba(10,10,10,.05) 35%,rgba(10,10,10,.8) 75%,#0a0a0a 100%);z-index:1}
+.hero-eyebrow{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--gold);margin-bottom:20px;display:flex;align-items:center;gap:12px;position:relative;z-index:2}
+.hero-eyebrow::before{content:'';width:32px;height:1px;background:var(--gold)}
+h1.hero-title{font-family:'Playfair Display',serif;font-size:clamp(52px,11vw,140px);font-weight:900;line-height:.92;letter-spacing:-.02em;margin-bottom:28px;position:relative;z-index:2}
+h1.hero-title em{display:block;font-style:italic;color:var(--gold)}
+.hero-sub{font-size:clamp(13px,1.8vw,16px);font-weight:300;color:var(--dim);max-width:520px;line-height:1.75;margin-bottom:36px;position:relative;z-index:2}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap;position:relative;z-index:2}
+.btn-primary{padding:14px 32px;background:var(--gold);color:#0a0a0a;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;transition:all .2s}
+.btn-primary:hover{background:var(--gold2)}
+.btn-ghost{padding:14px 32px;border:1px solid rgba(240,237,230,.35);color:var(--cream);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;border-radius:2px;transition:all .2s;backdrop-filter:blur(4px)}
+.btn-ghost:hover{border-color:var(--cream)}
+.hero-credits{position:absolute;top:clamp(80px,12vh,110px);right:clamp(20px,6vw,80px);display:flex;flex-direction:column;gap:6px;text-align:right;z-index:2}
+.credit{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,237,230,.4)}
+
+/* ── MARQUEE ── */
+.marquee-wrap{border-top:1px solid var(--bord);border-bottom:1px solid var(--bord);padding:14px 0;overflow:hidden;background:#0d0d0d}
+.marquee-track{display:flex;gap:0;animation:marquee 30s linear infinite;white-space:nowrap}
+.marquee-item{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim2);padding:0 32px;flex-shrink:0}
+.marquee-item span{color:var(--gold);margin-right:32px}
+@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── SECTIONS ── */
+section{padding:clamp(64px,10vh,120px) clamp(20px,6vw,80px)}
+.sec-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--gold);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.sec-label::before{content:'';width:24px;height:1px;background:var(--gold)}
+
+/* ── ABOUT ── */
+#about{background:#0d0d0d;border-top:1px solid var(--bord)}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(32px,6vw,80px);align-items:start;max-width:1100px}
+@media(max-width:720px){.about-grid{grid-template-columns:1fr}}
+.about-title{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,58px);font-weight:900;line-height:1.05;letter-spacing:-.02em;margin-bottom:24px}
+.about-title em{font-style:italic;color:var(--gold)}
+.about-body{font-size:15px;font-weight:300;color:var(--dim);line-height:1.85;margin-bottom:24px}
+.about-body strong{color:var(--cream);font-weight:500}
+.about-credits{display:flex;flex-direction:column;gap:0;border:1px solid var(--bord);border-radius:4px;overflow:hidden;margin-top:32px}
+.credit-row{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--bord)}
+.credit-row:last-child{border-bottom:none}
+.credit-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim2)}
+.credit-val{font-size:13px;font-weight:500;color:var(--cream)}
+.about-stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--bord);border:1px solid var(--bord)}
+.stat{background:#0d0d0d;padding:24px 20px}
+.stat-num{font-family:'Playfair Display',serif;font-size:clamp(28px,4vw,42px);font-weight:900;color:var(--gold);line-height:1}
+.stat-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim2);margin-top:6px}
+.about-also{margin-top:28px;padding:20px;background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.2);border-radius:4px}
+.also-title{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:10px}
+.also-body{font-size:13px;font-weight:300;color:var(--dim);line-height:1.7}
+
+/* ── SHOWS ── */
+#shows{border-top:1px solid var(--bord)}
+.shows-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:40px;flex-wrap:wrap;gap:16px;max-width:900px}
+.shows-title{font-family:'Playfair Display',serif;font-size:clamp(28px,4vw,48px);font-weight:900;letter-spacing:-.02em}
+.shows-list{max-width:900px;display:flex;flex-direction:column;gap:0}
+.show-item{display:grid;grid-template-columns:100px 1fr auto;gap:20px;align-items:center;padding:22px 0;border-bottom:1px solid var(--bord);transition:background .2s;cursor:default}
+.show-item:first-child{border-top:1px solid var(--bord)}
+@media(max-width:560px){.show-item{grid-template-columns:80px 1fr;}.show-ticket{display:inline-block}}
+.show-date-block{text-align:center;padding:10px;border:1px solid var(--bord);border-radius:3px;background:rgba(201,168,76,.04)}
+.show-month{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.show-day{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;line-height:1;color:var(--cream)}
+.show-info{}
+.show-venue{font-size:16px;font-weight:600;color:var(--cream);margin-bottom:4px}
+.show-location{font-size:12px;color:var(--dim2);letter-spacing:.05em}
+.show-meta{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap}
+.show-tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--bord2);color:var(--dim2);border-radius:2px}
+.show-tag.price{border-color:rgba(201,168,76,.3);color:var(--gold)}
+.show-ticket{padding:9px 20px;border:1px solid var(--gold);color:var(--gold);font-size:11px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;border-radius:2px;white-space:nowrap;transition:all .2s;flex-shrink:0}
+.show-ticket:hover{background:var(--gold);color:#0a0a0a}
+.no-shows{padding:48px 0;color:var(--dim2);font-size:14px;font-style:italic}
+
+/* ── CREDITS ── */
+#credits{background:#0d0d0d;border-top:1px solid var(--bord)}
+.clubs-title{font-family:'Playfair Display',serif;font-size:clamp(28px,4vw,48px);font-weight:900;letter-spacing:-.02em;margin-bottom:40px}
+.clubs-grid{display:flex;flex-wrap:wrap;gap:12px;max-width:900px}
+.club-pill{padding:10px 18px;border:1px solid var(--bord2);color:var(--dim);font-size:13px;border-radius:2px;transition:all .2s}
+.club-pill:hover{border-color:var(--gold);color:var(--gold)}
+.credits-also{margin-top:48px;max-width:600px}
+.credits-also-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:16px;color:var(--cream)}
+.credits-also-body{font-size:14px;font-weight:300;color:var(--dim);line-height:1.8}
+
+/* ── CONTACT ── */
+#contact{border-top:1px solid var(--bord);text-align:center;padding:clamp(80px,12vh,140px) clamp(20px,6vw,80px)}
+.contact-title{font-family:'Playfair Display',serif;font-size:clamp(36px,7vw,80px);font-weight:900;line-height:.95;letter-spacing:-.02em;margin-bottom:20px}
+.contact-title em{font-style:italic;color:var(--gold)}
+.contact-sub{font-size:15px;font-weight:300;color:var(--dim);margin-bottom:40px;max-width:400px;margin-left:auto;margin-right:auto;line-height:1.7}
+.contact-cards{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:48px}
+.contact-card{padding:22px 28px;border:1px solid var(--bord);border-radius:4px;text-decoration:none;transition:border-color .2s;min-width:180px}
+.contact-card:hover{border-color:var(--gold)}
+.cc-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim2);margin-bottom:6px}
+.cc-val{font-size:14px;font-weight:500;color:var(--cream)}
+.socials{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.social-link{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim2);text-decoration:none;transition:color .2s}
+.social-link:hover{color:var(--gold)}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--bord);padding:24px clamp(20px,6vw,80px);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:#080808}
+.footer-logo{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;color:var(--dim2)}
+.footer-copy{font-size:11px;color:var(--dim2);letter-spacing:.05em}
+
+/* ── GALLERY ── */
+#gallery{border-top:1px solid var(--bord);padding:clamp(48px,8vh,80px) clamp(20px,6vw,80px)}
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;max-width:1100px}
+.gallery-img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:4px;filter:grayscale(15%);transition:filter .3s,transform .3s}
+.gallery-img:hover{filter:grayscale(0%);transform:scale(1.02)}
+.gallery-img.landscape{aspect-ratio:16/9}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:#0a0a0a;z-index:999;display:flex;align-items:center;justify-content:center;transition:opacity .5s}
+#loading.done{opacity:0;pointer-events:none}
+.loader-text{font-family:'Playfair Display',serif;font-size:18px;color:var(--gold);letter-spacing:.1em}
+
+/* ── REVEAL ── */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .65s ease,transform .65s ease}
+.reveal.d1{transition-delay:.1s}.reveal.d2{transition-delay:.2s}.reveal.d3{transition-delay:.3s}
+.reveal.vis{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="loader-text">Jason Schuster</div></div>
+
+<nav>
+  <a href="#hero" class="nlogo">Jason <span>Schuster</span></a>
+  <ul class="nlinks">
+    <li><a href="#about">About</a></li>
+    <li><a href="#shows">Shows</a></li>
+    <li><a href="#credits">Credits</a></li>
+    <li><a href="#gallery">Photos</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <a href="mailto:jschucomedy@gmail.com" class="nbook">Book Jason</a>
+</nav>
+
+<!-- ── HERO ── -->
+<section id="hero">
+  <div class="hero-photo-full">
+    <img src="https://i.imgur.com/xJFFBCd.jpeg" alt="Jason Schuster"/>
+  </div>
+  <div class="hero-bg"></div>
+  <div class="hero-credits">
+    <div class="credit">The Comedy Store</div>
+    <div class="credit">Hollywood Improv</div>
+    <div class="credit">Jimmy Kimmel's</div>
+  </div>
+  <div class="hero-eyebrow reveal">Bi-Coastal Stand-Up Comedy</div>
+  <h1 class="hero-title reveal d1">Jason<em>Schuster</em></h1>
+  <p class="hero-sub reveal d2">Sharp wit. Spot-on impressions. A stage presence that commands the room — from The Comedy Store to Jimmy Kimmel's Comedy Club and everywhere in between.</p>
+  <div class="hero-ctas reveal d3">
+    <a href="#shows" class="btn-primary">Upcoming Shows</a>
+    <a href="#contact" class="btn-ghost">Book an Appearance</a>
+  </div>
+</section>
+
+<!-- ── MARQUEE ── -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <div class="marquee-item"><span>★</span>The Comedy Store</div>
+    <div class="marquee-item"><span>★</span>Hollywood Improv</div>
+    <div class="marquee-item"><span>★</span>Jimmy Kimmel's Comedy Club</div>
+    <div class="marquee-item"><span>★</span>Magoobys</div>
+    <div class="marquee-item"><span>★</span>Mic Drop Comedy</div>
+    <div class="marquee-item"><span>★</span>Bi-Coastal Comedian</div>
+    <div class="marquee-item"><span>★</span>Producer · Tour Manager</div>
+    <div class="marquee-item"><span>★</span>The Comedy Store</div>
+    <div class="marquee-item"><span>★</span>Hollywood Improv</div>
+    <div class="marquee-item"><span>★</span>Jimmy Kimmel's Comedy Club</div>
+    <div class="marquee-item"><span>★</span>Magoobys</div>
+    <div class="marquee-item"><span>★</span>Mic Drop Comedy</div>
+    <div class="marquee-item"><span>★</span>Bi-Coastal Comedian</div>
+    <div class="marquee-item"><span>★</span>Producer · Tour Manager</div>
+  </div>
+</div>
+
+<!-- ── ABOUT ── -->
+<section id="about">
+  <div class="about-grid">
+    <div>
+      <div class="sec-label reveal">About</div>
+      <h2 class="about-title reveal d1">Sharp wit.<em>Real laughs.</em></h2>
+      <p class="about-body reveal d2">
+        Jason Schuster is a <strong>bi-coastal stand-up comedian</strong> known for his sharp wit, dynamic stage presence, and spot-on impressions. With a unique blend of observational humor and personal anecdotes, Jason seamlessly transitions from clever one-liners to hilarious character impersonations.
+      </p>
+      <p class="about-body reveal d2">
+        Since breaking into the comedy circuit, Jason has performed with <strong>some of the biggest names in comedy</strong> at the most prestigious clubs in the country — The Comedy Store, Jimmy Kimmel's Comedy Club, The Hollywood Improv, Mic Drop Comedy, Magoobys, and more.
+      </p>
+      <p class="about-body reveal d2">
+        Jason is also a <strong>content creator and producer</strong> — frequently sharing his humor through social media and podcasts, and producing nationally touring comedy shows through Main Event Comedy Entertainment.
+      </p>
+      <div class="about-also reveal d3">
+        <div class="also-title">Also: Producer & Tour Manager</div>
+        <div class="also-body">Co-founder of Main Event Comedy Entertainment — producing and managing nationally touring comedy tours, booking venues across the U.S., and developing emerging comedic talent.</div>
+      </div>
+    </div>
+    <div>
+      <div class="about-credits reveal d1">
+        <div class="credit-row">
+          <span class="credit-label">Booking</span>
+          <span class="credit-val">jschucomedy@gmail.com</span>
+        </div>
+        <div class="credit-row">
+          <span class="credit-label">Instagram</span>
+          <span class="credit-val">@jschucomedy</span>
+        </div>
+        <div class="credit-row">
+          <span class="credit-label">TikTok</span>
+          <span class="credit-val">@jschucomedy</span>
+        </div>
+        <div class="credit-row">
+          <span class="credit-label">Based</span>
+          <span class="credit-val">Bi-Coastal (MD / LA)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SHOWS ── -->
+<section id="shows">
+  <div class="shows-header">
+    <div>
+      <div class="sec-label reveal">Live</div>
+      <h2 class="shows-title reveal d1">Upcoming Shows</h2>
+    </div>
+  </div>
+  <div class="shows-list reveal d2" id="shows-list">
+    <div class="no-shows">Loading shows...</div>
+  </div>
+</section>
+
+<!-- ── CREDITS ── -->
+<section id="credits">
+  <div class="sec-label reveal">Venues & Credits</div>
+  <h2 class="clubs-title reveal d1">Where I've Performed</h2>
+  <div class="clubs-grid reveal d2">
+    <div class="club-pill">The Comedy Store</div>
+    <div class="club-pill">Jimmy Kimmel's Comedy Club</div>
+    <div class="club-pill">The Hollywood Improv</div>
+    <div class="club-pill">Magoobys</div>
+    <div class="club-pill">Mic Drop Comedy</div>
+    <div class="club-pill">Main Event Comedy Tours</div>
+  </div>
+  <div class="credits-also reveal d3">
+    <h3 class="credits-also-title">Content & Production</h3>
+    <p class="credits-also-body">Beyond the stage, Jason creates comedy content across social media and podcasts, and serves as producer and tour manager for nationally touring shows under Main Event Comedy Entertainment LLC.</p>
+  </div>
+</section>
+
+<!-- ── GALLERY ── -->
+<section id="gallery">
+  <div class="sec-label reveal">Photos</div>
+  <h2 class="clubs-title reveal d1">On Stage</h2>
+  <div class="gallery-grid reveal d2">
+    <img src="https://i.imgur.com/c7CwUfa.jpeg" alt="Jason Schuster" class="gallery-img"/>
+    <img src="https://i.imgur.com/COoEcOk.jpeg" alt="Jason Schuster" class="gallery-img"/>
+    <img src="https://i.imgur.com/nVfYWYk.jpeg" alt="Jason Schuster" class="gallery-img"/>
+    <img src="https://i.imgur.com/vyxyhrP.jpeg" alt="Jason Schuster" class="gallery-img"/>
+    <img src="https://i.imgur.com/cZlZsDa.jpeg" alt="Jason Schuster" class="gallery-img"/>
+    <img src="https://i.imgur.com/4Lvko6g.jpeg" alt="Jason Schuster" class="gallery-img"/>
+  </div>
+</section>
+
+<!-- ── CONTACT ── -->
+<section id="contact">
+  <h2 class="contact-title reveal">Let's Make<em>People Laugh</em></h2>
+  <p class="contact-sub reveal d1">For bookings, press inquiries, or commercial work — reach out directly.</p>
+  <div class="contact-cards reveal d2">
+    <a href="mailto:jschucomedy@gmail.com" class="contact-card">
+      <div class="cc-label">Bookings & General</div>
+      <div class="cc-val">jschucomedy@gmail.com</div>
+    </a>
+  </div>
+  <div class="socials reveal d3">
+    <a href="https://instagram.com/jschucomedy" target="_blank" class="social-link">Instagram</a>
+    <a href="https://twitter.com/jschucomedy" target="_blank" class="social-link">Twitter / X</a>
+    <a href="https://www.tiktok.com/@jschucomedy" target="_blank" class="social-link">TikTok</a>
+    <a href="https://www.youtube.com/channel/UC_27-E__H64DYt5MQLIxYFA" target="_blank" class="social-link">YouTube</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">Jason Schuster</div>
+  <div class="footer-copy">© 2026 Jason Schuster. All rights reserved.</div>
+</footer>
+
+<script>
+// ── LOADER ──
+window.addEventListener('load',()=>{
+  setTimeout(()=>document.getElementById('loading').classList.add('done'),600);
+});
+
+// ── REVEAL ON SCROLL ──
+const obs = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('vis'); });
+},{threshold:0.12});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+
+// ── SHOWS ── pulled from Supabase
+const SB_URL = 'https://qqgwxkxbdxjuyxhsuymj.supabase.co';
+const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
+const OWNER_EMAIL = 'jschucomedy@gmail.com';
+const SITE_KEY = 'jason'; // filters shows marked for Jason's site
+
+async function loadShows() {
+  const list = document.getElementById('shows-list');
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(OWNER_EMAIL)}&select=data`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+    });
+    const rows = await res.json();
+    const data = rows?.[0]?.data;
+    const allDates = [];
+    (data?.tours || []).forEach(tour => {
+      (tour.dates || []).forEach(d => {
+        if(d.websitePublish && d.websiteSites && d.websiteSites.includes(SITE_KEY)) {
+          allDates.push({...d, tourName: tour.name});
+        }
+      });
+    });
+    // Sort by date ascending, filter future shows
+    const today = new Date().toISOString().slice(0,10);
+    const upcoming = allDates
+      .filter(d => d.date >= today)
+      .sort((a,b) => a.date.localeCompare(b.date));
+
+    if(upcoming.length === 0) {
+      list.innerHTML = '<div class="no-shows">No upcoming shows scheduled. Check back soon.</div>';
+      return;
+    }
+
+    list.innerHTML = upcoming.map(show => {
+      const dt = new Date(show.date + 'T12:00:00');
+      const month = dt.toLocaleString('en-US',{month:'short'}).toUpperCase();
+      const day = dt.getDate();
+      const ticketHtml = (show.websiteTicketUrl && show.websiteShowTickets !== false)
+        ? `<a href="${show.websiteTicketUrl}" target="_blank" class="show-ticket">Tickets</a>` : '';
+      const priceHtml = (show.websitePrice && show.websiteShowPrice !== false)
+        ? `<span class="show-tag price">$${show.websitePrice}</span>` : '';
+      return `
+        <div class="show-item">
+          <div class="show-date-block">
+            <div class="show-month">${month}</div>
+            <div class="show-day">${day}</div>
+          </div>
+          <div class="show-info">
+            <div class="show-venue">${show.venue || 'TBA'}</div>
+            <div class="show-location">${show.city || ''}${show.state ? ', '+show.state : ''}</div>
+            <div class="show-meta">
+              ${priceHtml}
+              ${show.status === 'Confirmed' ? '<span class="show-tag">Confirmed</span>' : ''}
+            </div>
+          </div>
+          ${ticketHtml}
+        </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="no-shows">Could not load shows. Check back soon.</div>';
+  }
+}
+loadShows();
+</script>
+<script>
+document.querySelectorAll('a[href*="jschucomedy@gmail"]').forEach(a=>{
+  a.href = 'mailto:jason@maineventcomedy.com';
+});
+document.querySelectorAll('*').forEach(el=>{
+  if(el.childNodes){
+    el.childNodes.forEach(node=>{
+      if(node.nodeType===3 && node.textContent.includes('jschucomedy@gmail.com')){
+        node.textContent = node.textContent.replace(/jschucomedy@gmail\.com/g,'jason@maineventcomedy.com');
+      }
+    });
+  }
+});
+</script><!-- ============================================================
+  JASON SCHUSTER COMEDY — EMAIL + NAV BUTTON FIX
+  Deploy: Netlify → Site configuration → Snippet injection → Before </body>
+  Name it: Email + Nav Button Fix
+  1. Replaces all instances of jschucomedy@gmail.com with booking@maineventcomedy.com
+  2. Fixes the nav "Book Jason" button on desktop
+  ============================================================ -->
+
+<style>
+  nav {
+    pointer-events: none !important;
+  }
+  nav * {
+    pointer-events: auto !important;
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const OLD = 'jschucomedy@gmail.com';
+  const NEW = 'booking@maineventcomedy.com';
+
+  // Fix all mailto hrefs
+  document.querySelectorAll('a[href="mailto:' + OLD + '"]').forEach(a => {
+    a.href = 'mailto:' + NEW;
+  });
+
+  // Fix all visible text nodes
+  document.querySelectorAll('*').forEach(el => {
+    el.childNodes.forEach(node => {
+      if (node.nodeType === 3 && node.textContent.includes(OLD)) {
+        node.textContent = node.textContent.replace(new RegExp(OLD, 'g'), NEW);
+      }
+    });
+  });
+
+  // Fix nav Book Jason button on desktop
+  const bookBtn = document.querySelector('nav .nbook');
+  if (bookBtn) {
+    bookBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.querySelector('#contact');
+      if (target) target.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+});
+</script><!-- ============================================================
+  JASON SCHUSTER COMEDY — EMAIL FIX (CORRECTED)
+  Deploy: Netlify → Site configuration → Snippet injection → Before </body>
+  Name it: Email Fix (replace or update the previous one)
+  Replaces jason@maineventcomedy.com with booking@maineventcomedy.com
+  ============================================================ -->
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const OLD = 'jason@maineventcomedy.com';
+  const NEW = 'booking@maineventcomedy.com';
+
+  // Fix all mailto hrefs
+  document.querySelectorAll('a[href="mailto:' + OLD + '"]').forEach(a => {
+    a.href = 'mailto:' + NEW;
+  });
+
+  // Fix all visible text nodes
+  document.querySelectorAll('*').forEach(el => {
+    el.childNodes.forEach(node => {
+      if (node.nodeType === 3 && node.textContent.includes(OLD)) {
+        node.textContent = node.textContent.replace(new RegExp(OLD, 'g'), NEW);
+      }
+    });
+  });
+});
+</script></body>
+</html>
