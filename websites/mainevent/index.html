@@ -547,7 +547,7 @@ async function loadShows(){
     const rows=await res.json();
     const data=rows?.[0]?.data;
     const allDates=[];
-    (data?.tours||[]).forEach(tour=>{(tour.dates||[]).forEach(d=>{if(d.websitePublish&&d.websiteSites&&d.websiteSites.some(s=>['jason','phil','mainevent'].includes(s))){allDates.push({...d,tourName:tour.name})}})});
+    const seenVenues=new Set();(data?.tours||[]).forEach(tour=>{(tour.dates||[]).forEach(d=>{if(d.websitePublish&&d.websiteSites&&d.websiteSites.some(s=>['jason','phil','mainevent'].includes(s))){const key=(d.venue||'').toLowerCase().trim()+d.date;if(!seenVenues.has(key)){seenVenues.add(key);const isStandalone=tour.id==='standalone_venues';allDates.push({...d,tourName:tour.name,websitePrice:isStandalone?'':d.websitePrice})}}})});
     const today=new Date().toISOString().slice(0,10);
     const upcoming=allDates.filter(d=>d.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
     if(!upcoming.length){list.innerHTML='<div class="no-shows">No upcoming shows scheduled. Check back soon — we\'re always routing.</div>';return}
