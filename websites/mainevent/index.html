@@ -557,7 +557,7 @@ async function loadShows(){
       const day=dt.getDate();
       const tix=(show.websiteTicketUrl&&show.websiteShowTickets!==false)?`<a href="${show.websiteTicketUrl}" target="_blank" class="show-tix">Get Tickets</a>`:'';
       const price=(show.websitePrice&&show.websiteShowPrice!==false)?`<span class="show-tag hl">$${show.websitePrice}</span>`:'';
-      return`<div class="show-row"><div class="show-date"><div class="show-mo">${month}</div><div class="show-dy">${day}</div></div><div class="show-info"><div class="show-venue">${show.venue||'TBA'}</div><div class="show-loc">${show.city||''}${show.state?', '+show.state:''}</div><div class="show-meta">${price}${show.status==='Confirmed'?'<span class="show-tag">Confirmed</span>':''}${show.tourName?`<span class="show-tag">${show.tourName}</span>`:''}</div></div>${tix}</div>`;
+      return`<div class="show-row"><div class="show-date"><div class="show-mo">${month}</div><div class="show-dy">${day}</div></div><div class="show-info"><div class="show-venue">${show.venue||'TBA'}</div><div class="show-loc">${show.city||''}${show.state?', '+show.state:''}</div><div class="show-meta">${price}</div></div>${tix}</div>`;
     }).join('');
   }catch(e){list.innerHTML='<div class="no-shows">Could not load shows. Check back soon.</div>'}
 }
