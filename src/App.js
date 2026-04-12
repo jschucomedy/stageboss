@@ -3265,6 +3265,7 @@ function StageBoss({user,onLogout,accessToken}){
         websiteNotes: v.notes || '',
         websiteShowVenue: true,
         websiteShowCity: true,
+        websiteSites: v.websiteSites || ['jason', 'phil', 'mainevent'],
         status: v.status,
         updatedAt: new Date().toISOString(),
       }))
