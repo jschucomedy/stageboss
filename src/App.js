@@ -3244,8 +3244,7 @@ function StageBoss({user,onLogout,accessToken}){
       v.websitePublish &&
       ['Confirmed', 'Advancing'].includes(v.status) &&
       !tours.some(t => (t.dates || []).some(d =>
-        (d.venueId === v.id || d.venue === v.venue) &&
-        (d.date === v.showDate || d.date === v.targetDates)
+        d.venueId === v.id || d.venue === v.venue
       ))
     );
 
