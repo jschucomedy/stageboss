@@ -3239,6 +3239,37 @@ function StageBoss({user,onLogout,accessToken}){
       });
     });
 
+    // Inject venue card standalone shows into updatedTours so Supabase has a tour entry
+    const standaloneVenues = venues.filter(v =>
+      v.websitePublish &&
+      ['Confirmed', 'Advancing'].includes(v.status) &&
+      !tours.some(t => (t.dates || []).some(d =>
+        (d.venueId === v.id || d.venue === v.venue) &&
+        (d.date === v.showDate || d.date === v.targetDates)
+      ))
+    );
+
+    const standaloneTour = standaloneVenues.length > 0 ? {
+      id: 'standalone_venues',
+      name: 'Standalone Shows',
+      dates: standaloneVenues.map(v => ({
+        id: v.id,
+        venueId: v.id,
+        venue: v.venue || '',
+        city: v.city || '',
+        state: v.state || '',
+        date: v.showDate || v.targetDates || '',
+        websitePublish: true,
+        websiteTicketUrl: v.websiteTicketUrl || '',
+        websitePrice: v.ticketPrice || '',
+        websiteNotes: v.notes || '',
+        websiteShowVenue: true,
+        websiteShowCity: true,
+        status: v.status,
+        updatedAt: new Date().toISOString(),
+      }))
+    } : null;
+
     // Also sync websiteTicketUrl back into tours dates so sites can read it
     const updatedTours = tours.map(tour => ({
       ...tour,
@@ -3266,7 +3297,7 @@ function StageBoss({user,onLogout,accessToken}){
         ...currentData,
         venues,
         templates,
-        tours: updatedTours,
+        tours: standaloneTour ? [...updatedTours, standaloneTour] : updatedTours,
         comedians,
         published_shows: allPublished,
         published_at: new Date().toISOString(),
@@ -9753,8 +9784,6 @@ ${creditsHtml}${videoHtml}${showsHtml}
                 <div style={{fontSize:9,textTransform:'uppercase',letterSpacing:2,color:'#bbb',marginBottom:3}}>Booking Contact</div>
                 <div style={{fontSize:13,fontWeight:700,color:'#6c3aed'}}>{bookingEmail}</div>
                 {website&&<div style={{fontSize:10,color:'#999',marginTop:2}}>{website}</div>}
-              </div>
-              <div style={{textAlign:'right'}}>
                 <div style={{fontSize:12,color:'#6c3aed',fontWeight:700}}>Main Event Comedy Entertainment</div>
                 <div style={{fontSize:10,color:'#bbb'}}>maineventcomedy.com</div>
               </div>
