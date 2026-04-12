@@ -335,7 +335,8 @@ const SB_KEY = 'sb_publishable_SoEfhh5CMIBOHc4oGyMCpg_4oqZmyET';
 const OWNER_EMAIL = 'jschucomedy@gmail.com';
 const SITE_KEY = 'jason'; // filters shows marked for Jason's site
 
-async function loadShows() {
+async // v2
+function loadShows() {
   const list = document.getElementById('shows-list');
   try {
     const res = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(OWNER_EMAIL)}&select=data`, {
