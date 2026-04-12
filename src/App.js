@@ -3243,9 +3243,12 @@ function StageBoss({user,onLogout,accessToken}){
     const standaloneVenues = venues.filter(v =>
       v.websitePublish &&
       ['Confirmed', 'Advancing'].includes(v.status) &&
-      !tours.some(t => (t.dates || []).some(d =>
-        d.venueId === v.id || d.venue === v.venue
-      ))
+      !tours.some(t => (t.dates || []).some(d => {
+        if (d.venueId === v.id) return true;
+        const a = (d.venue || '').toLowerCase().trim();
+        const b = (v.venue || '').toLowerCase().trim();
+        return a === b || a.includes(b) || b.includes(a);
+      }))
     );
 
     const standaloneTour = standaloneVenues.length > 0 ? {
