@@ -336,7 +336,7 @@ const OWNER_EMAIL = 'jschucomedy@gmail.com';
 const SITE_KEY = 'jason'; // filters shows marked for Jason's site
 
 async // v2
-function loadShows() {
+async function loadShows() {
   const list = document.getElementById('shows-list');
   try {
     const res = await fetch(`${SB_URL}/rest/v1/userdata?email=eq.${encodeURIComponent(OWNER_EMAIL)}&select=data`, {
@@ -480,3 +480,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script></body>
 </html>
+
