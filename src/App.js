@@ -3244,11 +3244,15 @@ function StageBoss({user,onLogout,accessToken}){
       v.websitePublish &&
       ['Confirmed', 'Advancing'].includes(v.status) &&
       !tours.some(t => (t.dates || []).some(d => {
-        if (d.venueId === v.id) return true;
-        const a = (d.venue || '').toLowerCase().trim();
-        const b = (v.venue || '').toLowerCase().trim();
-        return a === b || a.includes(b) || b.includes(a);
-      }))
+      if (d.venueId === v.id) return true;
+      const a = (d.venue || '').toLowerCase().trim();
+      const b = (v.venue || '').toLowerCase().trim();
+      const nameMatch = a === b || a.includes(b) || b.includes(a);
+      const vDate = (v.showDate || v.targetDates || '').slice(0,10);
+      const dDate = (d.date || '').slice(0,10);
+      const dateMatch = vDate && dDate && vDate === dDate;
+      return nameMatch && dateMatch;
+    }))
     );
 
     const standaloneTour = standaloneVenues.length > 0 ? {
@@ -3586,7 +3590,7 @@ function StageBoss({user,onLogout,accessToken}){
   const stlV=settlementId?getV(settlementId):null;
   const srV=showReportId?getV(showReportId):null;
   const editTpl=editTemplateId?templates.find(t=>t.id===editTemplateId):null;
-  const editTour=editTourId?tours.find(t=>t.id===editTourId):null;
+  const editTour=editTourId?tours.find(t=>String(t.id)===String(editTourId)):null;
   const co=composeId?(composeOpts[composeId]||{templateId:'tmpl_jason_phil_standard',customDates:'',customNote:''}):{};
   function setCo(id,fields){setComposeOpts(p=>({...p,[id]:{...(p[id]||{templateId:'tmpl_jason_phil_standard',customDates:'',customNote:''}), ...fields}}));}
 
@@ -3744,7 +3748,8 @@ function StageBoss({user,onLogout,accessToken}){
       if(!d.venue||!d.venue.trim()) return; // skip blank
       const alreadyExists = venues.some(v =>
         v.venue.toLowerCase().trim() === d.venue.toLowerCase().trim() &&
-        (v.city||'').toLowerCase().trim() === (d.city||'').toLowerCase().trim()
+        (v.city||'').toLowerCase().trim() === (d.city||'').toLowerCase().trim() &&
+          (v.targetDates||'') === (d.date||'')
       );
       if(!alreadyExists){
         newVenues.push({
@@ -5690,7 +5695,7 @@ function StageBoss({user,onLogout,accessToken}){
 
       {/* == TOUR PANEL == */}
       <Panel open={tourOpen} onClose={()=>{setTourOpen(false);setEditTourId(null);}} title={editTour?editTour.name:'[bus] New Tour'}>
-        <TourEditor tour={editTour} onSave={saveTour} onCancel={()=>{setTourOpen(false);setEditTourId(null);}} venues={venues} comedians={comedians}/>
+        <TourEditor key={editTourId||'new'} tour={editTour} onSave={saveTour} onCancel={()=>{setTourOpen(false);setEditTourId(null);}} venues={venues} comedians={comedians}/>
       </Panel>
 
       {/* == IMPORT PANEL == */}
