@@ -3240,7 +3240,7 @@ function StageBoss({user,onLogout,accessToken}){
     });
 
     // Inject venue card standalone shows into updatedTours so Supabase has a tour entry
-    const standaloneVenues = venues.filter(v =>
+    console.log("ALL VENUES:",venues.map(v=>({n:v.venue,pub:v.websitePublish,status:v.status}))); const standaloneVenues = venues.filter(v =>
       v.websitePublish &&
       ['Confirmed', 'Advancing'].includes(v.status) &&
       !tours.some(t => (t.dates || []).some(d => {
