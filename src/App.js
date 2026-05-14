@@ -3248,7 +3248,7 @@ function StageBoss({user,onLogout,accessToken}){
       const a = (d.venue || '').toLowerCase().trim();
       const b = (v.venue || '').toLowerCase().trim();
       const nameMatch = a === b || a.includes(b) || b.includes(a);
-      const vDate = (v.showDate || v.targetDates || '').slice(0,10);
+      const vDate = (r=>(r.includes('/')?r.slice(6,10)+'-'+r.slice(0,2)+'-'+r.slice(3,5):r.slice(0,10)))(v.showDate||v.targetDates||'');
       const dDate = (d.date || '').slice(0,10);
       const dateMatch = vDate && dDate && vDate === dDate;
       return nameMatch && dateMatch;
