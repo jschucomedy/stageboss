@@ -3223,12 +3223,14 @@ function StageBoss({user,onLogout,accessToken}){
         state: v.state || '',
         date: v.showDate || v.targetDates || '',
         ticketUrl: v.websiteTicketUrl || v.ticketLink || '',
+        websiteTicketUrl: v.websiteTicketUrl || v.ticketLink || '',
         ticketPrice: String(v.ticketPrice || ''),
         notes: v.websiteNotes || '',
         showVenue: true,
         showCity: true,
         showDate: true,
         showTickets: !!(v.websiteTicketUrl || v.ticketLink),
+        websiteShowTickets: !!(v.websiteTicketUrl || v.ticketLink),
         showPrice: !!v.ticketPrice,
         sites: v.websiteSites || ['jason', 'phil', 'mainevent'],
         package: v.package || 'Jason + Phil',
@@ -3236,6 +3238,22 @@ function StageBoss({user,onLogout,accessToken}){
         updatedAt: new Date().toISOString(),
       });
     });
+
+    // Also sync websiteTicketUrl back into tours dates so sites can read it
+    const updatedTours = tours.map(tour => ({
+      ...tour,
+      dates: (tour.dates || []).map(d => {
+        const matchingVenue = venues.find(v =>
+          v.websitePublish && v.websiteTicketUrl &&
+          (v.venue === d.venue || v.id === d.venueId) &&
+          (v.showDate === d.date || v.targetDates === d.date)
+        );
+        if (matchingVenue && matchingVenue.websiteTicketUrl && !d.websiteTicketUrl) {
+          return {...d, websiteTicketUrl: matchingVenue.websiteTicketUrl};
+        }
+        return d;
+      })
+    }));
 
     // Sort by date ascending
     allPublished.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -3248,7 +3266,7 @@ function StageBoss({user,onLogout,accessToken}){
         ...currentData,
         venues,
         templates,
-        tours,
+        tours: updatedTours,
         comedians,
         published_shows: allPublished,
         published_at: new Date().toISOString(),
@@ -4991,7 +5009,7 @@ function StageBoss({user,onLogout,accessToken}){
             {dv.websitePublish&&<>
               <div style={{marginBottom:8}}>
                 <label style={{fontSize:9,color:'rgba(200,200,255,0.5)',textTransform:'uppercase',letterSpacing:'0.1em',display:'block',marginBottom:4}}>Ticket URL</label>
-                <input style={{background:'rgba(10,10,20,0.6)',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'8px 10px',color:'#f1f0ff',fontSize:12,width:'100%',fontFamily:'inherit'}} defaultValue={dv.websiteTicketUrl||''} placeholder="https://ticketmaster.com/..." onBlur={e=>upd(dv.id,{websiteTicketUrl:e.target.value})}/>
+                <input style={{background:'rgba(10,10,20,0.6)',border:'1px solid rgba(0,184,148,0.3)',borderRadius:8,padding:'8px 10px',color:'#f1f0ff',fontSize:12,width:'100%',fontFamily:'inherit'}} value={dv.websiteTicketUrl||''} placeholder="https://ticketmaster.com/..." onChange={e=>upd(dv.id,{websiteTicketUrl:e.target.value})}/>
               </div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
                 {[{key:'jason',label:"Jason's Site"},{key:'phil',label:"Phil's Site"},{key:'mainevent',label:"Main Event"}].map(site=>{
@@ -9735,8 +9753,6 @@ ${creditsHtml}${videoHtml}${showsHtml}
                 <div style={{fontSize:9,textTransform:'uppercase',letterSpacing:2,color:'#bbb',marginBottom:3}}>Booking Contact</div>
                 <div style={{fontSize:13,fontWeight:700,color:'#6c3aed'}}>{bookingEmail}</div>
                 {website&&<div style={{fontSize:10,color:'#999',marginTop:2}}>{website}</div>}
-              </div>
-              <div style={{textAlign:'right'}}>
                 <div style={{fontSize:12,color:'#6c3aed',fontWeight:700}}>Main Event Comedy Entertainment</div>
                 <div style={{fontSize:10,color:'#bbb'}}>maineventcomedy.com</div>
               </div>
@@ -9753,4 +9769,3 @@ ${creditsHtml}${videoHtml}${showsHtml}
 }
 
 export default function WrappedApp(){ return <ErrorBoundary><App/></ErrorBoundary>; }
-grep -n "published_shows\|allPublished" src/App.js | head -20
