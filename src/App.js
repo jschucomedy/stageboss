@@ -3184,7 +3184,7 @@ function StageBoss({user,onLogout,accessToken}){
   async function publishShowsToWebsites() {
     const allPublished = [];
 
-    // Collect from tours
+    // Collect from tours (including standalone_venues tour)
     tours.forEach(tour => {
       (tour.dates || []).forEach(d => {
         if (!d.websitePublish) return;
@@ -3196,12 +3196,13 @@ function StageBoss({user,onLogout,accessToken}){
           state: d.state || '',
           date: d.date || '',
           ticketUrl: d.websiteTicketUrl || '',
+          websiteTicketUrl: d.websiteTicketUrl || '',
           ticketPrice: d.websitePrice || String(d.ticketPrice || ''),
           notes: d.websiteNotes || '',
           showVenue: d.websiteShowVenue !== false,
           showCity: d.websiteShowCity !== false,
           showDate: d.websiteShowDate !== false,
-          showTickets: d.websiteShowTickets !== false,
+          showTickets: !!(d.websiteTicketUrl),
           showPrice: !!d.websiteShowPrice,
           sites: d.websiteSites || ['jason', 'phil', 'mainevent'],
           package: d.package || tour.package || 'Jason + Phil',
@@ -3211,17 +3212,32 @@ function StageBoss({user,onLogout,accessToken}){
       });
     });
 
-    // Collect confirmed standalone venues
-    venues.forEach(v => {
-      if (!v.websitePublish) return;
-      if (!['Confirmed', 'Advancing'].includes(v.status)) return;
+    // Collect confirmed standalone venue cards NOT already in a tour
+    const tourVenueIds = new Set();
+    tours.forEach(t => (t.dates || []).forEach(d => { if (d.venueId) tourVenueIds.add(d.venueId); }));
+
+    const standaloneVenues = venues.filter(v =>
+      v.websitePublish &&
+      ['Confirmed', 'Advancing'].includes(v.status) &&
+      !tourVenueIds.has(v.id)
+    );
+
+    // Normalize date from MM/DD/YYYY to YYYY-MM-DD
+    const normalizeDate = (raw) => {
+      if (!raw) return '';
+      const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      return m ? m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0') : raw.slice(0,10);
+    };
+
+    standaloneVenues.forEach(v => {
+      const date = normalizeDate(v.showDate || v.targetDates || '');
       allPublished.push({
         id: v.id,
         tourName: '',
         venue: v.venue || '',
         city: v.city || '',
         state: v.state || '',
-        date: v.showDate || v.targetDates || '',
+        date,
         ticketUrl: v.websiteTicketUrl || v.ticketLink || '',
         websiteTicketUrl: v.websiteTicketUrl || v.ticketLink || '',
         ticketPrice: String(v.ticketPrice || ''),
@@ -3230,7 +3246,6 @@ function StageBoss({user,onLogout,accessToken}){
         showCity: true,
         showDate: true,
         showTickets: !!(v.websiteTicketUrl || v.ticketLink),
-        websiteShowTickets: !!(v.websiteTicketUrl || v.ticketLink),
         showPrice: !!v.ticketPrice,
         sites: v.websiteSites || ['jason', 'phil', 'mainevent'],
         package: v.package || 'Jason + Phil',
@@ -3239,21 +3254,7 @@ function StageBoss({user,onLogout,accessToken}){
       });
     });
 
-    // Inject venue card standalone shows into updatedTours so Supabase has a tour entry
-    console.log("ALL VENUES:",venues.map(v=>({n:v.venue,pub:v.websitePublish,status:v.status}))); const standaloneVenues = venues.filter(v =>
-      v.websitePublish &&
-      ['Confirmed', 'Advancing'].includes(v.status) &&
-      !tours.some(t => (t.dates || []).some(d => {
-      if (d.venueId === v.id) return true;
-      const a = (d.venue || '').toLowerCase().trim();
-      const b = (v.venue || '').toLowerCase().trim();
-      const nameMatch = a === b || a.includes(b) || b.includes(a);
-      const vDate = (r=>(r.includes('/')?r.slice(6,10)+'-'+r.slice(0,2)+'-'+r.slice(3,5):r.slice(0,10)))(v.showDate||v.targetDates||'');
-      const dDate = (d.date || '').slice(0,10);
-      return nameMatch;
-    }))
-    );
-
+    // Build standalone_venues tour entry for sites that read from tours
     const standaloneTour = standaloneVenues.length > 0 ? {
       id: 'standalone_venues',
       name: 'Standalone Shows',
@@ -3264,10 +3265,9 @@ function StageBoss({user,onLogout,accessToken}){
         city: v.city || '',
         state: v.state || '',
         websitePublish: true,
-        websiteTicketUrl: v.websiteTicketUrl || '',
-        date: (() => { const r = v.showDate || v.targetDates || ''; const m = r.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0') : r; })(),
-        websitePrice: v.showPrice !== false ? (v.ticketPrice || '') : '',
-        showPrice: v.showPrice !== false,
+        websiteTicketUrl: v.websiteTicketUrl || v.ticketLink || '',
+        date: normalizeDate(v.showDate || v.targetDates || ''),
+        websitePrice: v.ticketPrice || '',
         websiteNotes: v.notes || '',
         websiteShowVenue: true,
         websiteShowCity: true,
@@ -3277,21 +3277,20 @@ function StageBoss({user,onLogout,accessToken}){
       }))
     } : null;
 
-    // Also sync websiteTicketUrl back into tours dates so sites can read it
-    const updatedTours = tours.map(tour => ({
-      ...tour,
-      dates: (tour.dates || []).map(d => {
-        const matchingVenue = venues.find(v =>
-          v.websitePublish && v.websiteTicketUrl &&
-          (v.venue === d.venue || v.id === d.venueId) &&
-          (v.showDate === d.date || v.targetDates === d.date)
-        );
-        if (matchingVenue && matchingVenue.websiteTicketUrl && !d.websiteTicketUrl) {
-          return {...d, websiteTicketUrl: matchingVenue.websiteTicketUrl};
-        }
-        return d;
-      })
-    }));
+    // Preserve existing tours exactly, only add ticket URLs if missing
+    const updatedTours = tours
+      .filter(t => t.id !== 'standalone_venues')
+      .map(tour => ({
+        ...tour,
+        dates: (tour.dates || []).map(d => {
+          if (d.websiteTicketUrl) return d;
+          const matchingVenue = venues.find(v =>
+            v.websitePublish && v.websiteTicketUrl &&
+            (v.id === d.venueId || v.venue === d.venue)
+          );
+          return matchingVenue ? {...d, websiteTicketUrl: matchingVenue.websiteTicketUrl} : d;
+        })
+      }));
 
     // Sort by date ascending
     allPublished.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
