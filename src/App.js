@@ -3295,6 +3295,8 @@ function StageBoss({user,onLogout,accessToken}){
     // Sort by date ascending
     allPublished.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
+    // Backup current tours and published_shows before overwriting
+    try { localStorage.setItem("sb_publish_backup", JSON.stringify({tours, published_shows: allPublished, backed_up_at: new Date().toISOString()})); } catch(e) {}
     setSyncing(true);
     try {
       const fetchResult = await cloudFetch(OWNER_EMAIL);
